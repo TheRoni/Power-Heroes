@@ -759,10 +759,64 @@ async function chunk6(browser) {
   check('the corner name, button label and icon follow the hero (Ember gets her flame back)', swapped.name === 'Ember' && swapped.label === 'Flame Wave' && swapped.flame && !swapped.star, JSON.stringify(swapped));
 }
 
+
+// ---------- Marlo: the mentor ----------
+const marloUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createMarlo } = await import('/src/marlo.js');
+  const out = {};
+  const make = () => { let sparks = 0; const marlo = createMarlo({ scene: new THREE.Scene(), emit: () => { sparks++; } }); return { marlo, sparks: () => sparks }; };
+  const run = (m, seconds, hero = null) => { for (let i = 0; i < Math.round(seconds * 30); i++) m.update(1 / 30, i / 30, hero); };
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+
+  { const { marlo } = make(); let parts = 0; marlo.group.traverse(() => { parts++; }); out.built = { parts, home: dist(marlo.position, { x: -5.4, z: -8.6 }), atHome: marlo.atHome, lantern: marlo.lantern }; }
+  { const { marlo } = make(); const start = { x: marlo.position.x, z: marlo.position.z }; marlo.walkTo(3, -2); run(marlo, 1); out.walk1 = dist(marlo.position, start); out.arrivedEarly = marlo.arrived; run(marlo, 6); out.arrived = { arrived: marlo.arrived, off: dist(marlo.position, { x: 3, z: -2 }), atHome: marlo.atHome }; }
+  { const { marlo } = make(); const hero = { x: -4.4, z: -8.6 }; run(marlo, 3, hero); out.aside = { apart: dist(marlo.position, hero), edge: Math.hypot(marlo.position.x, marlo.position.z) }; }
+  { const { marlo } = make(); marlo.walkTo(0, 0); run(marlo, 6); run(marlo, 2, { x: 1, z: 0 }); out.stays = dist(marlo.position, { x: 0, z: 0 }); }
+  { const { marlo } = make(); const hero = { x: marlo.position.x + 4, z: marlo.position.z }; run(marlo, 2, hero); out.facing = marlo.yaw; }
+  { const { marlo, sparks } = make(); marlo.raise(true); run(marlo, 2); out.lanternUp = marlo.lantern; const before = sparks(); run(marlo, 3); out.sparks = sparks() - before; marlo.raise(false); run(marlo, 2.5); out.lanternDown = marlo.lantern; }
+  { const { marlo } = make(); marlo.walkTo(30, 30); run(marlo, 14); out.edge = Math.hypot(marlo.position.x, marlo.position.z); }
+  { const { marlo } = make(); marlo.walkTo(2, 2); run(marlo, 8); marlo.goHome(); run(marlo, 8); out.home = { atHome: marlo.atHome, off: dist(marlo.position, { x: -5.4, z: -8.6 }) }; }
+  return out;
+};
+
+async function chunk7(browser) {
+  let { page } = await openGame(browser, 'marlo-unit');
+  const u = await page.evaluate(marloUnit);
+  check('Marlo is built from many parts and waits at his post, lantern lowered', u.built.parts > 30 && u.built.home < 0.01 && u.built.atHome && u.built.lantern === 0, JSON.stringify(u.built));
+  check('Marlo walks at 2.4 units a second and stops where he is sent', near(u.walk1, 2.4, 0.15) && !u.arrivedEarly && u.arrived.arrived && u.arrived.off < 0.16 && !u.arrived.atHome, JSON.stringify([u.walk1, u.arrived]));
+  check('at his post he shuffles aside when a hero comes close', u.aside.apart >= 2.4 && u.aside.edge <= 11.2001, JSON.stringify(u.aside));
+  check('sent somewhere, he stays put even with a hero beside him', u.stays < 0.2, `moved ${u.stays.toFixed(2)}`);
+  check('standing, he turns to face the hero', near(u.facing, Math.PI / 2, 0.06), `yaw=${u.facing.toFixed(2)}`);
+  check('his lantern rises and falls smoothly, and throws warm sparks while raised', u.lanternUp > 0.9 && u.lanternDown < 0.1 && u.sparks > 5, JSON.stringify([u.lanternUp, u.lanternDown, u.sparks]));
+  check('he never walks off the island', u.edge <= 11.2001, `distance=${u.edge.toFixed(2)}`);
+  check('goHome() sends him back to his post', u.home.atHome && u.home.off < 0.16, JSON.stringify(u.home));
+
+  // Live game: Marlo watches the fight, lantern up; Pip hovers by him in a conversation.
+  ({ page } = await openGame(browser, 'marlo-live'));
+  const first = await page.evaluate(() => { const G = window.__game; return { at: Math.hypot(G.marlo.position.x + 5.4, G.marlo.position.z + 8.6) }; });
+  check('in the live game Marlo is at his post', first.at < 0.5, `off by ${first.at.toFixed(2)}`);
+  await until(page, () => window.__game.marlo.lantern > 0.8);
+  check('he raises his lantern when the fight starts', true);
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } G.story.skip(); });
+  await until(page, () => window.__game.marlo.lantern < 0.2);
+  check('and lowers it when the fight is won', true);
+  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.marlo.walkTo(G.player.position.x + 2.2, G.player.position.z - 1.3); });
+  await until(page, () => window.__game.marlo.arrived);
+  await page.screenshot({ path: `${OUT}/stage4-2-marlo.png` });
+  await page.evaluate(() => window.__game.story.scene('lose'));
+  await until(page, () => { const G = window.__game; return Math.hypot(G.pip.group.position.x - G.marlo.position.x, G.pip.group.position.z - G.marlo.position.z) < 3.2 && G.pip.group.position.y > 3; });
+  check('in a conversation Pip floats by Marlo, above his shoulder', true);
+  await page.screenshot({ path: `${OUT}/stage4-2-pip-marlo.png` });
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => { const G = window.__game; return Math.hypot(G.pip.group.position.x - G.player.position.x, G.pip.group.position.z - G.player.position.z) < 3.2 && G.pip.group.position.y < 3.1; });
+  check('after it, Pip goes back to the hero', true);
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

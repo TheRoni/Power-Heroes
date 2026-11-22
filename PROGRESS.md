@@ -10,8 +10,9 @@
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
 - **Stage 4 in progress (built on Sonnet, one chunk per reply):** chunk 1 is done
-  (you play Sol; heroes are general). **Next: chunk 2, Keeper Marlo.**
-  Until chunk 3 rewrites the words, the story text still talks to "Ember".
+  (you play Sol; heroes are general) and chunk 2 is done (Keeper Marlo).
+  **Next: chunk 3, the prologue and the new words.** Until then the story text
+  still talks to "Ember".
 
 ## How we work
 - **Opus** plans stages and fixes hard problems. **Sonnet** builds from the
@@ -23,8 +24,8 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (118
-  checks in 6 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes).
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (131
+  checks in 7 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes, 7 Marlo).
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
   `/home/user/power-heroes`. Playwright and Chromium come with the container.
@@ -126,13 +127,33 @@ of Chapter 1. Ember arrives at the end as a rival.
   (`ui.setHero`). The tests were updated, plus a new group 6 (13 checks) for Sol.
 - `tests/look-heroes.js` renders close-ups of any hero: `node tests/look-heroes.js <folder> sol ember`.
 
-**Chunk 2: Keeper Marlo.**
+**Chunk 2: Keeper Marlo. DONE.**
 - New `src/marlo.js`: tall, broad old warrior built from shapes: grey-blue
   cloak, white beard and bushy brows, a staff topped with a warm, flickering
   lantern (a glow sprite). Idle: leans on the staff, beard sways a little.
   He can walk to a spot. During waves he stands at the far edge of the arena,
   lantern raised.
 - Pip floats by Marlo in scenes and by you in fights.
+
+**Chunk 2 build notes:**
+- New `src/marlo.js` (about 190 lines). He is taller and broader than the
+  heroes: grey-blue cloak with a gold hem, steel shoulder guard, white beard and
+  hair, bushy raised brows, a moustache, a crescent-and-star pin (the crest that
+  matters in Chapter 2 to 4), and a staff with a flickering lantern that throws
+  warm sparks. Standing, he breathes, his beard sways, and he turns to watch the hero.
+- API: `walkTo(x, z)` (2.4 units a second, he stays there), `goHome()`,
+  `raise(true/false)` (lantern up or down, eased), `arrived`, `atHome`, `lantern`.
+- His post is at the north-west edge (`HOME` in `marlo.js`). At his post he
+  shuffles aside when the hero walks into him. `main.js` raises his lantern
+  while a wave is on.
+- Pip hovers by Marlo (higher, above his shoulder) during a conversation when
+  Marlo is within 5 units of the hero, otherwise by the hero. Chunk 3 will walk
+  Marlo over to the hero for each scene.
+- Small refactors: `createGlow` (in `pip.js`) is shared by Pip and Marlo's
+  lantern; `hero-models.js` exports `lambert`, `part` and `starShape`; Pip's
+  `update` takes a hover height.
+- Tests: group 7 (13 checks). `tests/look-heroes.js` also draws Marlo:
+  `node tests/look-heroes.js <folder> marlo`.
 
 **Chunk 3: the Prologue (the tutorial) and the new words.**
 - `story.js`: a scene line can wait for the player to do something, hiding the

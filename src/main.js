@@ -7,6 +7,7 @@ import { HEROES } from './heroes-data.js';
 import { createPowers } from './powers.js';
 import { createWaves } from './waves.js';
 import { createPip } from './pip.js';
+import { createMarlo } from './marlo.js';
 import { createStory } from './story.js';
 import { CHAPTER } from './story-data.js';
 import { createUI } from './ui.js';
@@ -88,6 +89,7 @@ const powers = createPowers({
   },
 });
 const pip = createPip({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
+const marlo = createMarlo({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
 const story = createStory({
   camera: world.camera,
   anchor: pip.group,
@@ -140,6 +142,7 @@ function restart() {
   said.first = said.hurt = said.low = false;
   waveHitTimer = -1;
   soon.length = 0;
+  marlo.goHome();
   waves.start();
 }
 
@@ -178,7 +181,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -203,7 +206,11 @@ function frame(now) {
   world.follow(player.position, player.velocity, dt, false);
   world.update(dt, gameTime);
   story.update(realDt);
-  pip.update(realDt, now / 1000, player.position);
+  marlo.raise(waves.state === 'spawning' || waves.state === 'fighting');   // he holds his lantern up while the fight is on
+  marlo.update(realDt, now / 1000, player.position);
+  // Pip stays by the hero, but in a conversation Pip hovers by Marlo if he has come over to talk.
+  const marloHere = story.active && Math.hypot(marlo.position.x - player.position.x, marlo.position.z - player.position.z) < 5;
+  pip.update(realDt, now / 1000, marloHere ? marlo.position : player.position, marloHere ? 3.5 : 2.7);
 
   for (let i = soon.length - 1; i >= 0; i--) {
     soon[i].left -= realDt;

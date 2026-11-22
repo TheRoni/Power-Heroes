@@ -1,8 +1,8 @@
 // hero-models.js: the look of each hero, built from simple shapes. hero.js moves and animates whatever is built here.
 import * as THREE from '../lib/three.module.min.js';
 
-const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
-const part = (geometry, material, x = 0, y = 0, z = 0) => {
+export const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
+export const part = (geometry, material, x = 0, y = 0, z = 0) => {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
   return mesh;
@@ -126,7 +126,7 @@ const SOL_HAIR = [
   [-0.12, 1.62, 0.1, 0.1, 0.26, 0.1, 0.35, 0],
 ];
 
-function starShape(outer, inner) {   // a five-pointed star
+export function starShape(outer, inner) {   // a five-pointed star
   const shape = new THREE.Shape();
   for (let i = 0; i < 10; i++) {
     const radius = i % 2 ? inner : outer;

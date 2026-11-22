@@ -13,6 +13,7 @@ const HTML = `<!doctype html><html><body style="margin:0;background:#cfe9f7">
 <script type="module">
 import * as THREE from '/lib/three.module.min.js';
 import { createHero } from '/src/hero.js';
+import { createMarlo } from '/src/marlo.js';
 const r = new THREE.WebGLRenderer({ antialias: true });
 r.setSize(520, 520);
 r.shadowMap.enabled = true;
@@ -32,10 +33,15 @@ const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
 const heroes = {};
 window.shot = (kind, frames, mx, mz, cx, cy, cz, tx, ty, tz) => {
   for (const k in heroes) heroes[k].group.visible = k === kind;
+  if (!heroes[kind] && kind === 'marlo') {   // Marlo: walks when "running", raises his lantern when "pushed" up
+    const marlo = createMarlo({ scene: s });
+    heroes.marlo = { group: marlo.group, update: (dt, move, time) => { marlo.raise(move.z < 0); marlo.walkTo(move.x * 9, 0); marlo.update(dt, time, null); }, reset: () => { marlo.walkTo(0, 0); marlo.position.set(0, 0, 0); } };
+  }
   if (!heroes[kind]) { heroes[kind] = createHero({ scene: s, bound: 100, kind }); heroes[kind].group.visible = true; }
   const hero = heroes[kind];
   for (let i = 0; i < frames; i++) hero.update(1 / 30, { x: mx, z: mz }, 1.3 + i / 30);
   hero.group.position.set(0, 0, 0);
+  if (hero.reset && kind === 'marlo') hero.reset();
   cam.position.set(cx, cy, cz);
   cam.lookAt(tx, ty, tz);
   r.render(s, cam);
@@ -58,9 +64,10 @@ window.ready = true;
   });
   await page.goto('http://game.local/');
   await page.waitForFunction(() => window.ready === true, null, { timeout: 30000 });
-  const views = { idle: [3, 0, 0, 0, 1.3, 4.3, 0, 0.95, 0], 'run-side': [45, 1, 0, 3.6, 1.7, 3.8, 0, 0.9, 0], 'run-toward': [45, 0, 1, 0, 4.5, 5.5, 0, 0.9, 0] };
+  const heroViews = { idle: [3, 0, 0, 0, 1.3, 4.3, 0, 0.95, 0], 'run-side': [45, 1, 0, 3.6, 1.7, 3.8, 0, 0.9, 0], 'run-toward': [45, 0, 1, 0, 4.5, 5.5, 0, 0.9, 0] };
+  const marloViews = { idle: [60, 0, 0, 0, 1.8, 8.5, 0, 1.4, 0], raised: [90, 0, -1, 0, 1.8, 8.5, 0, 1.4, 0], walk: [45, 1, 0, 5.5, 2.4, 6.5, 0, 1.3, 0] };
   for (const kind of KINDS) {
-    for (const [name, v] of Object.entries(views)) {
+    for (const [name, v] of Object.entries(kind === 'marlo' ? marloViews : heroViews)) {
       await page.evaluate(([k, a]) => window.shot(k, ...a), [kind, v]);
       await page.screenshot({ path: `${OUT}/${kind}-${name}.png` });
     }
