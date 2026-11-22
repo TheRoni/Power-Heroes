@@ -3,10 +3,11 @@
 Working title. The director (the project owner) can rename it at any time.
 
 ## Purpose
-A bright, fast, 3D arena game for phone and computer. You pick a squad of
-heroes, each with a superpower, and defend floating islands from waves of
-creatures. Choosing the right heroes, combining their powers, and growing
-their power without limit is what makes it rewarding.
+A bright, fast, 3D arena game for phone and computer, with an epic, emotional
+story. You are the Newcomer, a hero who fell from the sky, trained by an old
+warrior. You and your squad of heroes, each with a superpower, defend floating
+islands from waves of creatures. Choosing the right heroes, combining their
+powers, and growing their Power without limit is what makes it rewarding.
 
 ## Feel
 - Fun first. Short rounds (about 2 to 4 minutes) that make you want "one more".
@@ -24,49 +25,31 @@ their power without limit is what makes it rewarding.
 - Every round gives a reward, even a lost one.
 
 ## Story
-**Setting:** the Sky Isles, floating islands kept aloft and colourful by the
-**Heartlight**, a giant crystal at the centre of the world.
+The full story, characters, clues and music cues are in **`STORY.md`** (the
+story bible). Read it before writing any story content. In short:
+- **You are the Newcomer** (default name Sol), a Light hero who fell from the
+  sky as a star, with no memory and Power that climbs without limit.
+- **Keeper Marlo**, once the strongest hero alive, finds you and becomes your
+  mentor. His lessons are the tutorial. He is searching for his lost daughter.
+- **Nyx, Queen of the Glooms, is that daughter, Lyra**, lost in the Rift while
+  chasing Power alone. Nobody knows at first. Marlo recognises her in Chapter 4
+  and dies shielding you. In the finale his flute and memories bring her back.
+- **Everyone chases Power**, and the game celebrates it: Rankings, Trials,
+  Awakenings, rivalries. The question is what the Power is for. The answer:
+  it grows biggest when shared.
+- 5 chapters (Sunmeadow, Tidecove, Stormspire, Cinderpeak, the Heartlight), a
+  prologue, an epilogue, then **The Rift**, an endless mode.
 
-**Problem:** shadow creatures called **Glooms** are draining the colour from
-each isle. Grey isles start to sink.
-
-**Arc (5 chapters, one isle each):**
-1. **Sunmeadow** (Nature isle). Meet Pip and the first three heroes.
-   Boss: **General Bramble**.
-2. **Tidecove** (Water isle). A rival hero, **Rook**, shows up and competes.
-   Boss: **General Undertow**.
-3. **Stormspire** (Storm isle). Rook is beaten by the Glooms; you save him and
-   he joins the squad. Boss: **General Static**.
-4. **Cinderpeak** (Fire isle). Clues that the Glooms are led by a fallen hero.
-   Boss: **General Scorch**.
-5. **The Heartlight.** The villain is **Nyx**, the very first hero. She chased
-   power with no limit, alone, and it hollowed her out into Shadow. You beat
-   her as a team, and she can be redeemed and join you.
-
-**Theme:** power grows without limit, but it means most when it is shared.
-Nyx went alone; your squad wins together.
-
-**After the story:** **The Rift**, an endless mode where waves and power keep
-climbing forever.
-
-**Writing style:** short, warm, a bit funny. One or two lines between rounds.
-Never long speeches.
+**Writing style:** short, warm, a bit funny. Big moments are quiet: a few plain
+words, never a speech.
 
 **How the story is told:**
-- **Pip**, a tiny glowing light-sprite, floats beside the hero, guides the
-  player and makes jokes. Pip has no pronoun in the text.
-- **Scenes** are short conversations you tap through. The game waits while
-  they play. One opens the chapter, and one comes before each win and
-  knocked-out screen. Lines can differ on a phone and on a computer.
-- **Bubbles** are one-liners from Pip that float by during a fight without
-  stopping it (a wave starts, the first colour pop, low health, a big Flame
-  Wave). A bubble never repeats the one before it, and some happen only once
-  per round.
+- **Pip**, a tiny glowing light-sprite and Marlo's helper, floats beside you
+  for jokes and tips. Pip has no pronoun in the text.
+- **Scenes** are conversations you tap through; the game waits. **Bubbles** are
+  one-liners during a fight that never stop it.
 - All the words live in `src/story-data.js`, so the story can change without
-  touching the game code.
-- **Chapter 1 so far:** Pip meets Ember and shows her the grey island. After
-  the fight the Heartlight brightens, Pip notices the Glooms were being led by
-  someone, and Tidecove is next.
+  touching the game code. Lines can differ on a phone and on a computer.
 
 ## Core rules
 - **Squad:** before a round, pick 3 heroes.
@@ -122,12 +105,12 @@ The milestones are not shown in advance. It should feel like a surprise.
 - Colours: Fire red-orange, Water blue, Storm yellow, Nature green.
 
 **Rare types (outside the circle):**
-- **Light** (gold-white): a few secret heroes.
+- **Light** (gold-white): you, the Newcomer, and Lyra before her fall.
 - **Shadow** (deep purple): Nyx and her strongest Glooms.
 - Light and Shadow deal 1.5× damage to each other, and normal damage to the rest.
 
 ## Heroes
-Planned roster: 15, unlocked over the story. **Bold** = in the first playable version.
+Planned roster: 15, unlocked over the story. **Bold** = in the next playable versions.
 
 | Hero | Type | Superpower | Style |
 |---|---|---|---|
@@ -144,8 +127,8 @@ Planned roster: 15, unlocked over the story. **Bold** = in the first playable ve
 | Bloom | Nature | Healing Grove: heals the squad while standing in it | support |
 | Boulder | Nature | Quake: the ground cracks in a line | heavy hitter |
 | Rook | Storm | Copycat: copies the last superpower used | rival, joins in chapter 3 |
-| Halo | Light | Sunburst: a blinding flash that hits the whole arena | secret |
-| Nyx | Shadow | Eclipse: darkens the arena; her attacks grow stronger | joins after the finale |
+| **You (Sol)** | Light | **Starburst:** a ring of light bursts out around you | the main character |
+| Lyra (Nyx) | Shadow and Light | Eclipse: darkens the arena; her attacks grow stronger | joins after the finale |
 
 ## Combos
 Shown with a name pop-up the first time they are found.
@@ -166,11 +149,13 @@ Shown with a name pop-up the first time they are found.
 
 **Bosses:** General Bramble, General Undertow, General Static,
 General Scorch, and Nyx. Each has a special attack pattern and a short taunt.
+The Generals were heroes who followed Nyx into the Rift; beaten, they are
+themselves again for one last line.
 
 ## Other characters (NPCs)
-- **Pip:** a tiny floating light-sprite. Guide and comic relief. Gives tips
-  and short story lines.
-- **Keeper Marlo:** the old guardian of the Heartlight. Gives story and wisdom.
+- **Keeper Marlo:** your mentor, the old guardian of the Heartlight. Teaches
+  each mechanic as a lesson. Stands at the arena edge during fights.
+- **Pip:** a tiny floating light-sprite, Marlo's helper. Jokes and tips.
 - **Colourfolk:** small villagers you rescue. Saved villagers cheer at the
   arena's edge, and sometimes throw healing fruit or power-ups into the fight.
 - **Mystery visitor (surprise):** sometimes a hidden hero appears mid-round to
@@ -226,6 +211,10 @@ home and the place between battles. No enemies, no timer.
 - The only image files are app icons (needed for the phone home screen).
 - Sound is made in code with the Web Audio API. No audio files.
   Sound starts only after the first tap. A Mute button is always available.
+- **Music is built around a flute**, made in code: a soft tone with a little
+  breath noise and vibrato. One melody, **Lyra's Lullaby**, returns in many
+  moods; emotional scenes get a slow, sad solo flute with long silences. The
+  full list of music cues is in `STORY.md`.
 - **Offline and installable:** a web app manifest and a service worker
   (a small script that saves the game's files on the device).
 - **Saving progress:** Power, unlocks, and story progress are stored in the
@@ -240,6 +229,7 @@ home and the place between battles. No enemies, no timer.
 
 ## Folder structure (planned)
 ```
+STORY.md              the story bible: lore, characters, chapters, music cues
 index.html            the page that starts the game
 style.css             layout and on-screen buttons
 story.css             the conversation box and Pip's speech bubble
@@ -267,7 +257,10 @@ src/                  the game code, one job per file
   clan.js             clan member behaviour (daily activities)
   character-gen.js    random names, looks, types, Power
   ui.js               health bars, buttons, pop-ups, menus
-  audio.js            synthesized sound
+  hero-models.js      the look of each hero (built from shapes)
+  marlo.js            Keeper Marlo, the mentor
+  audio.js            synthesized sound effects and the Mute button
+  music.js            the flute and the songs
   save.js             saving progress
 ```
 

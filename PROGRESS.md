@@ -1,274 +1,166 @@
 # Power Heroes: Progress
 
 ## Status
-- Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1** (movement),
-  **Stage 2** (the first fight) and **Stage 3** (the story begins), all built
-  and tested.
-- Director feedback on Stage 1: it works on the phone, but it is "just moving
-  on land". True, that was the plan. Stage 2 is where the game starts.
-- Director approved the Stage 2 plan and asked for one-line updates, work
-  split into chunks (one chunk per reply), and a "next" prompt after each.
-- Director feedback on Stage 2: "It works." Then: "Just keep developing the
-  game. Add a story. Go." So the story was built next (Stage 3), ahead of the squad.
-- **Stage 3 is finished and republished to the Claude test link.** All 124
-  automatic checks pass (19 Stage 1, 78 Stage 2, 27 story), on the normal page
-  and on the Claude-wrapped page.
-- **Next: Stage 4, the squad** (Tide and Volt, hero swapping, types and
-  "SUPER!" hits, Shock Chain), with story scenes for meeting them. The
-  director said "Go", so it is built in chunks, one chunk per reply.
-- Rule note: "one file per reply" was paused for Stages 1, 2 and 3. For Stage 2
-  the director chose chunks instead (a few related files per reply).
+- Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
+  Stages 1 to 3 (movement, the first fight, the story begins). All 124
+  automatic checks pass on the normal page and on the Claude test link.
+- **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
+  hero who falls from the sky; **Keeper Marlo** is your mentor and teaches the
+  game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
+  music is **flute**, with sad flute for emotional scenes. Characters chase
+  Power as eagerly as the player. Details: `STORY.md`.
+- **Next: Stage 4, the Newcomer and Marlo** (plan below), built on Sonnet in
+  chunks: one chunk per reply, one-line updates, "next" to continue.
 
-## How we work on usage
-- **Opus:** planning each stage, reviewing, fixing hard problems.
-- **Sonnet:** building stages from the written plans below. (Recommended
-  default for coding.)
-- **Haiku:** only simple content (names, dialogue lines, data tables).
-- To build a stage: switch the session to Sonnet and say "Build Stage N".
+## How we work
+- **Opus** plans stages and fixes hard problems. **Sonnet** builds from the
+  written plans. **Haiku** only for simple repetitive content.
+- The director wants short one-line updates, no long paragraphs, and a
+  "say next" prompt after each chunk.
+- Each chunk: build, test in a browser, check against `CLAUDE.md`, update this
+  file, save to GitHub. At the end of a stage, republish the Claude test link.
+- Files stay under about 300 lines. New files are listed in the stage plan.
+
+## Tests (in `tests/`, not part of the game)
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (105
+  checks in 5 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story).
+- Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
+  for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
+  `/home/user/power-heroes`. Playwright and Chromium come with the container.
+- Add `ARTIFACT_PAGE=<page>` to test the Claude-wrapped page, built with
+  `node tests/make-artifact-page.js <page>`.
+- The tests skip the opening conversation (`story.skip()`); group 5 keeps it.
+- The test browser has no graphics card: allow generous waits, and never trust
+  its frame rate. Running several test files at once slows them down.
+- When the story changes (Stage 4), update the story checks in group 5.
 
 ## Director to-do (one time)
-- [ ] Turn on GitHub Pages. Not needed for testing now (the private Claude
-  link covers that), but Stage 6 needs it for offline play and installing on
-  the home screen. Open this link in a normal
-  web browser (not the GitHub app) while signed in to GitHub:
+- [ ] Turn on GitHub Pages (needed in Stage 8 for offline play and installing
+  on the home screen; the Claude test link covers testing until then). In a
+  normal web browser (not the GitHub app), signed in, open
   https://github.com/TheRoni/power-heroes/settings/pages
-  Under "Build and deployment": Source = **Deploy from a branch**,
-  Branch = **main** with folder **/ (root)**, then **Save**. After a few
-  minutes the game will be at `https://theroni.github.io/power-heroes/`.
-  If it says Pages needs a public repository, switch the repository to
-  Public first (Settings → General → bottom "Danger Zone" → Change visibility).
+  and set Source = **Deploy from a branch**, Branch = **main**, folder
+  **/ (root)**, then **Save**. If it says the repository must be public, tell Claude.
 
 ## Claude test link (private, for phone testing)
-- A private copy of the game is published in Claude as "Power Heroes" (find it
-  with the Artifact list). Only the director can open it. For the frame rate,
-  add `#debug` to the end of the link. The link is not saved here because this
-  repository is public.
-- **It must be republished after every stage.** Claude wraps the page in its
-  own `<html>`, so the published page is `index.html` with the `<title>` and
-  viewport moved to the top and the stylesheets (`style.css`, `story.css`)
-  placed inline. The game files (`src/*.js`, `lib/three.module.min.js`) are
-  published beside it. Run the same
-  browser checks on the wrapped page before publishing.
-- Limits inside Claude: no offline mode and no home-screen install (service
-  workers are blocked there). That is why Stage 6 needs GitHub Pages.
+- Published in Claude as "Power Heroes" (find it with the Artifact list). Only
+  the director can open it. Add `#debug` for the frame rate. The link is not
+  saved here because this repository is public.
+- **Republish after every stage:** build the page with
+  `node tests/make-artifact-page.js <page>` (Claude wraps pages in its own
+  `<html>`, so the script moves the title and viewport to the top and puts all
+  stylesheets inline), then publish it with every `src/*.js` file and
+  `lib/three.module.min.js` beside it. Test the wrapped page first.
+- Limits inside Claude: no offline mode, no home-screen install.
 
 ## Roadmap
-Each stage ends with something playable on a phone.
+### Done
+- [x] **Stage 1: Arena and movement.** Floating island, Ember runs with a
+  joystick or keys, the camera follows.
+- [x] **Stage 2: First fight.** Gloomlings in 3 waves, automatic fireballs,
+  the Flame Wave button, health bars, win and knocked-out screens, screen
+  shake, freeze-frame, the island's colour returning, confetti.
+- [x] **Stage 3: The story begins.** Pip, tap-through conversations, speech
+  bubbles, Chapter 1 told around the fight. (Its words get rewritten in Stage 4.)
 
-### Vertical slice (smallest fun version)
-- [x] **Stage 1: Arena and movement.** A 3D floating arena. Ember runs
-  around with joystick or keyboard. Camera follows. Judge: does moving feel good?
-  Built and tested in a browser. **Still to do: the director tries it on a phone.**
-  - [x] 1. `lib/three.module.min.js` (checksum matched npm; drew a 3D cube in a browser)
-  - [x] 2. `index.html` (28 lines)
-  - [x] 3. `style.css` (113 lines)
-  - [x] 4. `src/scene.js` (276 lines)
-  - [x] 5. `src/input.js` (107 lines)
-  - [x] 6. `src/hero.js` (159 lines)
-  - [x] 7. `src/main.js` (81 lines)
-- [x] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
-  health bars, Flame Wave superpower, hit effects, win and lose screens.
-  - [x] Chunk 1: enemies that fight back (`heroes-data.js`, `gloom.js`, `ui.js`; health, hit flash and knock-out in `hero.js`). 23 checks pass.
-  - [x] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks). 23 more checks pass.
-  - [x] Chunk 3: waves, win and lose (`waves.js`; banner, end screens, retry). 21 more checks pass.
-  - [x] Chunk 4: polish (screen shake, freeze-frame, colour returns, confetti). 12 more checks pass. Everything re-tested and the Claude test link republished.
-- [x] **Stage 3: The story begins.** Pip, the guide, and Chapter 1 told in
-  short conversations and one-liners. Built and tested (27 checks). New files:
-  `story-data.js`, `story.js`, `pip.js`, `story.css`.
-- [ ] **Stage 4: The squad.** Tide and Volt join (with story scenes). Hero
-  swap, type damage with "SUPER!" pop-ups, first combo (Shock Chain).
-- [ ] **Stage 5: Power and auras.** Power numbers, XP, power-up screen,
-  auras Spark/Glow/Blaze, Overdrive, saving progress.
-- [ ] **Stage 6: Sound and phone app.** Synthesized sound and music, Mute,
-  title screen, icons, offline play, install to home screen.
+### Next
+- [ ] **Stage 4: The Newcomer and Marlo.** You play Sol; Marlo's prologue
+  teaches the game; Ember meets you as a rival. (Plan below.)
+- [ ] **Stage 5: Flute music and sound.** Lyra's Lullaby and the other cues,
+  sound effects, a Mute button. (Plan below.)
+- [ ] **Stage 6: The squad.** Ember, Tide and Volt join; hero swapping; types
+  with "SUPER!" and "weak" pop-ups; the first combo (Shock Chain).
+- [ ] **Stage 7: Power, auras and Rankings.** Power numbers, XP, the power-up
+  moment, auras Spark to Blaze, Overdrive, a Power Rankings board, saving.
+- [ ] **Stage 8: Phone app.** Title screen with name entry, icons, offline
+  play, install to the home screen (needs GitHub Pages).
 
 ### The adventure
-- [ ] **Stage 7: Chapter 1, Sunmeadow.** 5 rounds, Thorn unlock, General
-  Bramble boss, more story. (Pip and the story system already exist from Stage 3.)
-- [ ] **Stage 8: Home Village, first version.** Walkable village,
-  10 random clan members with auras, Hero Hall to start battles.
-- [ ] **Stage 9: Village life.** Daily activities, day and night, talk,
-  spar, guest teammates, up to 30 clan members.
-- [ ] **Stage 10: More enemies and surprises.** Brute, Spitter, Shielder,
+- [ ] **Stage 9: Chapter 1, Sunmeadow, complete.** 5 rounds, General Bramble,
+  the campfire scene with Marlo's flute, the first memory shard.
+- [ ] **Stage 10: Home Village, first version.** Marlo's old clan: a walkable
+  village, clan members with auras, the Rankings board, the Hero Hall.
+- [ ] **Stage 11: Village life.** Daily activities, day and night, talk,
+  spar, guest teammates.
+- [ ] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder,
   Golden Gloom, mystery visitor, more combos.
-- [ ] **Stage 11: Chapters 2 and 3.** Tidecove and Stormspire, Rook,
-  more heroes, two bosses.
-- [ ] **Stage 12: Chapters 4 and 5.** Cinderpeak and the Heartlight, Nyx,
-  Awakening, Surge and Radiant auras.
-- [ ] **Stage 13: The Rift and secrets.** Endless mode, hidden aura forms,
-  Light heroes, final polish.
+- [ ] **Stage 13: Chapters 2 and 3.** Tidecove (Tide, Rook) and Stormspire
+  (Volt, saving Rook), two Generals, two shards.
+- [ ] **Stage 14: Chapters 4 and 5.** Cinderpeak (Nyx appears, Marlo's death,
+  the first Awakening), the Heartlight finale, the epilogue.
+- [ ] **Stage 15: The Rift and secrets.** Endless mode, hidden aura forms.
 
-## Stage 1 plan (approved and built)
-**Goal:** open the link on a phone, see a 3D island arena, move Ember around.
+## Stage 4 plan: the Newcomer and Marlo
+**Goal:** you play **Sol**, the Newcomer. The game opens with the falling star
+and Marlo's lessons (the tutorial), then the existing 3 waves become the start
+of Chapter 1. Ember arrives at the end as a rival.
 
-**New files (7):**
-1. `lib/three.module.min.js`: a saved copy of Three.js, version 0.170.0,
-   downloaded from the official npm package. Not written by hand.
-2. `index.html`: the page. Viewport set to block zoom and scrolling.
-   Loads `src/main.js` as a module (a JavaScript file that can load others).
-   Contains the joystick area.
-3. `style.css`: full-screen canvas, no scrolling, joystick look
-   (a translucent circle with a smaller knob), safe-area padding for notches.
-4. `src/main.js`: creates the renderer, scene, Ember, and input, then runs
-   the game loop (update and draw every frame, using time since the last
-   frame so speed is the same on every device). Resizes with the screen.
-5. `src/scene.js`: sky-blue background, soft sun and fill light, a round
-   floating island (grass top, rocky underside), a few rocks and trees at the
-   edge, simple shadows. Camera angled from above and behind, following
-   Ember smoothly. Zoomed so the arena fits both portrait and landscape.
-6. `src/input.js`: one shared "move direction" (x, z) from two sources.
-   Phone: joystick appears where the left thumb touches the left half of the
-   screen. Keyboard: WASD and Arrow keys. Diagonals are not faster.
-7. `src/hero.js`: Ember built from simple shapes (rounded body, head, eyes,
-   flame-shaped hair in red-orange). Accelerates and slows smoothly, turns to
-   face where she moves, small bounce while running, stays inside the island
-   edge.
+**Chunk 1: heroes made general, and Sol.**
+- New `src/hero-models.js`: the look of each hero. Move Ember's look here
+  (unchanged). Add **Sol**: white-and-gold outfit, short pale-gold hair in soft
+  swept-back spikes, a glowing star mark on the chest, tiny light motes
+  drifting from the hands. Same chibi size as Ember.
+- `hero.js` becomes general: `createHero({ scene, bound, kind, ... })`, with its
+  numbers from `HEROES[kind]` in `heroes-data.js` (Sol: health 100, Light).
+- Attacks per hero: Sol throws white-gold light darts (Ember keeps fireballs).
+  Sol's superpower is **Starburst**: a ring of light bursts out around Sol
+  (radius 4.5, damage 40, shove 2.5, recharge 5 s). Keep the Flame Wave code
+  for Ember. If `powers.js` would pass 300 lines, move the superpowers into a
+  new `src/superpowers.js`.
+- The power button shows the current hero's power (a star icon and
+  "Starburst" for Sol).
+- Update the tests to Sol; add Starburst checks (hits everything inside the
+  ring, nothing outside, shoves outward, recharge).
 
-**Feel targets:** quick, responsive, a bit springy. No stutter on a phone.
+**Chunk 2: Keeper Marlo.**
+- New `src/marlo.js`: tall, broad old warrior built from shapes: grey-blue
+  cloak, white beard and bushy brows, a staff topped with a warm, flickering
+  lantern (a glow sprite). Idle: leans on the staff, beard sways a little.
+  He can walk to a spot. During waves he stands at the far edge of the arena,
+  lantern raised.
+- Pip floats by Marlo in scenes and by you in fights.
 
-**Tests:** load in a headless browser (a browser running without a screen)
-at phone and desktop sizes, take screenshots, check there are no errors,
-simulate key presses and confirm Ember moves. Cannot test: real touch feel
-and real phone speed. The director tests those.
+**Chunk 3: the Prologue (the tutorial) and the new words.**
+- `story.js`: a scene line can wait for the player to do something, hiding the
+  box until it is done: `wait: 'move'` (walk into a glowing ring), `'strike'`
+  (beat one training Gloomling), `'power'` (use the superpower on a small group).
+- `scene.js`: a night look for the prologue (dark blue sky, the grey veil
+  stronger) and a falling star that streaks down with a flash; you rise from
+  a small glowing crater; then morning returns for Chapter 1.
+- Rewrite `src/story-data.js` from `STORY.md`: speakers Marlo, Sol, Pip, Ember.
+  Prologue: the falling star, "Power 1. ...No. Look at it climb.", the three
+  lessons, "Everyone in the Sky Isles chases Power. Most never ask what it's
+  for." Chapter 1 bubbles: Marlo and Pip, with Power talk. Win scene: Ember
+  arrives ("So YOU'RE the falling star. Power 120. You?"), Marlo: "Everyone
+  here wants more. So did I. So did she." Lose scene: Marlo helps you up.
+- Characters talk about Power the way players do: numbers, records, envy,
+  excitement. Never preachy.
+- Banners: "Prologue · The Falling Star", then "Chapter 1 · Sunmeadow".
+  "Play again" skips the prologue.
 
-**What was tested (18 checks, all passed, no errors in the browser console):**
-keyboard movement (WASD and arrows), top speed, slowing down, diagonals not
-faster, island edge (cannot leave, slides along it), losing window focus,
-resizing, touch joystick (left half only, analog strength, dead zone, lifting
-the thumb), screenshots in phone portrait, phone landscape, and desktop.
-Light on the graphics side: about 50 draw calls and 16,000 triangles.
+**Chunk 4:** full test run on both pages, polish, republish, update docs.
 
-**Changes and additions compared with the plan:**
-- The camera keeps at least 12 x 11 units of ground in view on any screen
-  shape (so Ember stays big on a phone), instead of fitting the whole island.
-  It follows 80% of the way to Ember and drifts slightly ahead of her.
-- The joystick ring follows the thumb if you drag past its edge, so changing
-  direction is quick.
-- Added a short hint at the bottom that fades after you start moving.
-- Added `?debug` (or `#debug`) at the end of the web address to show the frame rate.
-- Added scenery: floating rocks, drifting clouds, swaying grass, flowers.
+**New files:** `src/hero-models.js`, `src/marlo.js` (and maybe `src/superpowers.js`).
 
-## Stage 2 plan: First fight (approved, being built)
-**Goal:** a short fight you can win or lose, with Ember's first superpower.
-Stage 1 was only movement. This is where the game starts.
-
-**What the player does:**
-- Run around as now. Ember automatically throws a fireball at the nearest
-  Gloomling in range (range 7, one every 0.7 s, 10 damage).
-- Tap the big **Flame Wave** button (bottom right; Space on a keyboard): a cone
-  of fire in front of her, 6 long and about 100 degrees wide, 45 damage, pushes
-  Gloomlings back. It recharges in 5 s, shown as a ring on the button.
-- Beat 3 waves of Gloomlings: 4, then 6, then 8. A banner shows "Wave 1" and so
-  on. The next wave starts 1.5 s after the last Gloomling falls.
-- Win: "Isle saved!" with a Play again button. Lose: "Knocked out" with a Try
-  again button. One tap, full reset. No timer.
-
-**Gloomlings:** small dark-violet blobs with glowing eyes. 30 health, speed 3
-(Ember runs at 7, so she can always get away: a gentle first fight). They run
-at Ember and bump her for 8 damage, then pause 1 s. A short flash warns before
-each bump. They appear on the island rim, one every second.
-
-**Ember:** 100 health. A bar floats over her head and another sits in the
-corner of the screen. At 0 she is knocked out.
-
-**Feel:**
-- Gloomlings flash white when hit and burst into sparks of colour when they fall.
-- Floating damage numbers.
-- A small screen shake and a 60 ms freeze-frame when the Flame Wave lands, and a
-  smaller shake when Ember is hit.
-- The island starts washed-out and grey. Its colour returns with every Gloomling
-  defeated (the story: Glooms drain colour).
-
-**New files (5, need approval):**
-1. `src/heroes-data.js`: Ember's numbers (health, attack, Flame Wave). All tuning lives here.
-2. `src/gloom.js`: the Gloomling's look and behaviour.
-3. `src/powers.js`: the fireball and the Flame Wave (look and damage).
-4. `src/waves.js`: wave timing, spawning, win and lose.
-5. `src/ui.js`: health bars, the Flame Wave button, banners, damage numbers, end screens.
-
-**Existing files that change:** `index.html` (HUD elements), `style.css` (HUD
-styling), `src/main.js` (connects everything, screen shake), `src/hero.js`
-(health, hit flash, knocked-out pose).
-
-**Tests (automatic, in a browser):** Gloomlings spawn and chase; fireballs
-fire by themselves and do damage; Flame Wave hits only what is in the cone, has
-a cooldown, and works from Space and from a touch on the button (without
-steering the joystick); health bars; 3 waves end in the win screen; being
-knocked out shows the lose screen; both retry buttons reset everything; no
-errors. Cannot test: how hard or fun it feels on a real phone. The director
-judges that. Afterwards the Claude test link is republished.
-
-**Build notes (changes from the plan):**
-- `scene.js` also changes a little: it shares the camera angle so floating
-  health bars face the camera.
-- The temporary spawner in `main.js` is gone: `waves.js` now runs the round
-  (wave 1 after a 0.6 s pause, a 1.5 s break between waves, Gloomlings appear
-  one a second on the rim and away from Ember).
-- A win is shown 1.2 s after the last Gloomling falls, and "Knocked out" 1.5 s
-  after Ember goes down. Both end screens ignore taps for the first 0.8 s, so a
-  mashed Space or button cannot skip them. Space or Enter also press the button.
-- Polish (chunk 4): a small camera shake when the Flame Wave goes off (0.12),
-  when it lands (0.22) and when Ember is hit (0.16, bigger when she goes down).
-  A 60 ms freeze-frame the first time a Flame Wave lands. The island starts
-  under a grey veil (strength 0.6) that fades as Gloomlings are beaten, so a win
-  ends in full colour. Confetti shoots up when a wave is cleared (a big burst
-  after the last). With "reduce motion" switched on there is no shaking.
-- Not in the plan, added: the confetti, and the "Get ready…" and
-  "Wave 2 coming…" notes in the corner.
-- Style note: `style.css` is at 295 lines. If it grows past about 300, trim it
-  or ask the director before splitting it into a second file.
-- The Flame Wave **auto-aims** at the nearest Gloomling within range (so one
-  thumb is enough on a phone) and fires straight ahead if none is close.
-- A fireball only taps a Gloomling (0.3 units). The Flame Wave shoves 3 units
-  and stuns it briefly, which cancels a bump that was about to land.
-- The on-screen hint moved up to make room for the Flame Wave button.
-- Bug found by the tests and fixed: the button did not glow "ready" again.
-
-## Stage 3: The story begins (director: "Add a story. Go.")
-**Goal:** the game tells a story, in short, warm, funny lines.
-
-**Built:**
-- **Pip**, a glowing light-sprite guide, flies in and hovers beside Ember.
-- **Opening:** the chapter title ("Sunmeadow", "Chapter 1"), then a 6-line
-  conversation. The first wave starts when it ends. "Play again" skips it.
-- **Bubbles:** one-liners from Pip during the fight: each wave, the first
-  colour pop, the first bump, low health, a big Flame Wave, a cleared wave.
-- **Win and knocked-out conversations** (5 and 3 lines) come before the end
-  screens. The win scene hints at the bigger story: someone is leading the
-  Glooms, and Tidecove is next.
-- All the words are in `src/story-data.js`. Lines can differ on a phone and a
-  computer (the last opening line explains the controls).
-
-**New files (4):** `src/story-data.js`, `src/story.js`, `src/pip.js`, `story.css`.
-`index.html` links the new stylesheet, and `input.js` gained `release()`.
-
-**Roadmap change:** the story foundation moved here from the old Stage 6, so
-every later stage number went up by one.
-
-**Notes:**
-- A conversation pauses the game. Space, Enter and any tap go on to the next
-  line, and movement keys and the Flame Wave do nothing until it ends. The
-  first press finishes a line, the next goes on. Presses in the first quarter
-  second are ignored.
-- Pip's wave comments wait 1.2 s so they do not land on the wave banner.
-- The hint at the bottom steps aside while people talk.
-- The test files were updated: they skip the opening (`story.skip()`), because
-  it now comes first.
+## Stage 5 plan: flute music and sound (outline; detail it before building)
+- New `src/audio.js` (sound engine, starts on the first tap, Mute button that
+  remembers its setting), `src/music.js` (the flute voice and song player),
+  `src/music-data.js` (melodies written as note lists).
+- The flute: a soft sine tone with a quiet overtone, a puff of breath noise at
+  the start of each note, gentle vibrato after a moment, soft fade in and out,
+  a little echo.
+- Songs first: The Falling Star, Sunmeadow, Battle, Marlo's Theme, Lyra's
+  Lullaby, and the Lullaby in sorrow (for later emotional scenes). Each story
+  scene can name its music in `story-data.js`.
+- Sound effects: fireball, light dart, Starburst, Flame Wave, hits, "SUPER!",
+  a defeat pop, a bump, a soft blip for the typing text, buttons.
 
 ## Known problems and untested things
-- **Not tested (needs a real phone):** how the touch controls feel, real
-  frame rate, and whether pinch-zoom is fully blocked on iPhones.
-- GitHub Pages is not turned on yet. The private Claude test link is used for
-  phone testing instead (see above).
-- The test browser has no graphics card, so its frame-rate numbers mean nothing.
-- **Stage 3 not tested on a real phone:** how the conversation box and Pip's
-  bubbles read on a small screen, and whether 48 letters a second feels right.
-  There is no skip button yet: the opening plays once per visit.
-- **Stage 2 not tested on a real phone:** how hard or fun the fight feels, how
-  the Flame Wave button sits under a thumb, and the real frame rate. Every
-  number that sets the difficulty is in `src/heroes-data.js`.
-- Differences from `CLAUDE.md` that are still open: no sound yet (Stage 5);
-  Gloomlings have no type yet, so there is no "SUPER!" (Stage 3); only one hero,
-  so no swapping (Stage 3); no Power numbers, auras or Overdrive (Stage 4).
-- Trees only grow along the far side of the island. Nothing blocks Ember
-  except the island edge.
+- **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
+  iPhones, how hard the fight is, how the conversation box reads, and whether
+  48 letters a second feels right. Difficulty numbers are in `src/heroes-data.js`.
+- No skip button for conversations yet (the opening plays once per visit).
+- Open differences from `CLAUDE.md`: no sound yet (Stage 5); you are still Ember
+  until Stage 4; no types, swapping or combos (Stage 6); no Power numbers,
+  auras or Overdrive (Stage 7).
+- Trees only grow along the far side of the island.
