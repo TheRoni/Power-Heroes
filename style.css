@@ -63,7 +63,7 @@ body {
 #hint {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  bottom: calc(132px + env(safe-area-inset-bottom));   /* sits above the Flame Wave button's row */
   transform: translateX(-50%);
   width: max-content;
   max-width: calc(100% - 32px);
@@ -170,3 +170,46 @@ body {
   20% { transform: translate(-50%, -90%) scale(1.15); }
   to { opacity: 0; transform: translate(-50%, -200%) scale(1); }
 }
+
+/* The Flame Wave button, bottom right. A dark sweep shows the recharge; it glows when ready. */
+#wave-button {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  overflow: hidden;
+  color: #fff;
+  background: radial-gradient(circle at 50% 35%, #ffb347, #ff6a1f 60%, #d6361a);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  font: 700 11px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+  cursor: pointer;
+}
+#wave-button svg {
+  width: 38px;
+  height: 38px;
+  fill: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+#wave-button::after {   /* the dark recharge sweep */
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 50%;
+  background: conic-gradient(rgba(20, 10, 40, 0.62) calc(var(--left, 0) * 360deg), transparent 0);
+}
+#wave-button.ready { animation: wave-ready 1.2s ease-in-out infinite; }
+@keyframes wave-ready {
+  50% { box-shadow: 0 0 0 8px rgba(255, 200, 80, 0.45), 0 6px 16px rgba(0, 0, 0, 0.3); }
+}
+@media (prefers-reduced-motion: reduce) { #wave-button.ready { animation: none; } }

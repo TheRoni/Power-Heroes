@@ -138,7 +138,7 @@ export function createGloomling({ scene, x, z }) {
     flash = 1;
     shove.x += pushX * SHOVE_FADE;   // a shove of a given distance needs a starting speed of distance x fade rate
     shove.z += pushZ * SHOVE_FADE;
-    if (pushX || pushZ) stun = STUN_TIME;
+    if (Math.hypot(pushX, pushZ) >= 1) stun = STUN_TIME;   // only a real shove stuns it, not a small tap
     bar.group.visible = true;
     if (health <= 0) alive = false;
     return !alive;

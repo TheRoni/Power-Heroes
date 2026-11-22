@@ -196,6 +196,11 @@ export function createHero({ scene, bound, onHurt, onDown }) {
     return true;
   }
 
+  // Turns her to face a direction (used when she fires the Flame Wave at a Gloomling).
+  function face(angle) {
+    yaw = angle;
+  }
+
   // Starts over: full health, standing up, back in the middle.
   function reset() {
     health = EMBER.health;
@@ -209,7 +214,7 @@ export function createHero({ scene, bound, onHurt, onDown }) {
   }
 
   return {
-    group, position: group.position, velocity, update, takeHit, reset,
+    group, position: group.position, velocity, update, takeHit, reset, face,
     get health() { return health; },
     get maxHealth() { return EMBER.health; },
     get down() { return down; },

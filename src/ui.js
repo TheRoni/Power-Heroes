@@ -1,5 +1,5 @@
-// ui.js: everything drawn on top of the 3D picture: floating health bars and number pop-ups.
-// (The Flame Wave button, banners and end screens are added here in the next steps.)
+// ui.js: everything drawn on top of the 3D picture: floating health bars, number pop-ups and the Flame Wave button.
+// (Banners and end screens are added here in a later step.)
 import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
 
@@ -25,16 +25,46 @@ export function createFloatingBar(width, color) {
   return { group, set: (fraction) => { fill.scale.x = Math.max(0.0001, Math.min(1, fraction)); } };
 }
 
-export function createUI({ camera }) {
+// "onCast" is called when the player taps the Flame Wave button or presses Space.
+export function createUI({ camera, onCast }) {
   const healthFill = document.getElementById('hud-fill');
   const floaters = document.getElementById('floaters');
+  const waveButton = document.getElementById('wave-button');
   const point = new THREE.Vector3();
+
+  // The button reacts the moment a finger touches it. stopPropagation keeps the joystick from also seeing the touch.
+  waveButton.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onCast();
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Space') return;
+    event.preventDefault();
+    onCast();
+  });
 
   // Ember's health bar in the corner (0 = empty, 1 = full).
   function setHealth(fraction) {
     const f = Math.max(0, Math.min(1, fraction));
     healthFill.style.transform = `scaleX(${f})`;
     healthFill.classList.toggle('low', f < 0.3);
+  }
+
+  // The Flame Wave button. "progress" goes from 0 (just used) to 1 (ready). The dark sweep shows how much is left.
+  let lastLeft = '';
+  let lastReady = null;
+  function setWave(progress) {
+    const left = (1 - Math.max(0, Math.min(1, progress))).toFixed(3);
+    if (left !== lastLeft) {   // only touch the page when something actually changed
+      lastLeft = left;
+      waveButton.style.setProperty('--left', left);
+    }
+    const ready = progress >= 1;
+    if (ready !== lastReady) {
+      lastReady = ready;
+      waveButton.classList.toggle('ready', ready);
+    }
   }
 
   // A number that pops up over a spot in the world, then floats away.
@@ -51,5 +81,5 @@ export function createUI({ camera }) {
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, popNumber };
+  return { setHealth, setWave, popNumber };
 }

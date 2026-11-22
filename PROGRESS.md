@@ -6,8 +6,8 @@
   on land". True, that was the plan. Stage 2 is where the game starts.
 - Director approved the Stage 2 plan and asked for one-line updates, work
   split into chunks (one chunk per reply), and a "next" prompt after each.
-- **Now: building Stage 2 in 4 chunks.** Chunk 1 is done.
-- **Next: Chunk 2, fire power** (`powers.js`: fireballs, Flame Wave, the button, sparks).
+- **Now: building Stage 2 in 4 chunks.** Chunks 1 and 2 are done.
+- **Next: Chunk 3, waves, win and lose** (`waves.js`, banners, end screens, retry).
 - Rule note: "one file per reply" was paused for Stage 1. For Stage 2 the
   director chose chunks instead (a few related files per reply).
 
@@ -60,7 +60,7 @@ Each stage ends with something playable on a phone.
 - [ ] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
   health bars, Flame Wave superpower, hit effects, win and lose screens.
   - [x] Chunk 1: enemies that fight back (`heroes-data.js`, `gloom.js`, `ui.js`; health, hit flash and knock-out in `hero.js`). 23 checks pass.
-  - [ ] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks)
+  - [x] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks). 23 more checks pass.
   - [ ] Chunk 3: waves, win and lose (`waves.js`; banners, end screens, retry)
   - [ ] Chunk 4: polish (screen shake, freeze-frame, colour returns), tests, republish the Claude test link
 - [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
@@ -189,8 +189,14 @@ judges that. Afterwards the Claude test link is republished.
 **Build notes (changes from the plan):**
 - `scene.js` also changes a little: it shares the camera angle so floating
   health bars face the camera.
-- `main.js` has a TEMPORARY spawner (4 Gloomlings, and an automatic restart
-  after a knock-out) until `waves.js` replaces it in chunk 3.
+- `main.js` has a TEMPORARY spawner (4 Gloomlings, 4 more when all are beaten,
+  and an automatic restart after a knock-out) until `waves.js` replaces it in chunk 3.
+- The Flame Wave **auto-aims** at the nearest Gloomling within range (so one
+  thumb is enough on a phone) and fires straight ahead if none is close.
+- A fireball only taps a Gloomling (0.3 units). The Flame Wave shoves 3 units
+  and stuns it briefly, which cancels a bump that was about to land.
+- The on-screen hint moved up to make room for the Flame Wave button.
+- Bug found by the tests and fixed: the button did not glow "ready" again.
 
 ## Known problems and untested things
 - **Not tested (needs a real phone):** how the touch controls feel, real
