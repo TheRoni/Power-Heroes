@@ -154,6 +154,31 @@ General Scorch, and Nyx. Each has a special attack pattern and a short taunt.
 - **Mystery visitor (surprise):** sometimes a hidden hero appears mid-round to
   help. Finish the round to recruit them.
 
+## Home Village (open world)
+A calm, free-roaming 3D village on its own floating isle. It is your clan's
+home and the place between battles. No enemies, no timer.
+
+- **Walk anywhere** with the same controls as battle.
+- **Clan members:** randomly created characters, each with a name, type,
+  Power number, aura, look, and personality. You can see who is strong at a
+  glance by their aura.
+- **They live their own lives:** training at dummies, sparring each other
+  (with real power effects), fishing, cooking, chatting, napping, showing off.
+  Simple daily rhythm: busier by day, campfire gathering at night.
+- **Interact:** walk up and tap to talk (one short line), challenge to a
+  friendly spar, or invite them as a guest teammate for a battle.
+- **Your heroes live here too** and wander when not in your squad.
+- **The village grows:** each isle you save brings new buildings, rescued
+  Colourfolk, and stronger clan members.
+- **Places:** training yard, sparring ring, campfire square, pond,
+  Hero Hall (pick your squad and start battles), lookout tower (see the isles).
+- **Surprises:** a wandering stranger with an unusually huge aura, a Golden
+  Gloom sneaking through, clan members who Awaken in front of you.
+- **Random characters** are built in code from mix-and-match parts (body
+  shape, hair, hat, colours, accessories). No model files.
+- **Phone performance:** about 20 to 30 clan members at once, and characters
+  far from the camera use simpler shapes.
+
 ## Controls
 - **Phone:** virtual joystick (left thumb) to move. Right side: a big
   Superpower button, plus 3 hero portraits to swap (tap the glowing active
@@ -204,6 +229,9 @@ src/                  the game code, one job per file
   waves.js            wave timing and round end
   types.js            type circle and damage rules
   story-data.js       story lines, chapters, characters
+  village.js          the Home Village world and places
+  clan.js             clan member behaviour (daily activities)
+  character-gen.js    random names, looks, types, Power
   ui.js               health bars, buttons, pop-ups, menus
   audio.js            synthesized sound
   save.js             saving progress
@@ -224,3 +252,6 @@ src/                  the game code, one job per file
 - Say clearly what was tested and what could not be tested.
 - Large or repetitive coding may be handed to a smaller, faster model with
   clear instructions. Claude reviews the result and tells the director.
+- **Models:** the main session (planning, design, reviewing) runs on the
+  strongest model. Helpers: Sonnet for coding from a clear plan, Haiku for
+  simple repetitive content (name lists, dialogue lines, data tables).
