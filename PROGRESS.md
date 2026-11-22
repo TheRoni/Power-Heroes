@@ -1,8 +1,9 @@
 # Power Heroes: Progress
 
 ## Status
-- Done: game bible (`CLAUDE.md`), this roadmap.
-- **Next: Stage 1, waiting for the director's approval.**
+- Done: game bible (`CLAUDE.md`), this roadmap, Stage 1 step 1 of 7.
+- **Now: Stage 1** (plan approved). **Next file: `index.html`.**
+- Rule in force: one file per reply (the director can pause it for a stage).
 
 ## How we work on usage
 - **Opus:** planning each stage, reviewing, fixing hard problems.
@@ -12,11 +13,15 @@
 - To build a stage: switch the session to Sonnet and say "Build Stage N".
 
 ## Director to-do (one time)
-- [ ] Turn on GitHub Pages so the game opens on your phone:
-  repository page → **Settings** → **Pages** (left menu) →
-  Source: **Deploy from a branch** → Branch: **main**, folder **/ (root)** →
-  **Save**. After a few minutes the game will be at
-  `https://theroni.github.io/power-heroes/`.
+- [ ] Turn on GitHub Pages so the game opens on your phone. Not urgent:
+  nothing is playable until Stage 1 is finished. Open this link in a normal
+  web browser (not the GitHub app) while signed in to GitHub:
+  https://github.com/TheRoni/power-heroes/settings/pages
+  Under "Build and deployment": Source = **Deploy from a branch**,
+  Branch = **main** with folder **/ (root)**, then **Save**. After a few
+  minutes the game will be at `https://theroni.github.io/power-heroes/`.
+  If it says Pages needs a public repository, switch the repository to
+  Public first (Settings → General → bottom "Danger Zone" → Change visibility).
 
 ## Roadmap
 Each stage ends with something playable on a phone.
@@ -24,6 +29,14 @@ Each stage ends with something playable on a phone.
 ### Vertical slice (smallest fun version)
 - [ ] **Stage 1: Arena and movement.** A 3D floating arena. Ember runs
   around with joystick or keyboard. Camera follows. Judge: does moving feel good?
+  Build order (each file needs the ones above it, so `main.js` comes last):
+  - [x] 1. `lib/three.module.min.js` (checksum matched npm; drew a 3D cube in a browser)
+  - [ ] 2. `index.html`
+  - [ ] 3. `style.css`
+  - [ ] 4. `src/scene.js`
+  - [ ] 5. `src/input.js`
+  - [ ] 6. `src/hero.js`
+  - [ ] 7. `src/main.js` (ties it together: first playable moment)
 - [ ] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
   health bars, Flame Wave superpower, hit effects, win and lose screens.
 - [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
