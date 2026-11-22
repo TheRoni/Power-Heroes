@@ -1,0 +1,113 @@
+/* style.css: page layout, the on-screen joystick, and small messages. */
+
+:root { --sky: #5db7f2; }
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html {
+  height: 100%;
+  overflow: hidden;
+  background: var(--sky);
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;                 /* fills the screen; nothing can scroll or be dragged */
+  top: 0; left: 0; width: 100%; height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--sky);
+  overscroll-behavior: none;
+  touch-action: none;              /* no pinch-zoom, double-tap zoom, or scroll gestures */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* The joystick: a see-through ring with a knob. input.js moves it. */
+#joystick {
+  position: fixed;
+  top: 0; left: 0;
+  width: 132px; height: 132px;
+  margin: -66px 0 0 -66px;         /* centres the ring on the spot where the thumb touched */
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 3px solid rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  will-change: transform;
+}
+#joystick.active { opacity: 1; }
+
+#joystick-knob {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 56px; height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  will-change: transform;
+}
+
+/* The hint at the bottom. It fades out a moment after you start moving. */
+#hint {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(20, 40, 70, 0.5);   /* a dark pill keeps the words readable on any background */
+  text-align: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+  transition: opacity 1.2s ease 1s;
+}
+#hint.gone { opacity: 0; }
+
+/* Phones see the touch hint. Computers see the keyboard hint. */
+@media (pointer: coarse) { .hint-keys { display: none; } }
+@media (pointer: fine) { .hint-touch { display: none; } }
+
+/* Shown only when 3D graphics are not available. */
+#message {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: #fff;
+  font-size: 18px;
+  background: rgba(0, 0, 0, 0.35);
+}
+#message[hidden] { display: none; }
+
+/* The frame-rate box. It only appears when the address ends with ?debug */
+#fps {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top));
+  left: calc(8px + env(safe-area-inset-left));
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: 600 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
