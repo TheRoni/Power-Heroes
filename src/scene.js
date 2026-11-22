@@ -7,7 +7,8 @@ export const WALK_RADIUS = 10.2;   // how far from the centre the hero may walk
 
 // Camera settings: change these numbers to change how the game is framed.
 const FOV = 45;                                // lens angle, in degrees
-const PITCH = THREE.MathUtils.degToRad(56);    // how steeply the camera looks down
+export const CAMERA_PITCH = THREE.MathUtils.degToRad(56);   // other files use this to tilt things so they face the camera
+const PITCH = CAMERA_PITCH;    // how steeply the camera looks down
 const MIN_WIDTH = 12;                          // ground width that must always fit on screen (smaller = zoomed in)
 const MIN_DEPTH = 11;                          // ground depth that must always fit on screen
 const FOLLOW = 0.8;                            // 1 = camera stays right over the hero; less = the island edge stays in view

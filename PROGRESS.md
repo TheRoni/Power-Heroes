@@ -2,15 +2,14 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1 built and tested** (all 7 files).
-- **Now: waiting for the director to try Stage 1** (on the private Claude test
-  link) and say how the movement feels.
 - Director feedback on Stage 1: it works on the phone, but it is "just moving
   on land". True, that was the plan. Stage 2 is where the game starts.
-- **Next: Stage 2 (first fight).** The plan is written below and waits for the
-  director's approval before any building.
-- Rule note: "one file per reply" was paused for Stage 1 (the director said
-  "up to you", and Claude chose to build the rest in one go to save usage).
-  Ask the director again at the Stage 2 plan.
+- Director approved the Stage 2 plan and asked for one-line updates, work
+  split into chunks (one chunk per reply), and a "next" prompt after each.
+- **Now: building Stage 2 in 4 chunks.** Chunk 1 is done.
+- **Next: Chunk 2, fire power** (`powers.js`: fireballs, Flame Wave, the button, sparks).
+- Rule note: "one file per reply" was paused for Stage 1. For Stage 2 the
+  director chose chunks instead (a few related files per reply).
 
 ## How we work on usage
 - **Opus:** planning each stage, reviewing, fixing hard problems.
@@ -60,6 +59,10 @@ Each stage ends with something playable on a phone.
   - [x] 7. `src/main.js` (81 lines)
 - [ ] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
   health bars, Flame Wave superpower, hit effects, win and lose screens.
+  - [x] Chunk 1: enemies that fight back (`heroes-data.js`, `gloom.js`, `ui.js`; health, hit flash and knock-out in `hero.js`). 23 checks pass.
+  - [ ] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks)
+  - [ ] Chunk 3: waves, win and lose (`waves.js`; banners, end screens, retry)
+  - [ ] Chunk 4: polish (screen shake, freeze-frame, colour returns), tests, republish the Claude test link
 - [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
   with "SUPER!" pop-ups, first combo (Shock Chain).
 - [ ] **Stage 4: Power and auras.** Power numbers, XP, power-up screen,
@@ -133,7 +136,7 @@ Light on the graphics side: about 50 draw calls and 16,000 triangles.
 - Added `?debug` (or `#debug`) at the end of the web address to show the frame rate.
 - Added scenery: floating rocks, drifting clouds, swaying grass, flowers.
 
-## Stage 2 plan: First fight (for approval)
+## Stage 2 plan: First fight (approved, being built)
 **Goal:** a short fight you can win or lose, with Ember's first superpower.
 Stage 1 was only movement. This is where the game starts.
 
@@ -182,6 +185,12 @@ steering the joystick); health bars; 3 waves end in the win screen; being
 knocked out shows the lose screen; both retry buttons reset everything; no
 errors. Cannot test: how hard or fun it feels on a real phone. The director
 judges that. Afterwards the Claude test link is republished.
+
+**Build notes (changes from the plan):**
+- `scene.js` also changes a little: it shares the camera angle so floating
+  health bars face the camera.
+- `main.js` has a TEMPORARY spawner (4 Gloomlings, and an automatic restart
+  after a knock-out) until `waves.js` replaces it in chunk 3.
 
 ## Known problems and untested things
 - **Not tested (needs a real phone):** how the touch controls feel, real

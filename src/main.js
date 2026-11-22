@@ -1,8 +1,10 @@
-// main.js: starts the game. It creates the 3D world, Ember and the controls, then runs the game loop.
+// main.js: starts the game. It creates the 3D world, Ember, the Gloomlings and the controls, then runs the game loop.
 import * as THREE from '../lib/three.module.min.js';
 import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
 import { createHero } from './hero.js';
+import { createGloomling } from './gloom.js';
+import { createUI } from './ui.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
 const DEBUG = new URLSearchParams(location.search).has('debug') || location.hash === '#debug';
@@ -22,8 +24,28 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // --- Create everything ---
 const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
-const ember = createHero({ bound: WALK_RADIUS });
-world.scene.add(ember.group);
+const ui = createUI({ camera: world.camera });
+const ember = createHero({
+  scene: world.scene,
+  bound: WALK_RADIUS,
+  onHurt: (amount) => ui.popNumber(ember.position, amount, 'hurt'),
+});
+
+// TEMPORARY until the wave system arrives (a later step): four Gloomlings start on the rim,
+// and everything starts over a few seconds after Ember is knocked out.
+const gloomlings = [];
+function spawnGloomlings(count) {
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + Math.random();
+    gloomlings.push(createGloomling({ scene: world.scene, x: Math.cos(angle) * 10.8, z: Math.sin(angle) * 10.8 }));
+  }
+}
+function clearGloomlings() {
+  for (const gloomling of gloomlings) gloomling.remove();
+  gloomlings.length = 0;
+}
+spawnGloomlings(4);
+let downTime = 0;
 
 // --- Keep the picture the right size, on every screen and when the phone is turned ---
 function resize() {
@@ -49,7 +71,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { ember, input, world, renderer };   // lets the automatic tests look inside the game
+  window.__game = { ember, input, world, renderer, gloomlings, ui };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -60,9 +82,21 @@ function frame(now) {
   const time = now / 1000;
 
   ember.update(dt, input.move, time);
+  for (const gloomling of gloomlings) gloomling.update(dt, ember, time, gloomlings);
   world.follow(ember.position, ember.velocity, dt, false);
   world.update(dt, time);
+  ui.setHealth(ember.health / ember.maxHealth);
   renderer.render(world.scene, world.camera);
+
+  if (ember.down) {
+    downTime += dt;
+    if (downTime > 2.5) {   // TEMPORARY restart
+      downTime = 0;
+      ember.reset();
+      clearGloomlings();
+      spawnGloomlings(4);
+    }
+  }
 
   if (!hintHidden && (input.move.x !== 0 || input.move.z !== 0)) {
     hintHidden = true;

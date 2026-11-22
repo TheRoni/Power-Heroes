@@ -103,11 +103,70 @@ body {
 #fps {
   position: fixed;
   top: calc(8px + env(safe-area-inset-top));
-  left: calc(8px + env(safe-area-inset-left));
+  right: calc(8px + env(safe-area-inset-right));
   padding: 2px 8px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
   font: 600 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
   pointer-events: none;
+}
+
+/* The heads-up display: Ember's name and health bar, top left. */
+#hud {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  pointer-events: none;
+}
+#hud-hero {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 12px;
+  border-radius: 999px;
+  background: rgba(20, 40, 70, 0.5);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+#hud-bar {
+  width: 110px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+#hud-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(#7be35b, #3fb83a);
+  transform-origin: left center;
+  transition: transform 0.15s;
+}
+#hud-fill.low { background: linear-gradient(#ff8a6a, #e8452c); }   /* turns red when health is low */
+
+/* Numbers that pop up over the action (damage dealt and taken). */
+#floaters {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.floater {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0.3);
+  animation: floater-rise 0.85s ease-out forwards;
+}
+.floater.hurt { color: #ff6a5a; font-size: 24px; }
+.floater.big { color: #ffd24a; font-size: 30px; }
+@keyframes floater-rise {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
+  20% { transform: translate(-50%, -90%) scale(1.15); }
+  to { opacity: 0; transform: translate(-50%, -200%) scale(1); }
 }
