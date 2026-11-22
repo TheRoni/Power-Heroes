@@ -1,10 +1,13 @@
-// main.js: starts the game. It creates the 3D world, Ember, the waves and the controls, then runs the game loop.
+// main.js: starts the game. It creates the 3D world, Ember, Pip, the waves and the controls, then runs the game loop.
 import * as THREE from '../lib/three.module.min.js';
 import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
 import { createHero } from './hero.js';
 import { createPowers } from './powers.js';
 import { createWaves } from './waves.js';
+import { createPip } from './pip.js';
+import { createStory } from './story.js';
+import { CHAPTER } from './story-data.js';
 import { createUI } from './ui.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
@@ -31,6 +34,15 @@ const CONFETTI = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
 const calmMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;   // people who ask for less motion get no shaking
 const tint = document.getElementById('tint');
 let waveFreezePending = false;   // a Flame Wave freezes the game once, the first time it lands
+let waveHits = 0;                // how many Gloomlings the latest Flame Wave hit
+let waveHitTimer = -1;           // counts down until we know how big that Flame Wave was
+const said = { first: false, hurt: false, low: false };   // Pip's one-time comments, so they are not repeated every round
+const soon = [];   // Pip's comments waiting for their moment: { key, left }
+
+// Pip says something after a short delay (so a wave's comment does not land on top of its banner).
+function saySoon(key, delay) {
+  soon.push({ key, left: delay });
+}
 
 function shake(amount) {
   if (!calmMotion) fx.shake = Math.max(fx.shake, amount);
@@ -39,11 +51,15 @@ function shake(amount) {
 // --- Create everything ---
 const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
-const ui = createUI({ camera: world.camera, onCast: () => powers.castWave(), onAgain: restart });
+const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active) powers.castWave(); }, onAgain: restart });
 const ember = createHero({
   scene: world.scene,
   bound: WALK_RADIUS,
-  onHurt: (amount) => { ui.popNumber(ember.position, amount, 'hurt'); shake(0.16); },
+  onHurt: (amount) => {
+    ui.popNumber(ember.position, amount, 'hurt');
+    shake(0.16);
+    if (!said.hurt) { said.hurt = true; story.say('hurt'); }
+  },
   onDown: () => shake(0.3),
 });
 const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
@@ -52,27 +68,43 @@ const powers = createPowers({
   ember,
   gloomlings,
   events: {
-    cast: () => { waveFreezePending = true; shake(0.12); },
+    cast: () => { waveFreezePending = true; waveHits = 0; waveHitTimer = 0.5; shake(0.12); },
     hit: (gloom, amount, kind) => {
       ui.popNumber(gloom.position, amount, kind, 1.6);
-      if (kind === 'big' && waveFreezePending) {   // the Flame Wave has landed: a 60 ms freeze-frame and a shake
+      if (kind !== 'big') return;
+      waveHits++;
+      if (waveFreezePending) {   // the Flame Wave has landed: a 60 ms freeze-frame and a shake
         waveFreezePending = false;
         fx.freeze = 0.06;
         fx.freezes++;
         shake(0.22);
       }
     },
+    defeat: () => { if (!said.first) { said.first = true; story.say('first'); } },
   },
+});
+const pip = createPip({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
+const story = createStory({
+  camera: world.camera,
+  anchor: pip.group,
+  onStart: () => input.release(),   // a conversation starts: let go of the controls
+  onSpeak: () => pip.excite(),
 });
 const waves = createWaves({
   scene: world.scene,
   ember,
   gloomlings,
   events: {
-    wave: (number, total) => ui.showBanner(`Wave ${number}`, number === total ? 'Final wave!' : `of ${total}`),
+    wave: (number, total) => {
+      ui.showBanner(`Wave ${number}`, number === total ? 'Final wave!' : `of ${total}`);
+      saySoon(`wave${number}`, 1.2);
+    },
     spawn: (gloom) => puff(gloom.position),
-    cleared: (number) => celebrate(number === waves.total ? 110 : 25),
-    end: (kind) => ui.showEnd(kind),
+    cleared: (number) => {
+      celebrate(number === waves.total ? 110 : 25);
+      if (number < waves.total) story.say('cleared');
+    },
+    end: (kind) => story.scene(kind === 'won' ? 'win' : 'lose', () => ui.showEnd(kind)),   // a short conversation, then the end screen
   },
 });
 
@@ -96,14 +128,20 @@ function celebrate(count) {
   }
 }
 
-// "Play again" and "Try again": a completely fresh round.
+// "Play again" and "Try again": a completely fresh round (without the long introduction).
 function restart() {
   ui.hideEnd();
   ember.reset();
   powers.reset();
+  said.first = said.hurt = said.low = false;
+  waveHitTimer = -1;
+  soon.length = 0;
   waves.start();
 }
-waves.start();
+
+// The very first thing the player sees: the chapter title, then Pip's introduction. The first wave starts when it ends.
+ui.showBanner(CHAPTER.name, `Chapter ${CHAPTER.number}`);
+story.scene('intro', () => waves.start());
 
 // The small note in the corner, such as "Wave 2/3 · 5 left".
 function waveText() {
@@ -136,12 +174,12 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { ember, input, world, renderer, gloomlings, ui, powers, waves, fx };   // lets the automatic tests look inside the game
+  window.__game = { ember, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
 let last = performance.now();
-let gameTime = 0;      // like the clock, but it stands still during a freeze-frame
+let gameTime = 0;      // like the clock, but it stands still during a freeze-frame or a conversation
 let lastTint = '';
 function frame(now) {
   const realDt = Math.min(Math.max((now - last) / 1000, 0), 0.05);   // a slow frame never causes a big jump
@@ -151,6 +189,7 @@ function frame(now) {
     fx.freeze -= realDt;
     dt = 0;
   }
+  if (story.active) dt = 0;   // a conversation: the game waits
   gameTime += dt;
 
   ember.update(dt, input.move, gameTime);
@@ -159,6 +198,24 @@ function frame(now) {
   waves.update(dt);
   world.follow(ember.position, ember.velocity, dt, false);
   world.update(dt, gameTime);
+  story.update(realDt);
+  pip.update(realDt, now / 1000, ember.position);
+
+  for (let i = soon.length - 1; i >= 0; i--) {
+    soon[i].left -= realDt;
+    if (soon[i].left <= 0) {
+      story.say(soon[i].key);
+      soon.splice(i, 1);
+    }
+  }
+  if (waveHitTimer > 0) {   // a big Flame Wave (three or more Gloomlings) gets a cheer from Pip
+    waveHitTimer -= realDt;
+    if (waveHitTimer <= 0 && waveHits >= 3) story.say('big');
+  }
+  if (!said.low && !ember.down && waves.state !== 'idle' && ember.health / ember.maxHealth < 0.3) {
+    said.low = true;
+    story.say('low');
+  }
 
   if (fx.shake > 0.002) {   // camera shake: a quick random wobble that fades away
     world.camera.position.x += (Math.random() - 0.5) * 2 * fx.shake;

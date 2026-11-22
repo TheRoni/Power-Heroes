@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#5db7f2">
   <title>Power Heroes</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="story.css">
 </head>
 <body>
   <!-- The 3D picture is drawn here. -->
@@ -45,6 +46,21 @@
   <div id="banner" aria-live="polite">
     <div id="banner-title"></div>
     <div id="banner-sub"></div>
+  </div>
+
+  <!-- Pip's quick comments during a fight. -->
+  <div id="bubble" aria-live="polite"></div>
+
+  <!-- A conversation. Tap, click, Space or Enter goes on to the next line. -->
+  <div id="dialogue" hidden role="dialog" aria-live="polite">
+    <div id="dialogue-box">
+      <div id="dialogue-face"></div>
+      <div id="dialogue-body">
+        <div id="dialogue-name"></div>
+        <p id="dialogue-text"></p>
+      </div>
+      <div id="dialogue-next" aria-hidden="true"></div>
+    </div>
   </div>
 
   <!-- The end screen: "Isle saved!" or "Knocked out", with a button to go again. -->

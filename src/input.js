@@ -91,17 +91,19 @@ export function createInput(stickElement, knobElement) {
     if (keys.delete(event.code)) refresh();
   });
 
-  // If the window loses focus, let go of everything so Ember never keeps running by herself.
-  window.addEventListener('blur', () => {
+  // Lets go of every key and the joystick. Used when the window loses focus, and when a conversation starts,
+  // so Ember never keeps running by herself.
+  function release() {
     keys.clear();
     if (stick) releaseStick();
     else refresh();
-  });
+  }
+  window.addEventListener('blur', release);
 
   // Stop the page from zooming, scrolling, or opening menus while you play.
   document.addEventListener('gesturestart', (event) => event.preventDefault());
   document.addEventListener('contextmenu', (event) => event.preventDefault());
   document.addEventListener('touchmove', (event) => event.preventDefault(), { passive: false });
 
-  return { move };
+  return { move, release };
 }

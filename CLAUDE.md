@@ -52,6 +52,22 @@ climbing forever.
 **Writing style:** short, warm, a bit funny. One or two lines between rounds.
 Never long speeches.
 
+**How the story is told:**
+- **Pip**, a tiny glowing light-sprite, floats beside the hero, guides the
+  player and makes jokes. Pip has no pronoun in the text.
+- **Scenes** are short conversations you tap through. The game waits while
+  they play. One opens the chapter, and one comes before each win and
+  knocked-out screen. Lines can differ on a phone and on a computer.
+- **Bubbles** are one-liners from Pip that float by during a fight without
+  stopping it (a wave starts, the first colour pop, low health, a big Flame
+  Wave). A bubble never repeats the one before it, and some happen only once
+  per round.
+- All the words live in `src/story-data.js`, so the story can change without
+  touching the game code.
+- **Chapter 1 so far:** Pip meets Ember and shows her the grey island. After
+  the fight the Heartlight brightens, Pip notices the Glooms were being led by
+  someone, and Tidecove is next.
+
 ## Core rules
 - **Squad:** before a round, pick 3 heroes.
 - **Control:** you control one hero at a time. The other two wait on the bench.
@@ -192,6 +208,9 @@ home and the place between battles. No enemies, no timer.
   portrait for Overdrive).
 - **Computer:** WASD or Arrow keys to move. Space = Superpower.
   1, 2, 3 = swap hero. E = Overdrive.
+- **Conversations:** tap anywhere, or press Space or Enter, to go on. The first
+  press finishes the line, the next one goes on. Movement and the superpower
+  are paused while people talk.
 - No scrolling, no accidental zoom, works in portrait and landscape.
 
 ## Technical decisions
@@ -223,6 +242,7 @@ home and the place between battles. No enemies, no timer.
 ```
 index.html            the page that starts the game
 style.css             layout and on-screen buttons
+story.css             the conversation box and Pip's speech bubble
 manifest.webmanifest  app name and icons for the home screen
 sw.js                 offline support (service worker)
 icons/                app icons
@@ -240,7 +260,9 @@ src/                  the game code, one job per file
   gloom.js            enemies
   waves.js            wave timing and round end
   types.js            type circle and damage rules
-  story-data.js       story lines, chapters, characters
+  story-data.js       every word of the story (scenes and bubbles)
+  story.js            conversations and Pip's speech bubbles
+  pip.js              Pip, the guide sprite
   village.js          the Home Village world and places
   clan.js             clan member behaviour (daily activities)
   character-gen.js    random names, looks, types, Power

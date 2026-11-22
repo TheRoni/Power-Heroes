@@ -1,0 +1,96 @@
+/* story.css: the conversation box and Pip's speech bubble. */
+
+/* A conversation. It covers the screen, so a tap anywhere goes on to the next line. */
+#dialogue {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 16px calc(28px + env(safe-area-inset-bottom));
+  background: rgba(20, 10, 40, 0.18);
+  cursor: pointer;
+}
+#dialogue[hidden] { display: none; }
+body:has(#dialogue:not([hidden])) #hint { opacity: 0; transition: none; }   /* the hint steps aside while people talk */
+#dialogue-box {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  max-width: 560px;
+  min-height: 112px;
+  padding: 16px 18px 22px;
+  border-radius: 22px;
+  background: rgba(28, 16, 52, 0.86);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  color: #fff7e8;
+  animation: dialogue-in 0.25s ease-out both;
+}
+#dialogue-face {   /* a glowing dot in the speaker's colour */
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #fffbe0 0 24%, var(--speaker, #ffd24a) 58%, transparent 74%);
+  box-shadow: 0 0 18px var(--speaker, #ffd24a);
+}
+#dialogue-body { min-width: 0; }
+#dialogue-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--speaker, #ffd24a);
+}
+#dialogue-text { margin: 4px 0 0; min-height: 2.8em; font-size: 18px; line-height: 1.4; }
+#dialogue-next {   /* a little arrow: "tap to go on" */
+  position: absolute;
+  right: 18px;
+  bottom: 12px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 11px solid #fff7e8;
+  opacity: 0;
+}
+#dialogue-next.on { opacity: 0.9; animation: dialogue-nudge 0.9s ease-in-out infinite; }
+@keyframes dialogue-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes dialogue-nudge { 50% { transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { #dialogue-next.on { animation: none; } }
+
+/* Pip's speech bubble. story.js moves it to sit just above Pip. */
+#bubble {
+  position: fixed;
+  top: 0; left: 0;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: rgba(255, 250, 235, 0.96);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  color: #3a2b1a;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#bubble.show { opacity: 1; }
+#bubble::after {   /* the little tail pointing down at Pip */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  margin-left: -8px;
+  border: 8px solid transparent;
+  border-bottom: 0;
+  border-top-color: rgba(255, 250, 235, 0.96);
+}

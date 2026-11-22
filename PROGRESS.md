@@ -1,18 +1,22 @@
 # Power Heroes: Progress
 
 ## Status
-- Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1** (movement) and
-  **Stage 2** (the first fight), both built and tested.
+- Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1** (movement),
+  **Stage 2** (the first fight) and **Stage 3** (the story begins), all built
+  and tested.
 - Director feedback on Stage 1: it works on the phone, but it is "just moving
   on land". True, that was the plan. Stage 2 is where the game starts.
 - Director approved the Stage 2 plan and asked for one-line updates, work
   split into chunks (one chunk per reply), and a "next" prompt after each.
-- **Stage 2 is finished and republished to the Claude test link.** All 97
-  automatic checks pass (19 for Stage 1, 78 for Stage 2), on the normal page
+- Director feedback on Stage 2: "It works." Then: "Just keep developing the
+  game. Add a story. Go." So the story was built next (Stage 3), ahead of the squad.
+- **Stage 3 is finished and republished to the Claude test link.** All 124
+  automatic checks pass (19 Stage 1, 78 Stage 2, 27 story), on the normal page
   and on the Claude-wrapped page.
-- **Next: the Stage 3 plan (the squad)**, written for the director's approval
-  before any building.
-- Rule note: "one file per reply" was paused for Stages 1 and 2. For Stage 2
+- **Next: Stage 4, the squad** (Tide and Volt, hero swapping, types and
+  "SUPER!" hits, Shock Chain), with story scenes for meeting them. The
+  director said "Go", so it is built in chunks, one chunk per reply.
+- Rule note: "one file per reply" was paused for Stages 1, 2 and 3. For Stage 2
   the director chose chunks instead (a few related files per reply).
 
 ## How we work on usage
@@ -24,7 +28,7 @@
 
 ## Director to-do (one time)
 - [ ] Turn on GitHub Pages. Not needed for testing now (the private Claude
-  link covers that), but Stage 5 needs it for offline play and installing on
+  link covers that), but Stage 6 needs it for offline play and installing on
   the home screen. Open this link in a normal
   web browser (not the GitHub app) while signed in to GitHub:
   https://github.com/TheRoni/power-heroes/settings/pages
@@ -41,11 +45,12 @@
   repository is public.
 - **It must be republished after every stage.** Claude wraps the page in its
   own `<html>`, so the published page is `index.html` with the `<title>` and
-  viewport moved to the top and `style.css` placed inline. The game files
-  (`src/*.js`, `lib/three.module.min.js`) are published beside it. Run the same
+  viewport moved to the top and the stylesheets (`style.css`, `story.css`)
+  placed inline. The game files (`src/*.js`, `lib/three.module.min.js`) are
+  published beside it. Run the same
   browser checks on the wrapped page before publishing.
 - Limits inside Claude: no offline mode and no home-screen install (service
-  workers are blocked there). That is why Stage 5 needs GitHub Pages.
+  workers are blocked there). That is why Stage 6 needs GitHub Pages.
 
 ## Roadmap
 Each stage ends with something playable on a phone.
@@ -67,27 +72,30 @@ Each stage ends with something playable on a phone.
   - [x] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks). 23 more checks pass.
   - [x] Chunk 3: waves, win and lose (`waves.js`; banner, end screens, retry). 21 more checks pass.
   - [x] Chunk 4: polish (screen shake, freeze-frame, colour returns, confetti). 12 more checks pass. Everything re-tested and the Claude test link republished.
-- [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
-  with "SUPER!" pop-ups, first combo (Shock Chain).
-- [ ] **Stage 4: Power and auras.** Power numbers, XP, power-up screen,
+- [x] **Stage 3: The story begins.** Pip, the guide, and Chapter 1 told in
+  short conversations and one-liners. Built and tested (27 checks). New files:
+  `story-data.js`, `story.js`, `pip.js`, `story.css`.
+- [ ] **Stage 4: The squad.** Tide and Volt join (with story scenes). Hero
+  swap, type damage with "SUPER!" pop-ups, first combo (Shock Chain).
+- [ ] **Stage 5: Power and auras.** Power numbers, XP, power-up screen,
   auras Spark/Glow/Blaze, Overdrive, saving progress.
-- [ ] **Stage 5: Sound and phone app.** Synthesized sound and music, Mute,
+- [ ] **Stage 6: Sound and phone app.** Synthesized sound and music, Mute,
   title screen, icons, offline play, install to home screen.
 
 ### The adventure
-- [ ] **Stage 6: Chapter 1, Sunmeadow.** Pip, story lines, 5 rounds,
-  Thorn unlock, General Bramble boss.
-- [ ] **Stage 7: Home Village, first version.** Walkable village,
+- [ ] **Stage 7: Chapter 1, Sunmeadow.** 5 rounds, Thorn unlock, General
+  Bramble boss, more story. (Pip and the story system already exist from Stage 3.)
+- [ ] **Stage 8: Home Village, first version.** Walkable village,
   10 random clan members with auras, Hero Hall to start battles.
-- [ ] **Stage 8: Village life.** Daily activities, day and night, talk,
+- [ ] **Stage 9: Village life.** Daily activities, day and night, talk,
   spar, guest teammates, up to 30 clan members.
-- [ ] **Stage 9: More enemies and surprises.** Brute, Spitter, Shielder,
+- [ ] **Stage 10: More enemies and surprises.** Brute, Spitter, Shielder,
   Golden Gloom, mystery visitor, more combos.
-- [ ] **Stage 10: Chapters 2 and 3.** Tidecove and Stormspire, Rook,
+- [ ] **Stage 11: Chapters 2 and 3.** Tidecove and Stormspire, Rook,
   more heroes, two bosses.
-- [ ] **Stage 11: Chapters 4 and 5.** Cinderpeak and the Heartlight, Nyx,
+- [ ] **Stage 12: Chapters 4 and 5.** Cinderpeak and the Heartlight, Nyx,
   Awakening, Surge and Radiant auras.
-- [ ] **Stage 12: The Rift and secrets.** Endless mode, hidden aura forms,
+- [ ] **Stage 13: The Rift and secrets.** Endless mode, hidden aura forms,
   Light heroes, final polish.
 
 ## Stage 1 plan (approved and built)
@@ -216,12 +224,46 @@ judges that. Afterwards the Claude test link is republished.
 - The on-screen hint moved up to make room for the Flame Wave button.
 - Bug found by the tests and fixed: the button did not glow "ready" again.
 
+## Stage 3: The story begins (director: "Add a story. Go.")
+**Goal:** the game tells a story, in short, warm, funny lines.
+
+**Built:**
+- **Pip**, a glowing light-sprite guide, flies in and hovers beside Ember.
+- **Opening:** the chapter title ("Sunmeadow", "Chapter 1"), then a 6-line
+  conversation. The first wave starts when it ends. "Play again" skips it.
+- **Bubbles:** one-liners from Pip during the fight: each wave, the first
+  colour pop, the first bump, low health, a big Flame Wave, a cleared wave.
+- **Win and knocked-out conversations** (5 and 3 lines) come before the end
+  screens. The win scene hints at the bigger story: someone is leading the
+  Glooms, and Tidecove is next.
+- All the words are in `src/story-data.js`. Lines can differ on a phone and a
+  computer (the last opening line explains the controls).
+
+**New files (4):** `src/story-data.js`, `src/story.js`, `src/pip.js`, `story.css`.
+`index.html` links the new stylesheet, and `input.js` gained `release()`.
+
+**Roadmap change:** the story foundation moved here from the old Stage 6, so
+every later stage number went up by one.
+
+**Notes:**
+- A conversation pauses the game. Space, Enter and any tap go on to the next
+  line, and movement keys and the Flame Wave do nothing until it ends. The
+  first press finishes a line, the next goes on. Presses in the first quarter
+  second are ignored.
+- Pip's wave comments wait 1.2 s so they do not land on the wave banner.
+- The hint at the bottom steps aside while people talk.
+- The test files were updated: they skip the opening (`story.skip()`), because
+  it now comes first.
+
 ## Known problems and untested things
 - **Not tested (needs a real phone):** how the touch controls feel, real
   frame rate, and whether pinch-zoom is fully blocked on iPhones.
 - GitHub Pages is not turned on yet. The private Claude test link is used for
   phone testing instead (see above).
 - The test browser has no graphics card, so its frame-rate numbers mean nothing.
+- **Stage 3 not tested on a real phone:** how the conversation box and Pip's
+  bubbles read on a small screen, and whether 48 letters a second feels right.
+  There is no skip button yet: the opening plays once per visit.
 - **Stage 2 not tested on a real phone:** how hard or fun the fight feels, how
   the Flame Wave button sits under a thumb, and the real frame rate. Every
   number that sets the difficulty is in `src/heroes-data.js`.
