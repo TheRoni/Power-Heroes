@@ -1,16 +1,19 @@
 # Power Heroes: Progress
 
 ## Status
-- Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1 built and tested** (all 7 files).
+- Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1** (movement) and
+  **Stage 2** (the first fight), both built and tested.
 - Director feedback on Stage 1: it works on the phone, but it is "just moving
   on land". True, that was the plan. Stage 2 is where the game starts.
 - Director approved the Stage 2 plan and asked for one-line updates, work
   split into chunks (one chunk per reply), and a "next" prompt after each.
-- **Now: building Stage 2 in 4 chunks.** Chunks 1, 2 and 3 are done.
-- **Next: Chunk 4, polish** (screen shake, freeze-frame, the island's colour
-  returning), then a full test run and republishing the Claude test link.
-- Rule note: "one file per reply" was paused for Stage 1. For Stage 2 the
-  director chose chunks instead (a few related files per reply).
+- **Stage 2 is finished and republished to the Claude test link.** All 97
+  automatic checks pass (19 for Stage 1, 78 for Stage 2), on the normal page
+  and on the Claude-wrapped page.
+- **Next: the Stage 3 plan (the squad)**, written for the director's approval
+  before any building.
+- Rule note: "one file per reply" was paused for Stages 1 and 2. For Stage 2
+  the director chose chunks instead (a few related files per reply).
 
 ## How we work on usage
 - **Opus:** planning each stage, reviewing, fixing hard problems.
@@ -58,12 +61,12 @@ Each stage ends with something playable on a phone.
   - [x] 5. `src/input.js` (107 lines)
   - [x] 6. `src/hero.js` (159 lines)
   - [x] 7. `src/main.js` (81 lines)
-- [ ] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
+- [x] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
   health bars, Flame Wave superpower, hit effects, win and lose screens.
   - [x] Chunk 1: enemies that fight back (`heroes-data.js`, `gloom.js`, `ui.js`; health, hit flash and knock-out in `hero.js`). 23 checks pass.
   - [x] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks). 23 more checks pass.
   - [x] Chunk 3: waves, win and lose (`waves.js`; banner, end screens, retry). 21 more checks pass.
-  - [ ] Chunk 4: polish (screen shake, freeze-frame, colour returns), tests, republish the Claude test link
+  - [x] Chunk 4: polish (screen shake, freeze-frame, colour returns, confetti). 12 more checks pass. Everything re-tested and the Claude test link republished.
 - [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
   with "SUPER!" pop-ups, first combo (Shock Chain).
 - [ ] **Stage 4: Power and auras.** Power numbers, XP, power-up screen,
@@ -196,7 +199,15 @@ judges that. Afterwards the Claude test link is republished.
 - A win is shown 1.2 s after the last Gloomling falls, and "Knocked out" 1.5 s
   after Ember goes down. Both end screens ignore taps for the first 0.8 s, so a
   mashed Space or button cannot skip them. Space or Enter also press the button.
-- Style note: `style.css` is at 292 lines. If it grows past about 300, trim it
+- Polish (chunk 4): a small camera shake when the Flame Wave goes off (0.12),
+  when it lands (0.22) and when Ember is hit (0.16, bigger when she goes down).
+  A 60 ms freeze-frame the first time a Flame Wave lands. The island starts
+  under a grey veil (strength 0.6) that fades as Gloomlings are beaten, so a win
+  ends in full colour. Confetti shoots up when a wave is cleared (a big burst
+  after the last). With "reduce motion" switched on there is no shaking.
+- Not in the plan, added: the confetti, and the "Get ready…" and
+  "Wave 2 coming…" notes in the corner.
+- Style note: `style.css` is at 295 lines. If it grows past about 300, trim it
   or ask the director before splitting it into a second file.
 - The Flame Wave **auto-aims** at the nearest Gloomling within range (so one
   thumb is enough on a phone) and fires straight ahead if none is close.
@@ -208,8 +219,14 @@ judges that. Afterwards the Claude test link is republished.
 ## Known problems and untested things
 - **Not tested (needs a real phone):** how the touch controls feel, real
   frame rate, and whether pinch-zoom is fully blocked on iPhones.
-- GitHub Pages is not turned on yet, so there is no web link to play from
-  (see the director to-do above).
+- GitHub Pages is not turned on yet. The private Claude test link is used for
+  phone testing instead (see above).
 - The test browser has no graphics card, so its frame-rate numbers mean nothing.
+- **Stage 2 not tested on a real phone:** how hard or fun the fight feels, how
+  the Flame Wave button sits under a thumb, and the real frame rate. Every
+  number that sets the difficulty is in `src/heroes-data.js`.
+- Differences from `CLAUDE.md` that are still open: no sound yet (Stage 5);
+  Gloomlings have no type yet, so there is no "SUPER!" (Stage 3); only one hero,
+  so no swapping (Stage 3); no Power numbers, auras or Overdrive (Stage 4).
 - Trees only grow along the far side of the island. Nothing blocks Ember
   except the island edge.

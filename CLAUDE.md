@@ -16,6 +16,9 @@ their power without limit is what makes it rewarding.
   stronger. A strong hero should look strong at a glance.
 - **Surprise:** rare events, hidden characters, secret aura forms, and power
   combos the player discovers by experimenting.
+- **Colour comes back:** each round starts with the island washed-out and
+  grey (the Glooms drain colour). It returns as Glooms are beaten, and a win
+  ends in full colour and confetti.
 - Clear and readable on a small phone screen. Bold colours, simple shapes.
 - Toy-like, cheerful low-poly look (chunky shapes, soft lighting, no gore).
 - Every round gives a reward, even a lost one.
@@ -55,6 +58,8 @@ Never long speeches.
   Swap at any moment (short cooldown to stop spam).
 - **Basic attack:** automatic. The active hero attacks the nearest Gloom in range.
 - **Superpower:** one button. Each hero has one superpower with a recharge time.
+  It auto-aims at the nearest Gloom in range (or straight ahead if none is
+  close), so one thumb is enough on a phone.
 - **Overdrive:** hits fill a meter. When full, tap the active hero's portrait
   (or press E). For a few seconds the hero's power number jumps, the aura
   flares, and the superpower recharges faster.
@@ -136,7 +141,8 @@ Shown with a name pop-up the first time they are found.
 
 ## Villains and enemies
 **Glooms** are shadowy blob creatures tinted with their type colour.
-- Gloomling: small and fast. (First playable version: Gloomlings only.)
+- Gloomling: small and bouncy, a bit slower than Ember (speed 3 against her 7)
+  so the first fights are gentle. (First playable version: Gloomlings only.)
 - Brute: big, slow, tough.
 - Spitter: attacks from range.
 - Shielder: protects nearby Glooms until hit by the right type.

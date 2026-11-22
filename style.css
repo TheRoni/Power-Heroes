@@ -32,6 +32,9 @@ body {
   touch-action: none;
 }
 
+/* A grey veil over the picture: the island is washed-out until the Gloomlings are beaten. main.js fades it away. */
+#tint { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #8b8fa3; opacity: 0.6; pointer-events: none; }
+
 /* The joystick: a see-through ring with a knob. input.js moves it. */
 #joystick {
   position: fixed;
