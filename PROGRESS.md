@@ -6,8 +6,9 @@
   on land". True, that was the plan. Stage 2 is where the game starts.
 - Director approved the Stage 2 plan and asked for one-line updates, work
   split into chunks (one chunk per reply), and a "next" prompt after each.
-- **Now: building Stage 2 in 4 chunks.** Chunks 1 and 2 are done.
-- **Next: Chunk 3, waves, win and lose** (`waves.js`, banners, end screens, retry).
+- **Now: building Stage 2 in 4 chunks.** Chunks 1, 2 and 3 are done.
+- **Next: Chunk 4, polish** (screen shake, freeze-frame, the island's colour
+  returning), then a full test run and republishing the Claude test link.
 - Rule note: "one file per reply" was paused for Stage 1. For Stage 2 the
   director chose chunks instead (a few related files per reply).
 
@@ -61,7 +62,7 @@ Each stage ends with something playable on a phone.
   health bars, Flame Wave superpower, hit effects, win and lose screens.
   - [x] Chunk 1: enemies that fight back (`heroes-data.js`, `gloom.js`, `ui.js`; health, hit flash and knock-out in `hero.js`). 23 checks pass.
   - [x] Chunk 2: fire power (`powers.js`: fireballs, Flame Wave, the button, sparks). 23 more checks pass.
-  - [ ] Chunk 3: waves, win and lose (`waves.js`; banners, end screens, retry)
+  - [x] Chunk 3: waves, win and lose (`waves.js`; banner, end screens, retry). 21 more checks pass.
   - [ ] Chunk 4: polish (screen shake, freeze-frame, colour returns), tests, republish the Claude test link
 - [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
   with "SUPER!" pop-ups, first combo (Shock Chain).
@@ -189,8 +190,14 @@ judges that. Afterwards the Claude test link is republished.
 **Build notes (changes from the plan):**
 - `scene.js` also changes a little: it shares the camera angle so floating
   health bars face the camera.
-- `main.js` has a TEMPORARY spawner (4 Gloomlings, 4 more when all are beaten,
-  and an automatic restart after a knock-out) until `waves.js` replaces it in chunk 3.
+- The temporary spawner in `main.js` is gone: `waves.js` now runs the round
+  (wave 1 after a 0.6 s pause, a 1.5 s break between waves, Gloomlings appear
+  one a second on the rim and away from Ember).
+- A win is shown 1.2 s after the last Gloomling falls, and "Knocked out" 1.5 s
+  after Ember goes down. Both end screens ignore taps for the first 0.8 s, so a
+  mashed Space or button cannot skip them. Space or Enter also press the button.
+- Style note: `style.css` is at 292 lines. If it grows past about 300, trim it
+  or ask the director before splitting it into a second file.
 - The Flame Wave **auto-aims** at the nearest Gloomling within range (so one
   thumb is enough on a phone) and fires straight ahead if none is close.
 - A fireball only taps a Gloomling (0.3 units). The Flame Wave shoves 3 units

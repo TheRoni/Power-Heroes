@@ -1,10 +1,10 @@
-// main.js: starts the game. It creates the 3D world, Ember, the Gloomlings and the controls, then runs the game loop.
+// main.js: starts the game. It creates the 3D world, Ember, the waves and the controls, then runs the game loop.
 import * as THREE from '../lib/three.module.min.js';
 import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
 import { createHero } from './hero.js';
-import { createGloomling } from './gloom.js';
 import { createPowers } from './powers.js';
+import { createWaves } from './waves.js';
 import { createUI } from './ui.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
@@ -25,35 +25,52 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // --- Create everything ---
 const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
-const ui = createUI({ camera: world.camera, onCast: () => powers.castWave() });
+const ui = createUI({ camera: world.camera, onCast: () => powers.castWave(), onAgain: restart });
 const ember = createHero({
   scene: world.scene,
   bound: WALK_RADIUS,
   onHurt: (amount) => ui.popNumber(ember.position, amount, 'hurt'),
 });
-const gloomlings = [];   // every living Gloomling (powers.js takes defeated ones out of this list)
+const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
 const powers = createPowers({
   scene: world.scene,
   ember,
   gloomlings,
   events: { hit: (gloom, amount, kind) => ui.popNumber(gloom.position, amount, kind, 1.6) },
 });
+const waves = createWaves({
+  scene: world.scene,
+  ember,
+  gloomlings,
+  events: {
+    wave: (number, total) => ui.showBanner(`Wave ${number}`, number === total ? 'Final wave!' : `of ${total}`),
+    spawn: (gloom) => puff(gloom.position),
+    end: (kind) => ui.showEnd(kind),
+  },
+});
 
-// TEMPORARY until the wave system arrives (a later step): four Gloomlings start on the rim,
-// four more arrive when they are all beaten, and everything starts over a few seconds after Ember is knocked out.
-function spawnGloomlings(count) {
-  for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2 + Math.random();
-    gloomlings.push(createGloomling({ scene: world.scene, x: Math.cos(angle) * 10.8, z: Math.sin(angle) * 10.8 }));
+// A puff of dark sparks where a Gloomling appears.
+function puff(position) {
+  for (let i = 0; i < 8; i++) {
+    powers.sparks.emit(position.x, 0.3, position.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 0.5, 0.2, 0x6a45b0, -4);
   }
 }
-function clearGloomlings() {
-  for (const gloomling of gloomlings) gloomling.remove();
-  gloomlings.length = 0;
+
+// "Play again" and "Try again": a completely fresh round.
+function restart() {
+  ui.hideEnd();
+  ember.reset();
+  powers.reset();
+  waves.start();
 }
-spawnGloomlings(4);
-let downTime = 0;
-let emptyTime = 0;
+waves.start();
+
+// The small note in the corner, such as "Wave 2/3 · 5 left".
+function waveText() {
+  if (waves.state === 'break') return waves.wave === 1 ? 'Get ready…' : `Wave ${waves.wave} coming…`;
+  if (waves.state === 'spawning' || waves.state === 'fighting') return `Wave ${waves.wave}/${waves.total} · ${waves.remaining} left`;
+  return '';
+}
 
 // --- Keep the picture the right size, on every screen and when the phone is turned ---
 function resize() {
@@ -79,7 +96,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { ember, input, world, renderer, gloomlings, ui, powers };   // lets the automatic tests look inside the game
+  window.__game = { ember, input, world, renderer, gloomlings, ui, powers, waves };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -92,28 +109,13 @@ function frame(now) {
   ember.update(dt, input.move, time);
   for (const gloomling of gloomlings) gloomling.update(dt, ember, time, gloomlings);
   powers.update(dt, time);
+  waves.update(dt);
   world.follow(ember.position, ember.velocity, dt, false);
   world.update(dt, time);
   ui.setHealth(ember.health / ember.maxHealth);
   ui.setWave(powers.waveProgress);
+  ui.setWaveText(waveText());
   renderer.render(world.scene, world.camera);
-
-  if (ember.down) {   // TEMPORARY restart
-    downTime += dt;
-    if (downTime > 2.5) {
-      downTime = 0;
-      ember.reset();
-      powers.reset();
-      clearGloomlings();
-      spawnGloomlings(4);
-    }
-  } else if (gloomlings.length === 0) {   // TEMPORARY refill
-    emptyTime += dt;
-    if (emptyTime > 1.5) {
-      emptyTime = 0;
-      spawnGloomlings(4);
-    }
-  }
 
   if (!hintHidden && (input.move.x !== 0 || input.move.z !== 0)) {
     hintHidden = true;

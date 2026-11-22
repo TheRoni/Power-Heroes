@@ -26,6 +26,7 @@
       <span id="hud-name">Ember</span>
       <div id="hud-bar"><div id="hud-fill"></div></div>
     </div>
+    <div id="hud-wave"></div>
   </div>
 
   <!-- Numbers that pop up over the action. -->
@@ -36,6 +37,21 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2 1-3.4 2-4.5.2 1.3.9 2.2 1.8 2.6C10.2 8.2 10.5 4.7 12 2z"/></svg>
     <span>Flame Wave</span>
   </button>
+
+  <!-- The title that sweeps across the screen when a wave starts. -->
+  <div id="banner" aria-live="polite">
+    <div id="banner-title"></div>
+    <div id="banner-sub"></div>
+  </div>
+
+  <!-- The end screen: "Isle saved!" or "Knocked out", with a button to go again. -->
+  <div id="end" hidden role="dialog" aria-modal="true" aria-labelledby="end-title">
+    <div id="end-card">
+      <h1 id="end-title"></h1>
+      <p id="end-text"></p>
+      <button id="end-button" type="button"></button>
+    </div>
+  </div>
 
   <!-- Shown only if this device cannot draw 3D graphics. -->
   <p id="message" hidden>Sorry, this device cannot show 3D graphics.</p>

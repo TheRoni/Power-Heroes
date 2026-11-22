@@ -1,7 +1,13 @@
-// ui.js: everything drawn on top of the 3D picture: floating health bars, number pop-ups and the Flame Wave button.
-// (Banners and end screens are added here in a later step.)
+// ui.js: everything drawn on top of the 3D picture: floating health bars, number pop-ups, the Flame Wave button,
+// the wave banner, and the win and knocked-out screens.
 import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
+
+const ENDINGS = {
+  won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Play again' },
+  lost: { title: 'Knocked out', text: 'Even heroes need a nap. Ready again?', button: 'Try again' },
+};
+const END_LOCK = 800;   // milliseconds after an end screen appears when taps are ignored, so a mashed button cannot skip it
 
 // A small health bar that floats in the 3D world and always faces the camera.
 // Move bar.group where you want it. bar.set(0.5) shows it half full.
@@ -26,22 +32,45 @@ export function createFloatingBar(width, color) {
 }
 
 // "onCast" is called when the player taps the Flame Wave button or presses Space.
-export function createUI({ camera, onCast }) {
+// "onAgain" is called when the player taps "Play again" / "Try again" on an end screen.
+export function createUI({ camera, onCast, onAgain }) {
   const healthFill = document.getElementById('hud-fill');
+  const waveLabel = document.getElementById('hud-wave');
   const floaters = document.getElementById('floaters');
   const waveButton = document.getElementById('wave-button');
+  const banner = document.getElementById('banner');
+  const endScreen = document.getElementById('end');
+  const endButton = document.getElementById('end-button');
   const point = new THREE.Vector3();
+  let endShownAt = 0;
 
-  // The button reacts the moment a finger touches it. stopPropagation keeps the joystick from also seeing the touch.
+  // An end screen's button. The first moment after it appears is ignored (see END_LOCK).
+  function again() {
+    if (endScreen.hidden || performance.now() - endShownAt < END_LOCK) return;
+    onAgain();
+  }
+
+  // The buttons react the moment a finger touches them. stopPropagation keeps the joystick from also seeing the touch.
   waveButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     event.stopPropagation();
     onCast();
   });
-  window.addEventListener('keydown', (event) => {
-    if (event.code !== 'Space') return;
+  endScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind an end screen reacts to touches
+  endButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
-    onCast();
+    event.stopPropagation();
+    again();
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Space' && event.code !== 'Enter') return;
+    if (!endScreen.hidden) {   // on an end screen, Space and Enter mean "again"
+      event.preventDefault();
+      again();
+    } else if (event.code === 'Space') {
+      event.preventDefault();
+      onCast();
+    }
   });
 
   // Ember's health bar in the corner (0 = empty, 1 = full).
@@ -67,6 +96,38 @@ export function createUI({ camera, onCast }) {
     }
   }
 
+  // The small "Wave 1/3 · 4 left" note under Ember's health bar.
+  let lastText = null;
+  function setWaveText(text) {
+    if (text === lastText) return;
+    lastText = text;
+    waveLabel.textContent = text;
+  }
+
+  // The big title that sweeps across the screen at the start of a wave.
+  function showBanner(title, subtitle = '') {
+    document.getElementById('banner-title').textContent = title;
+    document.getElementById('banner-sub').textContent = subtitle;
+    banner.classList.remove('show');
+    void banner.offsetWidth;   // lets the page notice the change, so the animation can restart
+    banner.classList.add('show');
+  }
+
+  // kind: 'won' or 'lost'.
+  function showEnd(kind) {
+    const ending = ENDINGS[kind];
+    document.getElementById('end-title').textContent = ending.title;
+    document.getElementById('end-text').textContent = ending.text;
+    endButton.textContent = ending.button;
+    endScreen.className = kind;
+    endScreen.hidden = false;
+    endShownAt = performance.now();
+  }
+
+  function hideEnd() {
+    endScreen.hidden = true;
+  }
+
   // A number that pops up over a spot in the world, then floats away.
   // kind: 'hit' (white), 'hurt' (red, when Ember is hit) or 'big' (gold, for the Flame Wave).
   function popNumber(position, text, kind = 'hit', lift = 2) {
@@ -81,5 +142,5 @@ export function createUI({ camera, onCast }) {
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setWave, popNumber };
+  return { setHealth, setWave, setWaveText, showBanner, showEnd, hideEnd, popNumber };
 }
