@@ -48,7 +48,7 @@ const state = (page) => page.evaluate(() => {
   const g = window.__game;
   const el = g.renderer.domElement;
   return {
-    x: g.ember.position.x, z: g.ember.position.z, vx: g.ember.velocity.x, vz: g.ember.velocity.z,
+    x: g.player.position.x, z: g.player.position.z, vx: g.player.velocity.x, vz: g.player.velocity.z,
     mx: g.input.move.x, mz: g.input.move.z, camX: g.world.camera.position.x,
     aspect: g.world.camera.aspect, canvasW: el.width, canvasH: el.height,
     hintGone: document.getElementById('hint').classList.contains('gone'),
@@ -56,7 +56,7 @@ const state = (page) => page.evaluate(() => {
   };
 });
 const teleport = (page, x, z) => page.evaluate(([x, z]) => {
-  const g = window.__game; g.ember.position.set(x, 0, z); g.ember.velocity.x = 0; g.ember.velocity.z = 0;
+  const g = window.__game; g.player.position.set(x, 0, z); g.player.velocity.x = 0; g.player.velocity.z = 0;
 }, [x, z]);
 const until = (page, fn, arg) => page.waitForFunction(fn, arg, { timeout: 30000 });
 
@@ -77,7 +77,7 @@ const until = (page, fn, arg) => page.waitForFunction(fn, arg, { timeout: 30000 
     results.push(`INFO  desktop: ${info.calls} draw calls, ${info.tris} triangles, ${info.fps} (software rendering, so fps says nothing about phones)`);
 
     await page.keyboard.down('d');
-    await until(page, () => window.__game.ember.velocity.x > 6.5);
+    await until(page, () => window.__game.player.velocity.x > 6.5);
     let s = await state(page);
     check('D runs Ember right at full speed', s.x > 0 && s.vx > 6.5 && s.vx <= 7.01, `vx=${s.vx.toFixed(2)}`);
     await sleep(300);
@@ -86,12 +86,12 @@ const until = (page, fn, arg) => page.waitForFunction(fn, arg, { timeout: 30000 
     check('hint fades once moving', s.hintGone);
     await page.screenshot({ path: `${OUT}/desktop-running.png` });
     await page.keyboard.up('d');
-    await until(page, () => Math.hypot(window.__game.ember.velocity.x, window.__game.ember.velocity.z) < 0.3);
+    await until(page, () => Math.hypot(window.__game.player.velocity.x, window.__game.player.velocity.z) < 0.3);
     check('Ember slows to a stop when D is released', true);
 
     await teleport(page, 0, 0);
     await page.keyboard.down('d'); await page.keyboard.down('s');
-    await until(page, () => Math.hypot(window.__game.ember.velocity.x, window.__game.ember.velocity.z) > 6.9);
+    await until(page, () => Math.hypot(window.__game.player.velocity.x, window.__game.player.velocity.z) > 6.9);
     s = await state(page);
     const diag = Math.hypot(s.vx, s.vz);
     check('diagonal is not faster than straight', diag <= 7.01 && Math.abs(s.vx - s.vz) < 0.25, `speed=${diag.toFixed(2)}, vx=${s.vx.toFixed(2)}, vz=${s.vz.toFixed(2)}`);
@@ -99,7 +99,7 @@ const until = (page, fn, arg) => page.waitForFunction(fn, arg, { timeout: 30000 
 
     await teleport(page, 0, 0);
     await page.keyboard.down('ArrowUp');
-    await until(page, () => window.__game.ember.velocity.z < -6);
+    await until(page, () => window.__game.player.velocity.z < -6);
     check('Arrow Up runs Ember away from the camera', true);
     await page.keyboard.up('ArrowUp');
 
@@ -152,7 +152,7 @@ const until = (page, fn, arg) => page.waitForFunction(fn, arg, { timeout: 30000 
 
     await touch('touchStart', [[90, 600]]);
     await touch('touchMove', [[150, 600]]);
-    await until(page, () => window.__game.ember.velocity.x > 6.5);
+    await until(page, () => window.__game.player.velocity.x > 6.5);
     s = await state(page);
     check('dragging right on the left half runs Ember right', s.mx > 0.95 && s.vx > 6.5 && s.stickOn, `move.x=${s.mx.toFixed(2)}`);
     await touch('touchMove', [[150, 560]]);

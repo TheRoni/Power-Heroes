@@ -1,8 +1,9 @@
-// main.js: starts the game. It creates the 3D world, Ember, Pip, the waves and the controls, then runs the game loop.
+// main.js: starts the game. It creates the 3D world, the player's hero, Pip, the waves and the controls, then runs the game loop.
 import * as THREE from '../lib/three.module.min.js';
 import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
 import { createHero } from './hero.js';
+import { HEROES } from './heroes-data.js';
 import { createPowers } from './powers.js';
 import { createWaves } from './waves.js';
 import { createPip } from './pip.js';
@@ -12,6 +13,7 @@ import { createUI } from './ui.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
 const DEBUG = new URLSearchParams(location.search).has('debug') || location.hash === '#debug';
+const PLAYER_KIND = 'sol';   // which hero the player controls (a key in heroes-data.js)
 
 // --- Set up the screen ---
 const canvas = document.getElementById('game');
@@ -33,9 +35,9 @@ const WASHED_OUT = 0.6;    // how strong the grey veil is at the start of a roun
 const CONFETTI = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
 const calmMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;   // people who ask for less motion get no shaking
 const tint = document.getElementById('tint');
-let waveFreezePending = false;   // a Flame Wave freezes the game once, the first time it lands
-let waveHits = 0;                // how many Gloomlings the latest Flame Wave hit
-let waveHitTimer = -1;           // counts down until we know how big that Flame Wave was
+let waveFreezePending = false;   // a superpower freezes the game once, the first time it lands
+let waveHits = 0;                // how many Gloomlings the latest superpower hit
+let waveHitTimer = -1;           // counts down until we know how big that superpower was
 const said = { first: false, hurt: false, low: false };   // Pip's one-time comments, so they are not repeated every round
 const soon = [];   // Pip's comments waiting for their moment: { key, left }
 
@@ -51,21 +53,23 @@ function shake(amount) {
 // --- Create everything ---
 const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
-const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active) powers.castWave(); }, onAgain: restart });
-const ember = createHero({
+const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active) powers.castPower(); }, onAgain: restart });
+const player = createHero({
   scene: world.scene,
   bound: WALK_RADIUS,
+  kind: PLAYER_KIND,
   onHurt: (amount) => {
-    ui.popNumber(ember.position, amount, 'hurt');
+    ui.popNumber(player.position, amount, 'hurt');
     shake(0.16);
     if (!said.hurt) { said.hurt = true; story.say('hurt'); }
   },
   onDown: () => shake(0.3),
 });
+ui.setHero({ name: player.name, powerName: HEROES[PLAYER_KIND].power.name, powerId: HEROES[PLAYER_KIND].power.id });
 const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
 const powers = createPowers({
   scene: world.scene,
-  ember,
+  hero: player,
   gloomlings,
   events: {
     cast: () => { waveFreezePending = true; waveHits = 0; waveHitTimer = 0.5; shake(0.12); },
@@ -73,7 +77,7 @@ const powers = createPowers({
       ui.popNumber(gloom.position, amount, kind, 1.6);
       if (kind !== 'big') return;
       waveHits++;
-      if (waveFreezePending) {   // the Flame Wave has landed: a 60 ms freeze-frame and a shake
+      if (waveFreezePending) {   // the superpower has landed: a 60 ms freeze-frame and a shake
         waveFreezePending = false;
         fx.freeze = 0.06;
         fx.freezes++;
@@ -92,7 +96,7 @@ const story = createStory({
 });
 const waves = createWaves({
   scene: world.scene,
-  ember,
+  hero: player,
   gloomlings,
   events: {
     wave: (number, total) => {
@@ -131,7 +135,7 @@ function celebrate(count) {
 // "Play again" and "Try again": a completely fresh round (without the long introduction).
 function restart() {
   ui.hideEnd();
-  ember.reset();
+  player.reset();
   powers.reset();
   said.first = said.hurt = said.low = false;
   waveHitTimer = -1;
@@ -161,7 +165,7 @@ function resize() {
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', resize);
 resize();
-world.follow(ember.position, ember.velocity, 0, true);   // start with the camera already on Ember
+world.follow(player.position, player.velocity, 0, true);   // start with the camera already on the player
 
 // --- Small extras ---
 const hint = document.getElementById('hint');
@@ -174,7 +178,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { ember, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -192,14 +196,14 @@ function frame(now) {
   if (story.active) dt = 0;   // a conversation: the game waits
   gameTime += dt;
 
-  ember.update(dt, input.move, gameTime);
-  for (const gloomling of gloomlings) gloomling.update(dt, ember, gameTime, gloomlings);
+  player.update(dt, input.move, gameTime);
+  for (const gloomling of gloomlings) gloomling.update(dt, player, gameTime, gloomlings);
   powers.update(dt, gameTime);
   waves.update(dt);
-  world.follow(ember.position, ember.velocity, dt, false);
+  world.follow(player.position, player.velocity, dt, false);
   world.update(dt, gameTime);
   story.update(realDt);
-  pip.update(realDt, now / 1000, ember.position);
+  pip.update(realDt, now / 1000, player.position);
 
   for (let i = soon.length - 1; i >= 0; i--) {
     soon[i].left -= realDt;
@@ -208,11 +212,11 @@ function frame(now) {
       soon.splice(i, 1);
     }
   }
-  if (waveHitTimer > 0) {   // a big Flame Wave (three or more Gloomlings) gets a cheer from Pip
+  if (waveHitTimer > 0) {   // a big superpower (three or more Gloomlings) gets a cheer from Pip
     waveHitTimer -= realDt;
     if (waveHitTimer <= 0 && waveHits >= 3) story.say('big');
   }
-  if (!said.low && !ember.down && waves.state !== 'idle' && ember.health / ember.maxHealth < 0.3) {
+  if (!said.low && !player.down && waves.state !== 'idle' && player.health / player.maxHealth < 0.3) {
     said.low = true;
     story.say('low');
   }
@@ -232,8 +236,8 @@ function frame(now) {
     tint.style.opacity = veil;
   }
 
-  ui.setHealth(ember.health / ember.maxHealth);
-  ui.setWave(powers.waveProgress);
+  ui.setHealth(player.health / player.maxHealth);
+  ui.setPower(powers.powerProgress);
   ui.setWaveText(waveText());
   renderer.render(world.scene, world.camera);
 

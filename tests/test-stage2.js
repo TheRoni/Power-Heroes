@@ -124,20 +124,20 @@ async function chunk1(browser) {
   check('4 Gloomlings appear at the rim and walk inward', rim.length === 4 && rim.every((r) => r > 9.5 && r < 11.3), rim.map((r) => r.toFixed(1)).join(', '));
   const meanDistance = () => {
     const G = window.__game;
-    return G.gloomlings.reduce((sum, m) => sum + Math.hypot(m.position.x - G.ember.position.x, m.position.z - G.ember.position.z), 0) / G.gloomlings.length;
+    return G.gloomlings.reduce((sum, m) => sum + Math.hypot(m.position.x - G.player.position.x, m.position.z - G.player.position.z), 0) / G.gloomlings.length;
   };
   const start = await page.evaluate(meanDistance);
   await until(page, (from) => {
     const G = window.__game;
-    return G.gloomlings.reduce((sum, m) => sum + Math.hypot(m.position.x - G.ember.position.x, m.position.z - G.ember.position.z), 0) / G.gloomlings.length < from - 3;
+    return G.gloomlings.reduce((sum, m) => sum + Math.hypot(m.position.x - G.player.position.x, m.position.z - G.player.position.z), 0) / G.gloomlings.length < from - 3;
   }, start);
   check('they run toward Ember', true);
   await until(page, () => window.__game.gloomlings.some((m) => m.mode === 'windup'));
-  const healthAtWarning = await page.evaluate(() => window.__game.ember.health);
+  const healthAtWarning = await page.evaluate(() => window.__game.player.health);
   await page.screenshot({ path: `${OUT}/stage2-1-windup.png` });
   check('the first warning comes before any damage', healthAtWarning === 100, `health=${healthAtWarning}`);
   await until(page, () => document.querySelector('.floater.hurt'));
-  const after = await page.evaluate(() => ({ health: window.__game.ember.health, fill: document.getElementById('hud-fill').style.transform }));
+  const after = await page.evaluate(() => ({ health: window.__game.player.health, fill: document.getElementById('hud-fill').style.transform }));
   check('a bump takes health in steps of 8', after.health <= 92 && (100 - after.health) % 8 === 0, `health=${after.health}`);
   check('a red damage number pops up', true);
   await until(page, () => document.getElementById('hud-fill').style.transform !== 'scaleX(1)');
@@ -147,12 +147,12 @@ async function chunk1(browser) {
 
   // Live game: knocked out.
   ({ page } = await openGame(browser, 'chunk1-down'));
-  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.ember.takeHit(1000, 0, 0); });
-  const downNow = await page.evaluate(() => ({ down: window.__game.ember.down, health: window.__game.ember.health }));
+  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.player.takeHit(1000, 0, 0); });
+  const downNow = await page.evaluate(() => ({ down: window.__game.player.down, health: window.__game.player.health }));
   check('Ember is knocked out at 0 health', downNow.down && downNow.health === 0);
   await page.keyboard.down('d');
   await page.waitForTimeout(600);
-  const stillX = await page.evaluate(() => window.__game.ember.velocity.x);
+  const stillX = await page.evaluate(() => window.__game.player.velocity.x);
   await page.keyboard.up('d');
   check('the controls do nothing while she is out', Math.abs(stillX) < 0.01, `vx=${stillX.toFixed(3)}`);
 }
@@ -164,43 +164,43 @@ const chunk2Unit = async () => {
   const { createGloomling } = await import('/src/gloom.js');
   const { createPowers } = await import('/src/powers.js');
   const out = {};
-  const makeEmber = (x = 0, z = 0, yaw = 0) => ({ position: new THREE.Vector3(x, 0, z), yaw, down: false, faced: null, face(a) { this.yaw = a; this.faced = a; } });
+  const makeEmber = (x = 0, z = 0, yaw = 0) => ({ kind: 'ember', position: new THREE.Vector3(x, 0, z), yaw, down: false, faced: null, face(a) { this.yaw = a; this.faced = a; } });
   const setup = (positions, emberAt = [0, 0, 0]) => {
     const scene = new THREE.Scene();
     const ember = makeEmber(...emberAt);
     const gloomlings = positions.map(([x, z]) => createGloomling({ scene, x, z }));
     const log = { hits: [], kinds: [], defeats: 0, casts: 0 };
-    const powers = createPowers({ scene, ember, gloomlings, events: { hit: (g, a, k) => { log.hits.push(a); log.kinds.push(k); }, defeat: () => { log.defeats++; }, cast: () => { log.casts++; } } });
+    const powers = createPowers({ scene, hero: ember, gloomlings, events: { hit: (g, a, k) => { log.hits.push(a); log.kinds.push(k); }, defeat: () => { log.defeats++; }, cast: () => { log.casts++; } } });
     return { scene, ember, gloomlings, powers, log };
   };
   const run = (s, seconds) => { for (let i = 0; i < Math.round(seconds * 30); i++) s.powers.update(1 / 30, i / 30); };
 
-  { const s = setup([[5, 0]]); run(s, 2.5); out.fire = { hits: s.log.hits.length, each: s.log.hits[0], defeats: s.log.defeats, left: s.gloomlings.length, balls: s.powers.fireballCount }; }
+  { const s = setup([[5, 0]]); run(s, 2.5); out.fire = { hits: s.log.hits.length, each: s.log.hits[0], defeats: s.log.defeats, left: s.gloomlings.length, balls: s.powers.shotCount }; }
   { const s = setup([[8, 0]]); run(s, 2); out.outOfRange = { hits: s.log.hits.length, health: s.gloomlings[0].health }; }
   { const s = setup([[3, 0], [6, 0]]); run(s, 0.5); out.nearest = { near: s.gloomlings[0].health, far: s.gloomlings[1].health }; }
   { const s = setup([[3, 0]]); s.ember.down = true; run(s, 1.5); out.downNoFire = s.log.hits.length; }
   {
     const s = setup([[0, 3], [0, 7], [3, 3], [4, 2], [0, -3.5], [-2, 5]]);
     const [A, B, C, D, E, F] = s.gloomlings;
-    s.powers.castWave();
+    s.powers.castPower();
     run(s, 1.2);
     out.cone = { A: A.alive, B: B.alive, C: C.alive, D: D.alive, E: E.alive, F: F.alive, bigHits: s.log.kinds.filter((k) => k === 'big').length, casts: s.log.casts };
   }
   {
     const s = setup([]);
-    out.cd = { first: s.powers.castWave(), second: s.powers.castWave(), progressStart: s.powers.waveProgress, readyStart: s.powers.waveReady };
-    run(s, 2.5); out.cd.halfway = s.powers.waveProgress;
-    run(s, 2.6); out.cd.ready = s.powers.waveReady; out.cd.third = s.powers.castWave();
-    run(s, 5.2); s.ember.down = true; out.cd.whileDown = s.powers.castWave();
+    out.cd = { first: s.powers.castPower(), second: s.powers.castPower(), progressStart: s.powers.powerProgress, readyStart: s.powers.powerReady };
+    run(s, 2.5); out.cd.halfway = s.powers.powerProgress;
+    run(s, 2.6); out.cd.ready = s.powers.powerReady; out.cd.third = s.powers.castPower();
+    run(s, 5.2); s.ember.down = true; out.cd.whileDown = s.powers.castPower();
   }
-  { const s = setup([[0, 4]], [0, 0, Math.PI]); s.powers.castWave(); out.aim = { faced: s.ember.faced }; run(s, 0.6); out.aim.defeats = s.log.defeats; }
-  { const s = setup([], [0, 0, 1.0]); s.powers.castWave(); out.straight = s.ember.faced; }
+  { const s = setup([[0, 4]], [0, 0, Math.PI]); s.powers.castPower(); out.aim = { faced: s.ember.faced }; run(s, 0.6); out.aim.defeats = s.log.defeats; }
+  { const s = setup([], [0, 0, 1.0]); s.powers.castPower(); out.straight = s.ember.faced; }
   {
     const calls = [];
     const fake = { position: { x: 0, z: 3 }, radius: 0.5, alive: true, hit(d, px, pz) { calls.push({ d, px, pz }); return false; }, remove() {} };
     const scene = new THREE.Scene();
-    const powers = createPowers({ scene, ember: makeEmber(0, 0, 0), gloomlings: [fake], events: {} });
-    powers.castWave();
+    const powers = createPowers({ scene, hero: makeEmber(0, 0, 0), gloomlings: [fake], events: {} });
+    powers.castPower();
     for (let i = 0; i < 15; i++) powers.update(1 / 30, i / 30);
     out.wavePush = calls.find((c) => c.d === 45);
     out.firePush = calls.find((c) => c.d === 10);
@@ -235,23 +235,23 @@ async function chunk2(browser) {
 
   // Live game: keyboard, mouse, auto-fire.
   ({ page } = await openGame(browser, 'chunk2-live'));
-  check('the Flame Wave button starts out glowing (ready)', await page.evaluate(() => document.getElementById('wave-button').classList.contains('ready')));
+  check('the Flame Wave button starts out glowing (ready)', await page.evaluate(() => document.getElementById('power-button').classList.contains('ready')));
   await page.keyboard.press('Space');
-  await until(page, () => !document.getElementById('wave-button').classList.contains('ready'));
-  const sweep = await page.evaluate(() => ({ p: window.__game.powers.waveProgress, left: parseFloat(document.getElementById('wave-button').style.getPropertyValue('--left')) }));
+  await until(page, () => !document.getElementById('power-button').classList.contains('ready'));
+  const sweep = await page.evaluate(() => ({ p: window.__game.powers.powerProgress, left: parseFloat(document.getElementById('power-button').style.getPropertyValue('--left')) }));
   check('Space fires it, and the button shows the recharge sweep', sweep.p < 0.3 && sweep.left > 0.6, `progress=${sweep.p.toFixed(2)}, sweep=${sweep.left}`);
-  await until(page, () => document.getElementById('wave-button').classList.contains('ready'), null, 180000);
+  await until(page, () => document.getElementById('power-button').classList.contains('ready'), null, 180000);
   check('the button glows again when the wave is ready', true);
-  await page.click('#wave-button');
-  check('clicking the button fires it too', (await page.evaluate(() => window.__game.powers.waveProgress)) < 0.3);
+  await page.click('#power-button');
+  check('clicking the button fires it too', (await page.evaluate(() => window.__game.powers.powerProgress)) < 0.3);
   await until(page, () => document.querySelector('.floater.hit, .floater.big'));
   check('damage numbers pop up over hit Gloomlings', true);
-  await until(page, () => window.__game.waves.progress > 0 || window.__game.ember.down);
+  await until(page, () => window.__game.waves.progress > 0 || window.__game.player.down);
   check('Gloomlings get defeated in the live game', await page.evaluate(() => window.__game.waves.progress > 0));
 
   // Screenshot in the middle of a Flame Wave.
   ({ page } = await openGame(browser, 'chunk2-shot'));
-  await until(page, () => { const G = window.__game; return G.gloomlings.filter((m) => Math.hypot(m.position.x - G.ember.position.x, m.position.z - G.ember.position.z) < 5.5).length >= 2; });
+  await until(page, () => { const G = window.__game; return G.gloomlings.filter((m) => Math.hypot(m.position.x - G.player.position.x, m.position.z - G.player.position.z) < 5.5).length >= 2; });
   await page.keyboard.press('Space');
   await page.waitForTimeout(120);
   await page.screenshot({ path: `${OUT}/stage2-2-wave.png` });
@@ -260,7 +260,7 @@ async function chunk2(browser) {
   ({ page, context } = await openGame(browser, 'chunk2-touch', { width: 390, height: 844 }, true));
   const client = await context.newCDPSession(page);
   const geometry = await page.evaluate(() => {
-    const b = document.getElementById('wave-button').getBoundingClientRect();
+    const b = document.getElementById('power-button').getBoundingClientRect();
     const h = document.getElementById('hint').getBoundingClientRect();
     return { x: b.x + b.width / 2, y: b.y + b.height / 2, half: window.innerWidth / 2, overlap: !(h.right < b.left || h.left > b.right || h.bottom < b.top || h.top > b.bottom), inside: b.right <= window.innerWidth && b.bottom <= window.innerHeight };
   });
@@ -268,7 +268,7 @@ async function chunk2(browser) {
   check('the hint text does not overlap the button', !geometry.overlap);
   await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: geometry.x, y: geometry.y, id: 0 }] });
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  const tap = await page.evaluate(() => ({ p: window.__game.powers.waveProgress, stick: document.getElementById('joystick').classList.contains('active'), move: window.__game.input.move.x }));
+  const tap = await page.evaluate(() => ({ p: window.__game.powers.powerProgress, stick: document.getElementById('joystick').classList.contains('active'), move: window.__game.input.move.x }));
   check('a tap on the button fires the wave without steering', tap.p < 0.3 && !tap.stick && tap.move === 0, `progress=${tap.p.toFixed(2)}`);
   await page.waitForTimeout(150);
   await page.screenshot({ path: `${OUT}/stage2-2-phone.png` });
@@ -285,7 +285,7 @@ const chunk3Unit = async () => {
     const ember = { position: new THREE.Vector3(0, 0, 0), down: false };
     const gloomlings = [];
     const log = { waves: [], spawns: 0, cleared: [], end: [] };
-    const waves = createWaves({ scene, ember, gloomlings, events: { wave: (n, t) => log.waves.push(`${n}/${t}`), spawn: () => { log.spawns++; }, cleared: (n) => log.cleared.push(n), end: (k) => log.end.push(k) } });
+    const waves = createWaves({ scene, hero: ember, gloomlings, events: { wave: (n, t) => log.waves.push(`${n}/${t}`), spawn: () => { log.spawns++; }, cleared: (n) => log.cleared.push(n), end: (k) => log.end.push(k) } });
     return { scene, ember, gloomlings, waves, log };
   };
   const step = (s, seconds, killAll = false) => {
@@ -362,7 +362,7 @@ async function chunk3(browser) {
     G.story.skip();
     const win = { hidden: document.getElementById('end').hidden, title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, state: G.waves.state };
     document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }));
-    return { win, early: { hidden: document.getElementById('end').hidden, ready: G.powers.waveReady } };
+    return { win, early: { hidden: document.getElementById('end').hidden, ready: G.powers.powerReady } };
   });
   check('beating wave 3 shows "Isle saved!" and a Play again button', !win.hidden && win.title === 'Isle saved!' && win.button === 'Play again' && win.state === 'over', JSON.stringify(win));
   check('a key press in the first moment is ignored (no accidental skip)', !early.hidden && early.ready);
@@ -370,23 +370,23 @@ async function chunk3(browser) {
   await page.waitForTimeout(900);
   await page.keyboard.press('Space');
   await until(page, () => document.getElementById('end').hidden);
-  const again = await page.evaluate(() => ({ state: window.__game.waves.state, health: window.__game.ember.health, ready: window.__game.powers.waveReady, wave: window.__game.waves.wave, count: window.__game.gloomlings.length }));
+  const again = await page.evaluate(() => ({ state: window.__game.waves.state, health: window.__game.player.health, ready: window.__game.powers.powerReady, wave: window.__game.waves.wave, count: window.__game.gloomlings.length }));
   check('Space on the win screen starts a fresh round (and does not fire the wave)', again.health === 100 && again.ready && again.wave === 1 && again.count === 0 && ['break', 'spawning'].includes(again.state), JSON.stringify(again));
 
-  await page.evaluate(() => { const G = window.__game; G.ember.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); G.story.skip(); });
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); G.story.skip(); });
   const lose = await page.evaluate(() => ({ hidden: document.getElementById('end').hidden, title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent }));
   check('being knocked out shows "Knocked out" and a Try again button', !lose.hidden && lose.title === 'Knocked out' && lose.button === 'Try again', JSON.stringify(lose));
   await page.screenshot({ path: `${OUT}/stage2-3-lose.png` });
   await page.waitForTimeout(900);
   await page.click('#end-button');
   await until(page, () => document.getElementById('end').hidden);
-  const retry = await page.evaluate(() => ({ health: window.__game.ember.health, down: window.__game.ember.down, wave: window.__game.waves.wave }));
+  const retry = await page.evaluate(() => ({ health: window.__game.player.health, down: window.__game.player.down, wave: window.__game.waves.wave }));
   check('clicking Try again gives Ember full health and wave 1', retry.health === 100 && !retry.down && retry.wave === 1, JSON.stringify(retry));
 
   // Phone: the end screen fits, and touches on it never steer.
   ({ page, context } = await openGame(browser, 'chunk3-touch', { width: 390, height: 844 }, true));
   const client = await context.newCDPSession(page);
-  await page.evaluate(() => { const G = window.__game; G.ember.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); G.story.skip(); });
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); G.story.skip(); });
   await page.waitForTimeout(900);
   const spot = await page.evaluate(() => { const r = document.getElementById('end-button').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, shown: !document.getElementById('end').hidden, fits: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight }; });
   check('the end screen fits a phone screen', spot.shown && spot.fits);
@@ -398,7 +398,7 @@ async function chunk3(browser) {
   await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: spot.x, y: spot.y, id: 0 }] });
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await until(page, () => document.getElementById('end').hidden);
-  check('tapping Try again on a phone restarts the round', await page.evaluate(() => window.__game.ember.health === 100 && !document.getElementById('joystick').classList.contains('active')));
+  check('tapping Try again on a phone restarts the round', await page.evaluate(() => window.__game.player.health === 100 && !document.getElementById('joystick').classList.contains('active')));
 }
 
 
@@ -409,7 +409,7 @@ async function chunk4(browser) {
   check('the island starts washed-out (grey veil about 0.6)', near(veil0, 0.6, 0.03), `opacity=${veil0}`);
   await page.screenshot({ path: `${OUT}/stage2-4-washed-out.png` });
 
-  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.ember.takeHit(8, 5, 0); });
+  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.player.takeHit(8, 5, 0); });
   const shaken = await page.evaluate(() => window.__game.fx.shake);
   check('Ember being hit shakes the screen', shaken > 0.04, `shake=${shaken.toFixed(2)}`);
   await until(page, () => window.__game.fx.shake === 0);
@@ -420,7 +420,7 @@ async function chunk4(browser) {
     G.waves.reset();
     const { createGloomling } = await import('/src/gloom.js');
     for (const [x, z] of [[0, 3], [1.5, 3.5], [-1.5, 3.5]]) G.gloomlings.push(createGloomling({ scene: G.world.scene, x, z }));
-    G.ember.position.set(0, 0, 0);
+    G.player.position.set(0, 0, 0);
   });
   const before = await page.evaluate(() => window.__game.fx.freezes);
   await page.keyboard.press('Space');
@@ -434,19 +434,19 @@ async function chunk4(browser) {
   await page.evaluate(() => {
     const G = window.__game;
     G.waves.reset();
-    G.ember.velocity.x = 7;
-    window.__x0 = G.ember.position.x;
+    G.player.velocity.x = 7;
+    window.__x0 = G.player.position.x;
     window.__f0 = G.renderer.info.render.frame;
     G.fx.freeze = 0.5;
   });
   await until(page, () => window.__game.renderer.info.render.frame > window.__f0 + 1);
-  const held = await page.evaluate(() => Math.abs(window.__game.ember.position.x - window.__x0));
+  const held = await page.evaluate(() => Math.abs(window.__game.player.position.x - window.__x0));
   check('during a freeze-frame nothing moves', held < 1e-9, `moved ${held}`);
-  await until(page, () => Math.abs(window.__game.ember.position.x - window.__x0) > 0.01);
+  await until(page, () => Math.abs(window.__game.player.position.x - window.__x0) > 0.01);
   check('and then the game carries on', true);
 
   ({ page } = await openGame(browser, 'chunk4-calm', undefined, false, { reducedMotion: 'reduce' }));
-  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.ember.takeHit(8, 5, 0); });
+  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.player.takeHit(8, 5, 0); });
   check('with "reduce motion" switched on there is no screen shake', (await page.evaluate(() => window.__game.fx.shake)) === 0);
 
   ({ page } = await openGame(browser, 'chunk4-colour'));
@@ -592,15 +592,15 @@ async function chunk5(browser) {
   check('the game opens with the chapter title and Pip talking', open.active && open.shown && open.name === 'Pip' && open.state === 'idle' && open.bannerTitle === 'Sunmeadow' && open.bannerSub === 'Chapter 1', JSON.stringify(open));
   await until(page, () => document.getElementById('dialogue-text').textContent.length > 20);
   await page.screenshot({ path: `${OUT}/story-1-intro.png` });
-  await until(page, () => { const G = window.__game; return Math.hypot(G.pip.group.position.x - G.ember.position.x, G.pip.group.position.z - G.ember.position.z) < 4; });
+  await until(page, () => { const G = window.__game; return Math.hypot(G.pip.group.position.x - G.player.position.x, G.pip.group.position.z - G.player.position.z) < 4; });
   check('Pip flies in to Ember\'s side', true);
   await page.keyboard.down('d');
   await page.waitForTimeout(500);
-  const held = await page.evaluate(() => ({ x: window.__game.ember.position.x, state: window.__game.waves.state, ready: window.__game.powers.waveReady }));
+  const held = await page.evaluate(() => ({ x: window.__game.player.position.x, state: window.__game.waves.state, ready: window.__game.powers.powerReady }));
   await page.keyboard.up('d');
   check('the fight waits: Ember cannot walk off and no wave starts', Math.abs(held.x) < 1e-6 && held.state === 'idle', JSON.stringify(held));
   await readOn(page);
-  const afterIntro = await page.evaluate(() => ({ active: window.__game.story.active, ready: window.__game.powers.waveReady, state: window.__game.waves.state }));
+  const afterIntro = await page.evaluate(() => ({ active: window.__game.story.active, ready: window.__game.powers.powerReady, state: window.__game.waves.state }));
   check('reading the last line starts the first wave', !afterIntro.active && ['break', 'spawning'].includes(afterIntro.state), JSON.stringify(afterIntro));
   check('Space during the conversation did not fire the Flame Wave', afterIntro.ready);
   await until(page, () => document.getElementById('bubble').classList.contains('show'));
@@ -625,7 +625,7 @@ async function chunk5(browser) {
   const again = await page.evaluate(() => ({ active: window.__game.story.active, state: window.__game.waves.state }));
   check('playing again skips the introduction and starts straight away', !again.active && ['break', 'spawning'].includes(again.state), JSON.stringify(again));
 
-  await page.evaluate(() => { const G = window.__game; G.ember.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
   await until(page, () => window.__game.story.active);
   check('being knocked out brings a short conversation too, with no end screen yet', await page.evaluate(() => document.getElementById('end').hidden));
   await readOn(page);
@@ -657,10 +657,112 @@ async function chunk5(browser) {
   await readOn(page).catch(() => {});
 }
 
+
+// ---------- Heroes: Sol, light darts, Starburst, the general hero code ----------
+const chunk6Unit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createHero } = await import('/src/hero.js');
+  const { createPowers } = await import('/src/powers.js');
+  const out = {};
+  for (const kind of ['sol', 'ember']) {
+    const scene = new THREE.Scene();
+    let hurt = 0;
+    const h = createHero({ scene, bound: 10.2, kind, onHurt: () => { hurt++; } });
+    for (let i = 0; i < 20; i++) h.update(1 / 30, { x: 1, z: 0 }, i / 30);
+    out[kind] = { name: h.name, type: h.type, health: h.health, max: h.maxHealth, moved: h.position.x > 1, hit: h.takeHit(8, 99, 0), after: h.health, hurt, objects: scene.children.length };
+  }
+  const makeSol = (x = 0, z = 0, yaw = 0) => ({ kind: 'sol', position: new THREE.Vector3(x, 0, z), yaw, down: false, faced: 0, face(a) { this.faced++; this.yaw = a; } });
+  const setup = (positions, at = [0, 0, 0]) => {
+    const scene = new THREE.Scene();
+    const hero = makeSol(...at);
+    const gloomlings = positions.map(([x, z]) => createGloomling({ scene, x, z }));
+    const log = { hits: [], kinds: [], defeats: 0, casts: 0 };
+    const powers = createPowers({ scene, hero, gloomlings, events: { hit: (g, a, k) => { log.hits.push(a); log.kinds.push(k); }, defeat: () => { log.defeats++; }, cast: () => { log.casts++; } } });
+    return { scene, hero, gloomlings, powers, log };
+  };
+  const run = (s, seconds) => { for (let i = 0; i < Math.round(seconds * 30); i++) s.powers.update(1 / 30, i / 30); };
+
+  { const s = setup([[5, 0]]); run(s, 2.5); out.darts = { hits: s.log.hits.length, each: s.log.hits[0], defeats: s.log.defeats, left: s.gloomlings.length, shots: s.powers.shotCount }; }
+  {
+    const s = setup([[2, 0], [0, -4], [3, 3], [4.6, 0], [6, 0], [0, 5.2]]);
+    const [A, B, C, D, E, F] = s.gloomlings;
+    s.powers.castPower();
+    run(s, 1.2);
+    out.ring = { A: A.alive, B: B.alive, C: C.alive, D: D.alive, E: E.alive, F: F.alive, big: s.log.kinds.filter((k) => k === 'big').length, casts: s.log.casts, faced: s.hero.faced };
+  }
+  {
+    const calls = [];
+    const fake = (x, z) => ({ position: { x, z }, radius: 0.5, alive: true, hit(d, px, pz) { calls.push({ d, px, pz }); return false; }, remove() {} });
+    const powers = createPowers({ scene: new THREE.Scene(), hero: makeSol(), gloomlings: [fake(3, 0), fake(0, -2)], events: {} });
+    powers.castPower();
+    for (let i = 0; i < 20; i++) powers.update(1 / 30, i / 30);
+    out.push = calls.filter((c) => c.d === 40);
+    out.dartPush = calls.find((c) => c.d === 9);
+  }
+  {
+    const s = setup([]);
+    out.cd = { first: s.powers.castPower(), second: s.powers.castPower(), start: s.powers.powerProgress };
+    run(s, 2.5); out.cd.half = s.powers.powerProgress;
+    run(s, 2.6); out.cd.ready = s.powers.powerReady; out.cd.third = s.powers.castPower();
+    run(s, 5.2); s.hero.down = true; out.cd.whileDown = s.powers.castPower();
+  }
+  return out;
+};
+
+async function chunk6(browser) {
+  let { page } = await openGame(browser, 'heroes-unit');
+  const u = await page.evaluate(chunk6Unit);
+  check('Sol is a Light hero and Ember a Fire hero, each with 100 health', u.sol.name === 'Sol' && u.sol.type === 'light' && u.ember.name === 'Ember' && u.ember.type === 'fire' && u.sol.max === 100 && u.ember.max === 100, JSON.stringify([u.sol.name, u.sol.type, u.ember.name, u.ember.type]));
+  check('both heroes can run, be hit once, and report it', u.sol.moved && u.ember.moved && u.sol.hit && u.ember.hit && u.sol.after === 92 && u.ember.after === 92 && u.sol.hurt === 1 && u.ember.hurt === 1);
+  check('each hero adds its own parts to the scene (body and health bar)', u.sol.objects === 2 && u.ember.objects === 2, `${u.sol.objects}, ${u.ember.objects}`);
+  check('Sol\'s light darts hit for 9, and 4 of them defeat a Gloomling', u.darts.hits === 4 && u.darts.each === 9 && u.darts.defeats === 1 && u.darts.left === 0 && u.darts.shots === 0, JSON.stringify(u.darts));
+  check('Starburst hits everything inside the ring, in front and behind', !u.ring.A && !u.ring.B && !u.ring.C && !u.ring.D, JSON.stringify(u.ring));
+  check('Starburst leaves what is outside the ring alone', u.ring.E && u.ring.F && u.ring.big === 4 && u.ring.casts === 1, JSON.stringify(u.ring));
+  check('Starburst needs no aiming: Sol does not turn', u.ring.faced === 0);
+  check('Starburst shoves each Gloomling 2.5 units straight away from Sol, once', u.push.length === 2 && u.push.some((c) => near(c.px, 2.5, 0.01) && near(c.pz, 0, 0.01)) && u.push.some((c) => near(c.px, 0, 0.01) && near(c.pz, -2.5, 0.01)), JSON.stringify(u.push));
+  check('a dart only taps (0.3 units, no stun)', u.dartPush && near(Math.hypot(u.dartPush.px, u.dartPush.pz), 0.3, 0.01));
+  check('Starburst recharges in 5 s, refuses a second cast, and does nothing when Sol is down', u.cd.first && !u.cd.second && near(u.cd.start, 0, 0.01) && near(u.cd.half, 0.5, 0.04) && u.cd.ready && u.cd.third && !u.cd.whileDown, JSON.stringify(u.cd));
+
+  // Live game: the player is Sol.
+  ({ page } = await openGame(browser, 'heroes-live'));
+  const live = await page.evaluate(() => {
+    const b = document.getElementById('power-button');
+    const shown = (sel) => getComputedStyle(b.querySelector(sel)).display !== 'none';
+    return { kind: window.__game.player.kind, name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, power: b.dataset.power, star: shown('.icon-star'), flame: shown('.icon-flame') };
+  });
+  check('the game is played as Sol: the corner says Sol and the button says Starburst with a star', live.kind === 'sol' && live.name === 'Sol' && live.label === 'Starburst' && live.power === 'starburst' && live.star && !live.flame, JSON.stringify(live));
+  await page.screenshot({ path: `${OUT}/stage4-1-sol.png` });
+  await page.evaluate(async () => {
+    const G = window.__game;
+    G.waves.reset();
+    const { createGloomling } = await import('/src/gloom.js');
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      G.gloomlings.push(createGloomling({ scene: G.world.scene, x: Math.cos(a) * 3.2, z: Math.sin(a) * 3.2 }));
+    }
+  });
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(130);
+  await page.screenshot({ path: `${OUT}/stage4-1-starburst.png` });
+  await until(page, () => window.__game.gloomlings.length === 0);
+  check('Starburst in the live game clears six Gloomlings circling Sol', true);
+
+  // The button changes with the hero (Ember's flame is still there for later).
+  ({ page } = await openGame(browser, 'heroes-ui'));
+  const swapped = await page.evaluate(() => {
+    const b = document.getElementById('power-button');
+    window.__game.ui.setHero({ name: 'Ember', powerName: 'Flame Wave', powerId: 'flamewave' });
+    const shown = (sel) => getComputedStyle(b.querySelector(sel)).display !== 'none';
+    return { name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, flame: shown('.icon-flame'), star: shown('.icon-star') };
+  });
+  check('the corner name, button label and icon follow the hero (Ember gets her flame back)', swapped.name === 'Ember' && swapped.label === 'Flame Wave' && swapped.flame && !swapped.star, JSON.stringify(swapped));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

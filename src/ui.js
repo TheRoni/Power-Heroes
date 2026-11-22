@@ -1,4 +1,4 @@
-// ui.js: everything drawn on top of the 3D picture: floating health bars, number pop-ups, the Flame Wave button,
+// ui.js: everything drawn on top of the 3D picture: floating health bars, number pop-ups, the power button,
 // the wave banner, and the win and knocked-out screens.
 import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
@@ -31,13 +31,13 @@ export function createFloatingBar(width, color) {
   return { group, set: (fraction) => { fill.scale.x = Math.max(0.0001, Math.min(1, fraction)); } };
 }
 
-// "onCast" is called when the player taps the Flame Wave button or presses Space.
+// "onCast" is called when the player taps the power button or presses Space.
 // "onAgain" is called when the player taps "Play again" / "Try again" on an end screen.
 export function createUI({ camera, onCast, onAgain }) {
   const healthFill = document.getElementById('hud-fill');
   const waveLabel = document.getElementById('hud-wave');
   const floaters = document.getElementById('floaters');
-  const waveButton = document.getElementById('wave-button');
+  const powerButton = document.getElementById('power-button');
   const banner = document.getElementById('banner');
   const endScreen = document.getElementById('end');
   const endButton = document.getElementById('end-button');
@@ -51,7 +51,7 @@ export function createUI({ camera, onCast, onAgain }) {
   }
 
   // The buttons react the moment a finger touches them. stopPropagation keeps the joystick from also seeing the touch.
-  waveButton.addEventListener('pointerdown', (event) => {
+  powerButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     event.stopPropagation();
     onCast();
@@ -80,19 +80,27 @@ export function createUI({ camera, onCast, onAgain }) {
     healthFill.classList.toggle('low', f < 0.3);
   }
 
-  // The Flame Wave button. "progress" goes from 0 (just used) to 1 (ready). The dark sweep shows how much is left.
+  // Shows which hero you are: the name in the corner, and the power button's label and icon.
+  function setHero({ name, powerName, powerId }) {
+    document.getElementById('hud-name').textContent = name;
+    document.getElementById('power-label').textContent = powerName;
+    powerButton.dataset.power = powerId;
+    powerButton.setAttribute('aria-label', powerName);
+  }
+
+  // The power button. "progress" goes from 0 (just used) to 1 (ready). The dark sweep shows how much is left.
   let lastLeft = '';
   let lastReady = null;
-  function setWave(progress) {
+  function setPower(progress) {
     const left = (1 - Math.max(0, Math.min(1, progress))).toFixed(3);
     if (left !== lastLeft) {   // only touch the page when something actually changed
       lastLeft = left;
-      waveButton.style.setProperty('--left', left);
+      powerButton.style.setProperty('--left', left);
     }
     const ready = progress >= 1;
     if (ready !== lastReady) {
       lastReady = ready;
-      waveButton.classList.toggle('ready', ready);
+      powerButton.classList.toggle('ready', ready);
     }
   }
 
@@ -142,5 +150,5 @@ export function createUI({ camera, onCast, onAgain }) {
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setWave, setWaveText, showBanner, showEnd, hideEnd, popNumber };
+  return { setHealth, setPower, setHero, setWaveText, showBanner, showEnd, hideEnd, popNumber };
 }

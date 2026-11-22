@@ -230,6 +230,7 @@ home and the place between battles. No enemies, no timer.
 ## Folder structure (planned)
 ```
 STORY.md              the story bible: lore, characters, chapters, music cues
+tests/                automatic browser tests (not part of the game)
 index.html            the page that starts the game
 style.css             layout and on-screen buttons
 story.css             the conversation box and Pip's speech bubble
@@ -243,7 +244,8 @@ src/                  the game code, one job per file
   input.js            joystick, buttons, keyboard
   heroes-data.js      hero stats, types, powers (numbers live here)
   hero.js             hero model, movement, attacks
-  powers.js           superpower effects
+  powers.js           automatic shots, damage rules and sparks
+  superpowers.js      each hero's superpower (Flame Wave, Starburst, ...)
   combos.js           power reactions
   aura.js             aura visuals by tier
   power.js            Power, XP, and growth maths

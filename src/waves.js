@@ -9,7 +9,7 @@ const LOSE_DELAY = 1.5;      // after Ember is knocked out: a moment before the 
 
 // "gloomlings" is the live list shared with main.js and powers.js. New Gloomlings are added to it here.
 // events (all optional): wave(number, total) when a wave starts, spawn(gloom), cleared(number), end('won' or 'lost').
-export function createWaves({ scene, ember, gloomlings, events = {} }) {
+export function createWaves({ scene, hero, gloomlings, events = {} }) {
   const total = WAVES.sizes.length;
   const everyone = WAVES.sizes.reduce((sum, size) => sum + size, 0);
   let state = 'idle';   // idle, break (waiting), spawning, fighting, won / lost (the short pause), over (end screen showing)
@@ -20,14 +20,14 @@ export function createWaves({ scene, ember, gloomlings, events = {} }) {
   let spawned = 0;      // Gloomlings that have appeared since the start
   let ending = '';      // 'won' or 'lost', announced when the pause is over
 
-  // Puts one Gloomling on the rim, away from Ember so it never appears on top of her.
+  // Puts one Gloomling on the rim, away from the hero so it never appears on top of them.
   function spawnOne() {
     let best = null;
     for (let tries = 0; tries < 6; tries++) {
       const angle = Math.random() * Math.PI * 2;
       const x = Math.cos(angle) * SPAWN_RADIUS;
       const z = Math.sin(angle) * SPAWN_RADIUS;
-      const away = Math.hypot(x - ember.position.x, z - ember.position.z);
+      const away = Math.hypot(x - hero.position.x, z - hero.position.z);
       if (!best || away > best.away) best = { x, z, away };
       if (away > 7) break;
     }
@@ -68,7 +68,7 @@ export function createWaves({ scene, ember, gloomlings, events = {} }) {
       }
       return;
     }
-    if (ember.down) {
+    if (hero.down) {
       state = 'lost';
       ending = 'lost';
       timer = LOSE_DELAY;

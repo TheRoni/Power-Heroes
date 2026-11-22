@@ -20,14 +20,14 @@
 
   <!-- A short hint that fades away once you start moving. -->
   <p id="hint">
-    <span class="hint-touch">Drag left to move · tap Flame Wave</span>
-    <span class="hint-keys">W A S D or arrows to move · Space for Flame Wave</span>
+    <span class="hint-touch">Drag left to move · tap the big button</span>
+    <span class="hint-keys">W A S D or arrows to move · Space for your power</span>
   </p>
 
-  <!-- The heads-up display: Ember's health. -->
+  <!-- The heads-up display: the hero's health. -->
   <div id="hud">
     <div id="hud-hero">
-      <span id="hud-name">Ember</span>
+      <span id="hud-name">Sol</span>
       <div id="hud-bar"><div id="hud-fill"></div></div>
     </div>
     <div id="hud-wave"></div>
@@ -36,10 +36,11 @@
   <!-- Numbers that pop up over the action. -->
   <div id="floaters" aria-hidden="true"></div>
 
-  <!-- Ember's superpower button (Space on a keyboard). The dark sweep shows the recharge. -->
-  <button id="wave-button" type="button" aria-label="Flame Wave">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2 1-3.4 2-4.5.2 1.3.9 2.2 1.8 2.6C10.2 8.2 10.5 4.7 12 2z"/></svg>
-    <span>Flame Wave</span>
+  <!-- The hero's superpower button (Space on a keyboard). The dark sweep shows the recharge. -->
+  <button id="power-button" type="button" aria-label="Starburst" data-power="starburst">
+    <svg class="icon-flame" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2 1-3.4 2-4.5.2 1.3.9 2.2 1.8 2.6C10.2 8.2 10.5 4.7 12 2z"/></svg>
+    <svg class="icon-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7.3L12 17.8 5.7 21.5l1.7-7.3L2 9.5l7.1-.6z"/></svg>
+    <span id="power-label">Starburst</span>
   </button>
 
   <!-- The title that sweeps across the screen when a wave starts. -->

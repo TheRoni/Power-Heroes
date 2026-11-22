@@ -9,8 +9,9 @@
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Next: Stage 4, the Newcomer and Marlo** (plan below), built on Sonnet in
-  chunks: one chunk per reply, one-line updates, "next" to continue.
+- **Stage 4 in progress (built on Sonnet, one chunk per reply):** chunk 1 is done
+  (you play Sol; heroes are general). **Next: chunk 2, Keeper Marlo.**
+  Until chunk 3 rewrites the words, the story text still talks to "Ember".
 
 ## How we work
 - **Opus** plans stages and fixes hard problems. **Sonnet** builds from the
@@ -22,8 +23,8 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (105
-  checks in 5 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story).
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (118
+  checks in 6 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes).
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
   `/home/user/power-heroes`. Playwright and Chromium come with the container.
@@ -95,7 +96,7 @@
 and Marlo's lessons (the tutorial), then the existing 3 waves become the start
 of Chapter 1. Ember arrives at the end as a rival.
 
-**Chunk 1: heroes made general, and Sol.**
+**Chunk 1: heroes made general, and Sol. DONE.**
 - New `src/hero-models.js`: the look of each hero. Move Ember's look here
   (unchanged). Add **Sol**: white-and-gold outfit, short pale-gold hair in soft
   swept-back spikes, a glowing star mark on the chest, tiny light motes
@@ -111,6 +112,19 @@ of Chapter 1. Ember arrives at the end as a rival.
   "Starburst" for Sol).
 - Update the tests to Sol; add Starburst checks (hits everything inside the
   ring, nothing outside, shoves outward, recharge).
+
+**Chunk 1 build notes:**
+- New files: `src/hero-models.js` (shared chibi body, plus Ember and Sol looks),
+  `src/superpowers.js` (Flame Wave and Starburst). `powers.js` now holds only the
+  automatic shots, the damage rules and the sparks.
+- `heroes-data.js` has `HEROES` (sol, ember). Sol: Light, 100 health, light darts
+  (9 damage, range 7, every 0.6 s), Starburst (40 damage, radius 4.5, shove 2.5,
+  recharge 5 s). `main.js` picks the player with `PLAYER_KIND = 'sol'`.
+- Renames: `castWave` is now `castPower`, `waveProgress`/`waveReady` are
+  `powerProgress`/`powerReady`, `#wave-button` is `#power-button`, `__game.ember`
+  is `__game.player`. The button's icon, label and colour follow the hero
+  (`ui.setHero`). The tests were updated, plus a new group 6 (13 checks) for Sol.
+- `tests/look-heroes.js` renders close-ups of any hero: `node tests/look-heroes.js <folder> sol ember`.
 
 **Chunk 2: Keeper Marlo.**
 - New `src/marlo.js`: tall, broad old warrior built from shapes: grey-blue
