@@ -180,7 +180,8 @@ home and the place between battles. No enemies, no timer.
   far from the camera use simpler shapes.
 
 ## Controls
-- **Phone:** virtual joystick (left thumb) to move. Right side: a big
+- **Phone:** a joystick appears under the left thumb (left half of the
+  screen) to move; its ring follows the thumb if you drag past the edge. Right side: a big
   Superpower button, plus 3 hero portraits to swap (tap the glowing active
   portrait for Overdrive).
 - **Computer:** WASD or Arrow keys to move. Space = Superpower.
@@ -206,6 +207,11 @@ home and the place between battles. No enemies, no timer.
   browser (localStorage). The game still works if storage is unavailable.
 - **Hosting:** GitHub Pages (free), so the game opens on a phone from a web link.
 - **Big numbers:** Power is shown in short form when large (12.4K, 3.1M).
+- **Camera:** angled from above and behind, follows the hero smoothly. It
+  always keeps about 12 x 11 units of ground in view, so heroes stay big on
+  phones in both portrait and landscape.
+- **Debug mode:** add `?debug` to the web address to show the frame rate.
+  The automatic tests use it too.
 
 ## Folder structure (planned)
 ```
@@ -252,6 +258,7 @@ src/                  the game code, one job per file
 - Say clearly what was tested and what could not be tested.
 - Large or repetitive coding may be handed to a smaller, faster model with
   clear instructions. Claude reviews the result and tells the director.
-- **Models:** the main session (planning, design, reviewing) runs on the
-  strongest model. Helpers: Sonnet for coding from a clear plan, Haiku for
-  simple repetitive content (name lists, dialogue lines, data tables).
+- **Models (to protect the director's usage allowance):** Opus plans each
+  stage and fixes hard problems. Sonnet builds from the written plan. Haiku
+  handles only simple repetitive content (name lists, dialogue lines, data
+  tables). The director switches models with `/model`.

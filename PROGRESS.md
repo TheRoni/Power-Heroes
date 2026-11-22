@@ -1,9 +1,12 @@
 # Power Heroes: Progress
 
 ## Status
-- Done: game bible (`CLAUDE.md`), this roadmap, Stage 1 step 1 of 7.
-- **Now: Stage 1** (plan approved). **Next file: `index.html`.**
-- Rule in force: one file per reply (the director can pause it for a stage).
+- Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1 built and tested** (all 7 files).
+- **Now: waiting for the director to try Stage 1** and say how the movement feels.
+- **Next: the Stage 2 plan (first fight)**, written for approval before any building.
+- Rule note: "one file per reply" was paused for Stage 1 (the director said
+  "up to you", and Claude chose to build the rest in one go to save usage).
+  Ask the director again at the Stage 2 plan.
 
 ## How we work on usage
 - **Opus:** planning each stage, reviewing, fixing hard problems.
@@ -27,16 +30,16 @@
 Each stage ends with something playable on a phone.
 
 ### Vertical slice (smallest fun version)
-- [ ] **Stage 1: Arena and movement.** A 3D floating arena. Ember runs
+- [x] **Stage 1: Arena and movement.** A 3D floating arena. Ember runs
   around with joystick or keyboard. Camera follows. Judge: does moving feel good?
-  Build order (each file needs the ones above it, so `main.js` comes last):
+  Built and tested in a browser. **Still to do: the director tries it on a phone.**
   - [x] 1. `lib/three.module.min.js` (checksum matched npm; drew a 3D cube in a browser)
-  - [ ] 2. `index.html`
-  - [ ] 3. `style.css`
-  - [ ] 4. `src/scene.js`
-  - [ ] 5. `src/input.js`
-  - [ ] 6. `src/hero.js`
-  - [ ] 7. `src/main.js` (ties it together: first playable moment)
+  - [x] 2. `index.html` (28 lines)
+  - [x] 3. `style.css` (113 lines)
+  - [x] 4. `src/scene.js` (276 lines)
+  - [x] 5. `src/input.js` (107 lines)
+  - [x] 6. `src/hero.js` (159 lines)
+  - [x] 7. `src/main.js` (81 lines)
 - [ ] **Stage 2: First fight.** Gloomlings come in 3 waves. Auto-attack,
   health bars, Flame Wave superpower, hit effects, win and lose screens.
 - [ ] **Stage 3: The squad.** Tide and Volt join. Hero swap, type damage
@@ -62,7 +65,7 @@ Each stage ends with something playable on a phone.
 - [ ] **Stage 12: The Rift and secrets.** Endless mode, hidden aura forms,
   Light heroes, final polish.
 
-## Stage 1 plan (for approval)
+## Stage 1 plan (approved and built)
 **Goal:** open the link on a phone, see a 3D island arena, move Ember around.
 
 **New files (7):**
@@ -95,6 +98,28 @@ at phone and desktop sizes, take screenshots, check there are no errors,
 simulate key presses and confirm Ember moves. Cannot test: real touch feel
 and real phone speed. The director tests those.
 
-## Known problems
-- `CLAUDE.md` says the main session runs on the strongest model. Update it to
-  match the usage plan above (Opus plans, Sonnet builds).
+**What was tested (18 checks, all passed, no errors in the browser console):**
+keyboard movement (WASD and arrows), top speed, slowing down, diagonals not
+faster, island edge (cannot leave, slides along it), losing window focus,
+resizing, touch joystick (left half only, analog strength, dead zone, lifting
+the thumb), screenshots in phone portrait, phone landscape, and desktop.
+Light on the graphics side: about 50 draw calls and 16,000 triangles.
+
+**Changes and additions compared with the plan:**
+- The camera keeps at least 12 x 11 units of ground in view on any screen
+  shape (so Ember stays big on a phone), instead of fitting the whole island.
+  It follows 80% of the way to Ember and drifts slightly ahead of her.
+- The joystick ring follows the thumb if you drag past its edge, so changing
+  direction is quick.
+- Added a short hint at the bottom that fades after you start moving.
+- Added `?debug` (end of the web address) to show the frame rate.
+- Added scenery: floating rocks, drifting clouds, swaying grass, flowers.
+
+## Known problems and untested things
+- **Not tested (needs a real phone):** how the touch controls feel, real
+  frame rate, and whether pinch-zoom is fully blocked on iPhones.
+- GitHub Pages is not turned on yet, so there is no web link to play from
+  (see the director to-do above).
+- The test browser has no graphics card, so its frame-rate numbers mean nothing.
+- Trees only grow along the far side of the island. Nothing blocks Ember
+  except the island edge.
