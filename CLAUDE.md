@@ -210,7 +210,7 @@ home and the place between battles. No enemies, no timer.
 - **Camera:** angled from above and behind, follows the hero smoothly. It
   always keeps about 12 x 11 units of ground in view, so heroes stay big on
   phones in both portrait and landscape.
-- **Debug mode:** add `?debug` to the web address to show the frame rate.
+- **Debug mode:** add `?debug` (or `#debug`) to the web address to show the frame rate.
   The automatic tests use it too.
 
 ## Folder structure (planned)

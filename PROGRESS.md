@@ -2,7 +2,8 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1 built and tested** (all 7 files).
-- **Now: waiting for the director to try Stage 1** and say how the movement feels.
+- **Now: waiting for the director to try Stage 1** (on the private Claude test
+  link) and say how the movement feels.
 - **Next: the Stage 2 plan (first fight)**, written for approval before any building.
 - Rule note: "one file per reply" was paused for Stage 1 (the director said
   "up to you", and Claude chose to build the rest in one go to save usage).
@@ -16,8 +17,9 @@
 - To build a stage: switch the session to Sonnet and say "Build Stage N".
 
 ## Director to-do (one time)
-- [ ] Turn on GitHub Pages so the game opens on your phone. Not urgent:
-  nothing is playable until Stage 1 is finished. Open this link in a normal
+- [ ] Turn on GitHub Pages. Not needed for testing now (the private Claude
+  link covers that), but Stage 5 needs it for offline play and installing on
+  the home screen. Open this link in a normal
   web browser (not the GitHub app) while signed in to GitHub:
   https://github.com/TheRoni/power-heroes/settings/pages
   Under "Build and deployment": Source = **Deploy from a branch**,
@@ -25,6 +27,19 @@
   minutes the game will be at `https://theroni.github.io/power-heroes/`.
   If it says Pages needs a public repository, switch the repository to
   Public first (Settings → General → bottom "Danger Zone" → Change visibility).
+
+## Claude test link (private, for phone testing)
+- A private copy of the game is published in Claude as "Power Heroes" (find it
+  with the Artifact list). Only the director can open it. For the frame rate,
+  add `#debug` to the end of the link. The link is not saved here because this
+  repository is public.
+- **It must be republished after every stage.** Claude wraps the page in its
+  own `<html>`, so the published page is `index.html` with the `<title>` and
+  viewport moved to the top and `style.css` placed inline. The game files
+  (`src/*.js`, `lib/three.module.min.js`) are published beside it. Run the same
+  browser checks on the wrapped page before publishing.
+- Limits inside Claude: no offline mode and no home-screen install (service
+  workers are blocked there). That is why Stage 5 needs GitHub Pages.
 
 ## Roadmap
 Each stage ends with something playable on a phone.
@@ -112,7 +127,7 @@ Light on the graphics side: about 50 draw calls and 16,000 triangles.
 - The joystick ring follows the thumb if you drag past its edge, so changing
   direction is quick.
 - Added a short hint at the bottom that fades after you start moving.
-- Added `?debug` (end of the web address) to show the frame rate.
+- Added `?debug` (or `#debug`) at the end of the web address to show the frame rate.
 - Added scenery: floating rocks, drifting clouds, swaying grass, flowers.
 
 ## Known problems and untested things

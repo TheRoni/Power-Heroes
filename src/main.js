@@ -4,8 +4,8 @@ import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
 import { createHero } from './hero.js';
 
-// Add ?debug to the end of the web address to show the frame rate.
-const DEBUG = new URLSearchParams(location.search).has('debug');
+// Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
+const DEBUG = new URLSearchParams(location.search).has('debug') || location.hash === '#debug';
 
 // --- Set up the screen ---
 const canvas = document.getElementById('game');
