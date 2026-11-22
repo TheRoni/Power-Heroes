@@ -4,7 +4,10 @@
 - Done: game bible (`CLAUDE.md`), this roadmap, **Stage 1 built and tested** (all 7 files).
 - **Now: waiting for the director to try Stage 1** (on the private Claude test
   link) and say how the movement feels.
-- **Next: the Stage 2 plan (first fight)**, written for approval before any building.
+- Director feedback on Stage 1: it works on the phone, but it is "just moving
+  on land". True, that was the plan. Stage 2 is where the game starts.
+- **Next: Stage 2 (first fight).** The plan is written below and waits for the
+  director's approval before any building.
 - Rule note: "one file per reply" was paused for Stage 1 (the director said
   "up to you", and Claude chose to build the rest in one go to save usage).
   Ask the director again at the Stage 2 plan.
@@ -129,6 +132,56 @@ Light on the graphics side: about 50 draw calls and 16,000 triangles.
 - Added a short hint at the bottom that fades after you start moving.
 - Added `?debug` (or `#debug`) at the end of the web address to show the frame rate.
 - Added scenery: floating rocks, drifting clouds, swaying grass, flowers.
+
+## Stage 2 plan: First fight (for approval)
+**Goal:** a short fight you can win or lose, with Ember's first superpower.
+Stage 1 was only movement. This is where the game starts.
+
+**What the player does:**
+- Run around as now. Ember automatically throws a fireball at the nearest
+  Gloomling in range (range 7, one every 0.7 s, 10 damage).
+- Tap the big **Flame Wave** button (bottom right; Space on a keyboard): a cone
+  of fire in front of her, 6 long and about 100 degrees wide, 45 damage, pushes
+  Gloomlings back. It recharges in 5 s, shown as a ring on the button.
+- Beat 3 waves of Gloomlings: 4, then 6, then 8. A banner shows "Wave 1" and so
+  on. The next wave starts 1.5 s after the last Gloomling falls.
+- Win: "Isle saved!" with a Play again button. Lose: "Knocked out" with a Try
+  again button. One tap, full reset. No timer.
+
+**Gloomlings:** small dark-violet blobs with glowing eyes. 30 health, speed 3
+(Ember runs at 7, so she can always get away: a gentle first fight). They run
+at Ember and bump her for 8 damage, then pause 1 s. A short flash warns before
+each bump. They appear on the island rim, one every second.
+
+**Ember:** 100 health. A bar floats over her head and another sits in the
+corner of the screen. At 0 she is knocked out.
+
+**Feel:**
+- Gloomlings flash white when hit and burst into sparks of colour when they fall.
+- Floating damage numbers.
+- A small screen shake and a 60 ms freeze-frame when the Flame Wave lands, and a
+  smaller shake when Ember is hit.
+- The island starts washed-out and grey. Its colour returns with every Gloomling
+  defeated (the story: Glooms drain colour).
+
+**New files (5, need approval):**
+1. `src/heroes-data.js`: Ember's numbers (health, attack, Flame Wave). All tuning lives here.
+2. `src/gloom.js`: the Gloomling's look and behaviour.
+3. `src/powers.js`: the fireball and the Flame Wave (look and damage).
+4. `src/waves.js`: wave timing, spawning, win and lose.
+5. `src/ui.js`: health bars, the Flame Wave button, banners, damage numbers, end screens.
+
+**Existing files that change:** `index.html` (HUD elements), `style.css` (HUD
+styling), `src/main.js` (connects everything, screen shake), `src/hero.js`
+(health, hit flash, knocked-out pose).
+
+**Tests (automatic, in a browser):** Gloomlings spawn and chase; fireballs
+fire by themselves and do damage; Flame Wave hits only what is in the cone, has
+a cooldown, and works from Space and from a touch on the button (without
+steering the joystick); health bars; 3 waves end in the win screen; being
+knocked out shows the lose screen; both retry buttons reset everything; no
+errors. Cannot test: how hard or fun it feels on a real phone. The director
+judges that. Afterwards the Claude test link is republished.
 
 ## Known problems and untested things
 - **Not tested (needs a real phone):** how the touch controls feel, real
