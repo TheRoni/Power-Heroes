@@ -1,0 +1,96 @@
+// music-data.js: the songs, written as note lists. music.js plays them.
+// A note is its name and octave, then ":" and how many beats it lasts: "D5:2 F#5:1 Bb4:0.5". "r:2" is a rest.
+// "D3+A3:8" plays two notes together (a chord). "x:0.5" is a drum hit (for the drum voices). "|" is only a bar line to
+// help the eye. A melody that changes mood (Lyra's Lullaby) is written in scale degrees instead: "5:1 3^:2"
+// (^ is an octave up, v an octave down), and the key and the mode are given separately.
+
+const NAMES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const MODES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10] };
+
+// "F#5" -> 78 (MIDI numbers: C4 is 60, A4 is 69).
+function midi(name) {
+  const m = /^([A-G])([#b]?)(\d)$/.exec(name);
+  if (!m) throw new Error(`bad note name: ${name}`);
+  return 12 * (Number(m[3]) + 1) + NAMES[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
+}
+
+// "5" or "3^" or "7v" in a key and mode -> MIDI number. "key" is the tonic, such as 'D4'.
+function degree(text, key, mode) {
+  const m = /^([1-7])([\^v]*)$/.exec(text);
+  if (!m) throw new Error(`bad scale degree: ${text}`);
+  const octave = [...m[2]].reduce((sum, c) => sum + (c === '^' ? 1 : -1), 0);
+  return midi(key) + MODES[mode][Number(m[1]) - 1] + 12 * octave;
+}
+
+// Turns text into events: { beat, beats, notes: [midi, ...] } (notes is empty for a rest, [0] for a drum hit).
+export function parseNotes(text, { key, mode } = {}) {
+  const events = [];
+  let beat = 0;
+  for (const token of text.replace(/\|/g, ' ').split(/\s+/).filter(Boolean)) {
+    const [pitch, length] = token.split(':');
+    const beats = Number(length);
+    if (!(beats > 0)) throw new Error(`bad length in "${token}"`);
+    if (pitch !== 'r') {
+      const notes = pitch === 'x' ? [0] : pitch.split('+').map((p) => (key ? degree(p, key, mode) : midi(p)));
+      events.push({ beat, beats, notes });
+    }
+    beat += beats;
+  }
+  return { events, total: beat };
+}
+
+const repeat = (text, times) => Array(times).fill(text).join(' | ');
+
+// tempo: beats per minute. beats: beats in a bar. bars: bars in the loop. level: how loud the whole song is.
+// Each track plays one voice (see music.js): flute, chime, pluck, bass, pad, kick, snare, hat.
+export const SONGS = {
+  // Night, a star falling: slow, wondering flute over soft chimes and a low drone. (D major)
+  'falling-star': {
+    tempo: 54, beats: 4, bars: 8, level: 0.9,
+    tracks: [
+      { voice: 'flute', notes: 'r:2 A4:2 | F#5:3 E5:1 | D5:2 A4:2 | B4:4 | r:2 A4:2 | F#5:2 A5:2 | G5:3 F#5:1 | E5:4' },
+      { voice: 'chime', notes: `${repeat('D6:1 A5:1 F#5:1 A5:1', 2)} | ${repeat('B5:1 F#5:1 D6:1 F#5:1', 2)} | ${repeat('G5:1 D6:1 B5:1 D6:1', 2)} | ${repeat('A5:1 E6:1 C#6:1 E6:1', 2)}` },
+      { voice: 'pad', notes: 'D3+A3:8 | B2+F#3:8 | G2+D3:8 | A2+E3:8' },
+    ],
+  },
+
+  // The meadow by day: a bright, bouncing flute tune with light plucks. (G major)
+  sunmeadow: {
+    tempo: 108, beats: 4, bars: 8, level: 0.85,
+    tracks: [
+      { voice: 'flute', notes: 'D5:0.5 G5:0.5 B5:1 A5:0.5 G5:0.5 E5:1 | D5:0.5 E5:0.5 G5:1 A5:2 | D5:0.5 G5:0.5 B5:1 D6:0.5 B5:0.5 A5:1 | G5:3 r:1 | E5:0.5 G5:0.5 B5:1 C6:0.5 B5:0.5 A5:1 | G5:0.5 A5:0.5 B5:1 D6:2 | C6:0.5 B5:0.5 A5:1 G5:0.5 A5:0.5 F#5:1 | G5:3 r:1' },
+      { voice: 'pluck', notes: [
+        repeat('G3:0.5 B3:0.5 D4:0.5 B3:0.5', 2), repeat('E3:0.5 G3:0.5 B3:0.5 G3:0.5', 2),
+        repeat('G3:0.5 B3:0.5 D4:0.5 B3:0.5', 2), repeat('G3:0.5 B3:0.5 D4:0.5 B3:0.5', 2),
+        repeat('E3:0.5 G3:0.5 B3:0.5 G3:0.5', 2), repeat('C4:0.5 E4:0.5 G4:0.5 E4:0.5', 2),
+        repeat('D4:0.5 F#4:0.5 A4:0.5 F#4:0.5', 2), repeat('G3:0.5 B3:0.5 D4:0.5 B3:0.5', 2),
+      ].join(' | ') },
+      { voice: 'bass', notes: 'G2:1 r:1 D3:1 r:1 | E2:1 r:1 B2:1 r:1 | G2:1 r:1 D3:1 r:1 | G2:1 r:1 D3:1 r:1 | E2:1 r:1 B2:1 r:1 | C3:1 r:1 G3:1 r:1 | D3:1 r:1 A3:1 r:1 | G2:1 r:1 D3:1 r:1' },
+      { voice: 'hat', notes: repeat(repeat('r:0.5 x:0.5', 4), 8) },
+    ],
+  },
+
+  // The fight: quicker, in the minor, with a driving flute riff over soft drums. (D minor)
+  battle: {
+    tempo: 132, beats: 4, bars: 8, level: 0.75,
+    tracks: [
+      { voice: 'flute', notes: 'A5:0.5 A5:0.5 D6:1 C6:0.5 A5:0.5 G5:1 | A5:0.5 G5:0.5 F5:1 E5:2 | A5:0.5 A5:0.5 D6:1 E6:0.5 D6:0.5 C6:1 | D6:2 A5:2 | F5:0.5 F5:0.5 A5:1 G5:0.5 F5:0.5 E5:1 | D5:0.5 E5:0.5 F5:1 A5:2 | C6:0.5 C6:0.5 D6:1 C6:0.5 A5:0.5 G5:1 | A5:3 r:1' },
+      { voice: 'bass', notes: ['D3', 'G2', 'D3', 'A2', 'D3', 'Bb2', 'F2', 'A2'].map((n) => `${n}:1 ${n}:0.5 ${n}:0.5 ${n}:1 ${n}:1`).join(' | ') },
+      { voice: 'kick', notes: repeat('x:1 r:1 x:1 r:1', 8) },
+      { voice: 'snare', notes: repeat('r:1 x:1 r:1 x:1', 8) },
+      { voice: 'hat', notes: repeat(repeat('x:0.5', 8), 8) },
+    ],
+  },
+};
+
+// Work out every song's events once, when the game loads. Each track's notes must fill the loop exactly.
+for (const [name, song] of Object.entries(SONGS)) {
+  song.length = song.bars * song.beats;   // beats in one loop
+  song.events = [];
+  for (const track of song.tracks) {
+    const { events, total } = parseNotes(track.notes, track);
+    if (total !== song.length) throw new Error(`${name}: a ${track.voice} track has ${total} beats, not ${song.length}`);
+    for (const e of events) song.events.push({ ...e, voice: track.voice, gain: track.gain ?? 1 });
+  }
+  song.events.sort((a, b) => a.beat - b.beat);
+}

@@ -2,6 +2,7 @@
 // the wave banner, and the win and knocked-out screens.
 import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
+import { QUIET } from './audio.js';
 
 const ENDINGS = {
   won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Play again' },
@@ -32,8 +33,8 @@ export function createFloatingBar(width, color) {
 }
 
 // "onCast" is called when the player taps the power button or presses Space.
-// "onAgain" is called when the player taps "Play again" / "Try again" on an end screen.
-export function createUI({ camera, onCast, onAgain }) {
+// "onAgain" is called when the player taps "Play again" / "Try again" on an end screen. "audio" plays the click and ready sounds.
+export function createUI({ camera, onCast, onAgain, audio = QUIET }) {
   const healthFill = document.getElementById('hud-fill');
   const waveLabel = document.getElementById('hud-wave');
   const floaters = document.getElementById('floaters');
@@ -41,13 +42,40 @@ export function createUI({ camera, onCast, onAgain }) {
   const banner = document.getElementById('banner');
   const endScreen = document.getElementById('end');
   const endButton = document.getElementById('end-button');
+  const titleScreen = document.getElementById('title');
+  const veil = document.getElementById('tint');
   const point = new THREE.Vector3();
   let endShownAt = 0;
+  let titleStart = null;   // what to do when the title screen is tapped
+  let lastVeil = '';
 
   // An end screen's button. The first moment after it appears is ignored (see END_LOCK).
   function again() {
     if (endScreen.hidden || performance.now() - endShownAt < END_LOCK) return;
+    audio.play('click');
     onAgain();
+  }
+
+  // The title screen waits for a tap (or Space / Enter), then hides itself and starts the story.
+  function startFromTitle() {
+    if (titleScreen.hidden || !titleStart) return;
+    const go = titleStart;
+    titleStart = null;
+    titleScreen.hidden = true;
+    go();
+  }
+  titleScreen.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    startFromTitle();
+  });
+  function showTitle(onStart) {
+    titleStart = onStart;
+    titleScreen.hidden = false;
+  }
+  function hideTitle() {
+    titleStart = null;
+    titleScreen.hidden = true;
   }
 
   // The buttons react the moment a finger touches them. stopPropagation keeps the joystick from also seeing the touch.
@@ -64,7 +92,10 @@ export function createUI({ camera, onCast, onAgain }) {
   });
   window.addEventListener('keydown', (event) => {
     if (event.code !== 'Space' && event.code !== 'Enter') return;
-    if (!endScreen.hidden) {   // on an end screen, Space and Enter mean "again"
+    if (!titleScreen.hidden) {   // on the title screen, Space and Enter mean "begin"
+      event.preventDefault();
+      startFromTitle();
+    } else if (!endScreen.hidden) {   // on an end screen, Space and Enter mean "again"
       event.preventDefault();
       again();
     } else if (event.code === 'Space') {
@@ -99,9 +130,18 @@ export function createUI({ camera, onCast, onAgain }) {
     }
     const ready = progress >= 1;
     if (ready !== lastReady) {
+      if (ready && lastReady === false) audio.play('ready');   // a little tick when the power has recharged
       lastReady = ready;
       powerButton.classList.toggle('ready', ready);
     }
+  }
+
+  // The grey veil over the picture (0 = none, 1 = solid grey).
+  function setVeil(amount) {
+    const text = amount.toFixed(3);
+    if (text === lastVeil) return;
+    lastVeil = text;
+    veil.style.opacity = text;
   }
 
   // The small "Wave 1/3 · 4 left" note under Ember's health bar.
@@ -150,5 +190,5 @@ export function createUI({ camera, onCast, onAgain }) {
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setWaveText, showBanner, showEnd, hideEnd, popNumber };
+  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, showEnd, hideEnd, popNumber, showTitle, hideTitle };
 }

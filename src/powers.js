@@ -3,6 +3,7 @@
 import * as THREE from '../lib/three.module.min.js';
 import { HEROES } from './heroes-data.js';
 import { createSuperpower } from './superpowers.js';
+import { QUIET } from './audio.js';
 
 const FLAME_COLORS = [0xff4b1f, 0xff8a1f, 0xffc933];                     // red, orange, yellow
 const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];   // the colour that bursts out of a defeated Gloomling
@@ -74,7 +75,7 @@ function createSparks(scene, capacity = 240) {
 // "hero" is the hero (kind, position, yaw, down, face). "gloomlings" is the live list of enemies (defeated ones are
 // taken out of it). "events" are optional: hit(gloom, amount, kind) for number pop-ups, defeat(gloom), cast() when
 // the superpower goes off.
-export function createPowers({ scene, hero, gloomlings, events = {} }) {
+export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUIET }) {
   const data = HEROES[hero.kind];
   const sparks = createSparks(scene);
   const shots = [];
@@ -104,6 +105,8 @@ export function createPowers({ scene, hero, gloomlings, events = {} }) {
     const defeated = gloom.hit(amount, pushX, pushZ);
     const p = gloom.position;
     if (events.hit) events.hit(gloom, amount, kind);
+    audio.play(kind === 'big' ? 'bell' : 'tick', { pitch: random(0.92, 1.08) });
+    if (defeated) audio.play('pop', { pitch: random(0.9, 1.1) });
     for (let i = 0; i < 5; i++) sparks.emit(p.x, 0.8, p.z, random(-3, 3), random(1, 4), random(-3, 3), 0.3, 0.12, 0xffe9a0, -9);
     if (defeated) {
       for (let i = 0; i < 16; i++) sparks.emit(p.x, 0.6, p.z, random(-3.5, 3.5), random(2, 6), random(-3.5, 3.5), random(0.5, 0.9), random(0.14, 0.24), pick(POP_COLORS), -12);
@@ -129,6 +132,7 @@ export function createPowers({ scene, hero, gloomlings, events = {} }) {
     shot.add(outer, inner);
     shot.rotation.y = Math.atan2(dx, dz);   // a dart points the way it flies
     shot.position.set(hero.position.x + (dx / length) * 0.6, 1.0, hero.position.z + (dz / length) * 0.6);
+    audio.play('dart', { pitch: random(0.94, 1.06) });
     scene.add(shot);
     shots.push({ shot, dx: dx / length, dz: dz / length, travelled: 0 });
   }
@@ -159,6 +163,7 @@ export function createPowers({ scene, hero, gloomlings, events = {} }) {
   function castPower() {
     if (powerLeft > 0 || hero.down) return false;
     powerLeft = data.power.cooldown;
+    audio.play(data.power.id);   // the sound has the same name as the power
     superpower.cast();
     if (events.cast) events.cast();
     return true;

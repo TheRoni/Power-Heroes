@@ -3,17 +3,19 @@
 // A bubble is a quick line that floats by while the fight carries on.
 import * as THREE from '../lib/three.module.min.js';
 import { SPEAKERS, SCENES, BUBBLES } from './story-data.js';
+import { QUIET } from './audio.js';
 
 const TYPING_SPEED = 48;   // letters per second
 const BUBBLE_TIME = 3.2;   // how long a bubble stays (seconds)
 const TAP_LOCK = 0.25;     // when a scene starts, taps are ignored for this long, so a hurried tap cannot skip the first line
 const MOVEMENT_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+const BLIP_EVERY = 4;       // a little typing sound for every 4th letter
 
 // "anchors" say where each speaker's bubble floats: { pip: { object, lift }, marlo: { object, lift } }.
 // "root" is the page to draw on (tests pass a spare one). "touch" is true on a phone, so lines can mention the thumb
 // controls. onStart() runs when a conversation begins. onSpeak() when Pip speaks. onWait(kind) when a lesson begins.
-// onCue(name) when a line that names a cue appears.
-export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue }) {
+// onCue(name) when a line that names a cue appears. "audio" plays the typing blips.
+export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue, audio = QUIET }) {
   const byId = (id) => root.getElementById(id);
   const overlay = byId('dialogue');
   const nameBox = byId('dialogue-name');
@@ -36,6 +38,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
   let bubbleLeft = 0;    // time left before the bubble fades
   let bubbleAnchor = null;
   let lastBubble = '';
+  let blipPitch = 1;     // the speaker's typing sound
 
   const resolve = (text) => (typeof text === 'string' ? text : phone ? text.touch : text.keys);
 
@@ -45,6 +48,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
     typed = 0;
     shown = 0;
     nameBox.textContent = speaker.name;
+    blipPitch = speaker.pitch || 1;
     overlay.style.setProperty('--speaker', speaker.color);
     textBox.textContent = '';
     nextMark.classList.remove('on');
@@ -158,6 +162,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
         typed = Math.min(full.length, typed + dt * TYPING_SPEED);
         const count = Math.floor(typed);
         if (count !== shown) {
+          if (Math.floor(count / BLIP_EVERY) !== Math.floor(shown / BLIP_EVERY)) audio.play('blip', { pitch: blipPitch * (0.92 + Math.random() * 0.16) });
           shown = count;
           textBox.textContent = full.slice(0, count);
         }

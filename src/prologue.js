@@ -4,6 +4,7 @@ import * as THREE from '../lib/three.module.min.js';
 import { createGloomling } from './gloom.js';
 import { createGlow } from './pip.js';
 import { CHAPTER, PROLOGUE } from './story-data.js';
+import { QUIET } from './audio.js';
 
 const STAR_TO = new THREE.Vector3(0, 0.6, 0);   // where the star lands
 const DARK_TIME = 1.4;    // seconds of quiet night before the star appears
@@ -12,27 +13,27 @@ const RISE_TIME = 1.2;    // seconds for Sol to climb out of the crater
 const DAWN_TIME = 3;      // seconds for the sun to come up
 const ISLAND = 10.2;      // training Gloomlings are placed inside this distance from the middle
 const RING_AT = { x: 4.2, z: 2.2 };       // the glowing ring of lesson one
-const CLIMB = [['Power 1', 0], ['Power 2', 0.9], ['Power 4', 1.8], ['Power 7', 2.7]];   // the number Marlo reads climbing
+const CLIMB = [['Power 1', 0, 1], ['Power 2', 0.9, 1.122], ['Power 4', 1.8, 1.26], ['Power 7', 2.7, 1.498]];   // the number Marlo reads climbing: text, when, and how high its note rings
 const SPARKS = [0xffffff, 0xffe9a0, 0xffd24a, 0xfff6c8];
 
 const random = (min, max) => min + Math.random() * (max - min);
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 // "world" is { scene, camera, setNight }. "shake(amount)" shakes the screen. onDone() starts the first wave.
-export function createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone }) {
+export function createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone, audio = QUIET }) {
   const scene = world.scene;
   const flashBox = document.getElementById('flash');
   const skipButton = document.getElementById('skip');
   const sparks = powers.sparks;
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const starFrom = new THREE.Vector3();
-  let phase = 'idle';   // idle, dark, falling, rising, walking, talking, dawn, skipping, done
+  let phase = 'idle';   // idle, title, dark, falling, rising, walking, talking, dawn, skipping, done
   let clock = 0;        // seconds in the current phase
   let night = 0;        // 1 = night, 0 = day
   let craterAmount = 0; // how visible the crater is, 0 to 1
   let lesson = null;    // the lesson being played: { kind, dummies }
   let bigHits = 0;      // Gloomlings hit by the superpower since the last lesson began
-  const numbers = [];   // the climbing "Power" numbers waiting to pop up: { left, text }
+  const numbers = [];   // the climbing "Power" numbers waiting to pop up: { left, text, pitch }
 
   // The falling star: a bright ball with a soft glow.
   const star = new THREE.Group();
@@ -126,13 +127,14 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
 
   function lessonDone() {
     burst(player.position.x, player.position.z, 26);
+    audio.play('chime');
     endLesson();
     story.resume();
   }
 
   // Lines can name a cue. "power-climb" is Marlo reading Sol's glow: the number climbs above their head.
   function cue(name) {
-    if (name === 'power-climb') for (const [text, left] of CLIMB) numbers.push({ text, left });
+    if (name === 'power-climb') for (const [text, left, pitch] of CLIMB) numbers.push({ text, left, pitch });
   }
 
   // The superpower hit something (main.js tells us), for the third lesson.
@@ -140,14 +142,22 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
     if (kind === 'big') bigHits++;
   }
 
+  // The night scene is set up with Sol off stage. It waits (on the title screen) until go().
   function begin() {
-    phase = 'dark';
+    phase = 'title';
     clock = 0;
     night = 1;
     world.setNight(1, 0);
     document.body.classList.add('prologue');
-    skipButton.hidden = false;
     player.setVisible(false);
+  }
+
+  // The title screen was tapped: the story begins.
+  function go() {
+    if (phase !== 'title') return;
+    phase = 'dark';
+    clock = 0;
+    skipButton.hidden = false;
     ui.showBanner(PROLOGUE.name, PROLOGUE.subtitle);
   }
 
@@ -158,12 +168,14 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
     starFrom.copy(camera.position).addScaledVector(toward, camera.position.distanceTo(STAR_TO) * 0.9);
     star.position.copy(starFrom);
     star.visible = true;
+    audio.play('whoosh');
     phase = 'falling';
     clock = 0;
   }
 
   function impact() {
     star.visible = false;
+    audio.play('boom');
     flash();
     shake(0.55);
     burst(0, 0, 70);
@@ -177,6 +189,7 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
     if (phase !== 'talking') return;
     phase = 'dawn';
     clock = 0;
+    audio.play('sunrise');
     skipButton.hidden = true;
     marlo.goHome();
     ui.showBanner(CHAPTER.name, `Chapter ${CHAPTER.number}`);
@@ -195,6 +208,7 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
   function skip() {
     if (phase === 'idle' || phase === 'done') return;
     phase = 'skipping';   // so the end of the conversation does not start the sunrise
+    ui.hideTitle();
     story.skip();
     endLesson();
     star.visible = false;
@@ -212,12 +226,13 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
   // Called every frame with the real time that passed (not paused by conversations) and the clock.
   function update(dt, time) {
     if (phase === 'idle' || phase === 'done') return;
-    clock += dt;
+    if (phase !== 'title') clock += dt;
 
     for (let i = numbers.length - 1; i >= 0; i--) {
       numbers[i].left -= dt;
       if (numbers[i].left <= 0) {
         ui.popNumber(player.position, numbers[i].text, 'big', 2.8);
+        audio.play('climb', { pitch: numbers[i].pitch });
         numbers.splice(i, 1);
       }
     }
@@ -271,16 +286,17 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
   skipButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     event.stopPropagation();   // the joystick never sees this touch
+    audio.play('click');
     skip();
   });
 
   return {
-    begin, update, skip, cue, startLesson, noteHit,
+    begin, go, update, skip, cue, startLesson, noteHit,
     get phase() { return phase; },
     get running() { return phase !== 'idle' && phase !== 'done'; },
-    get cinematic() { return ['dark', 'falling', 'rising', 'walking'].includes(phase); },   // the controls are off (the world keeps moving)
-    get pipWithMarlo() { return ['dark', 'falling', 'rising', 'walking'].includes(phase); },
-    get lanternUp() { return ['dark', 'falling', 'rising', 'walking', 'talking'].includes(phase); },
+    get cinematic() { return ['title', 'dark', 'falling', 'rising', 'walking'].includes(phase); },   // the controls are off (the world keeps moving)
+    get pipWithMarlo() { return ['title', 'dark', 'falling', 'rising', 'walking'].includes(phase); },
+    get lanternUp() { return ['title', 'dark', 'falling', 'rising', 'walking', 'talking'].includes(phase); },
     get lessonKind() { return lesson ? lesson.kind : null; },
     get starVisible() { return star.visible; },   // (these three let the automatic tests look at the scene)
     get craterVisible() { return crater.visible; },

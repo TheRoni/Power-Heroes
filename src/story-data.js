@@ -9,10 +9,10 @@ export const CHAPTER = { number: 1, name: 'Sunmeadow' };
 export const PROLOGUE = { name: 'Prologue', subtitle: 'The Falling Star' };
 
 export const SPEAKERS = {
-  marlo: { name: 'Marlo', color: '#9fb8d8' },
-  sol: { name: 'Sol', color: '#fff3c8' },
-  pip: { name: 'Pip', color: '#ffd24a' },
-  ember: { name: 'Ember', color: '#ff7a3c' },
+  marlo: { name: 'Marlo', color: '#9fb8d8', pitch: 0.55 },   // pitch: how high the little typing blips sound
+  sol: { name: 'Sol', color: '#fff3c8', pitch: 1 },
+  pip: { name: 'Pip', color: '#ffd24a', pitch: 1.9 },
+  ember: { name: 'Ember', color: '#ff7a3c', pitch: 1.3 },
 };
 
 // Scenes: conversations you tap through. The game waits while they play (except during a lesson).

@@ -73,6 +73,12 @@
   <!-- Skips the prologue. Only shown while the prologue is playing. -->
   <button id="skip" type="button" hidden>Skip intro</button>
 
+  <!-- The Mute button (the M key does the same). -->
+  <button id="mute" type="button" aria-label="Mute sound" aria-pressed="false">
+    <svg class="icon-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+    <svg class="icon-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3zm13.6 3 2.4-2.4-1.4-1.4-2.4 2.4-2.4-2.4-1.4 1.4 2.4 2.4-2.4 2.4 1.4 1.4 2.4-2.4 2.4 2.4 1.4-1.4z"/></svg>
+  </button>
+
   <!-- The end screen: "Isle saved!" or "Knocked out", with a button to go again. -->
   <div id="end" hidden role="dialog" aria-modal="true" aria-labelledby="end-title">
     <div id="end-card">
@@ -80,6 +86,13 @@
       <p id="end-text"></p>
       <button id="end-button" type="button"></button>
     </div>
+  </div>
+
+  <!-- The title screen: the first tap starts the sound and the story. -->
+  <div id="title" hidden>
+    <h1 id="title-name">Power Heroes</h1>
+    <p id="title-line">A star is about to fall.</p>
+    <p id="title-tap"><span class="hint-touch">Tap to begin</span><span class="hint-keys">Click or press Space to begin</span></p>
   </div>
 
   <!-- Shown only if this device cannot draw 3D graphics. -->

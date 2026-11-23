@@ -228,18 +228,65 @@ of Chapter 1. Ember arrives at the end as a rival.
 **New files in Stage 4:** `src/hero-models.js`, `src/marlo.js`, `src/superpowers.js`,
 `src/sky.js`, `src/prologue.js` (the last two were not in the first plan).
 
-## Stage 5 plan: flute music and sound (outline; detail it before building)
-- New `src/audio.js` (sound engine, starts on the first tap, Mute button that
-  remembers its setting), `src/music.js` (the flute voice and song player),
-  `src/music-data.js` (melodies written as note lists).
-- The flute: a soft sine tone with a quiet overtone, a puff of breath noise at
-  the start of each note, gentle vibrato after a moment, soft fade in and out,
-  a little echo.
-- Songs first: The Falling Star, Sunmeadow, Battle, Marlo's Theme, Lyra's
-  Lullaby, and the Lullaby in sorrow (for later emotional scenes). Each story
-  scene can name its music in `story-data.js`.
-- Sound effects: fireball, light dart, Starburst, Flame Wave, hits, "SUPER!",
-  a defeat pop, a bump, a soft blip for the typing text, buttons.
+## Stage 5 plan: flute music and sound
+**Goal:** the game gets a voice: small sound effects, and music built around a
+flute (all made in code, no audio files). Chunks, one per step:
+
+**Chunk 1: the sound engine, a Mute button, a "Tap to begin" screen, sound effects.**
+- New `src/audio.js`: the sound engine. Sound starts only after the first tap
+  or key (browsers insist). A Mute button (top right, also the M key) that
+  remembers its setting. `audio.play('dart')` plays a named effect. Effects are
+  small recipes of tones and noise: light dart, hit, Starburst bell, defeat pop,
+  bump, typing blips (one pitch per speaker), click, chime, wave horn, spawn
+  puff, the falling star whoosh and landing boom, the climbing Power notes.
+- A very small title screen ("Power Heroes", "Tap to begin") so the first tap
+  starts the sound and then the falling star. (Stage 8 grows it into the full title
+  with name entry.) `?debug` skips it, so the tests are not slowed down.
+- Effects are hooked in where things happen (shots, hits, hurt, waves, talk).
+- Tests: every effect is rendered offline and measured (not silent, not
+  clipping, sensible length); Mute; the first-tap rule; the title screen.
+
+**Chunk 1 build notes (DONE):**
+- `src/audio.js` (about 205 lines): the sound engine. It makes the browser's audio
+  context only after the first tap, click or key (it waits for the browser to
+  count the touch), so nothing plays before that. Everything passes through one
+  master volume, a gentle compressor and a soft low-pass filter. 22 effects are
+  small recipes (`SOUNDS`); `audio.play(name, { pitch, volume })`. Rules: a
+  minimum gap between repeats of the same sound, at most 28 effect sounds at once.
+  Mute: the button (top right) or the M key, remembered in the browser.
+  The sound stops while the page is hidden.
+- `QUIET` (a stand-in that plays nothing) is the default for every file that takes
+  `audio`, so the unit tests need no sound.
+- Title screen ("Power Heroes", "Tap to begin"): `ui.showTitle`. The prologue has
+  a new `title` phase (night, Sol off stage, waiting) and `go()` starts it.
+  `?debug` skips the title; `?debug&title` (or `#debug-title`) keeps it.
+- Sounds are hooked in: darts, hits, defeats, Starburst (`powers.js`), bump and
+  knocked out, wave horn, Gloomling puff, cleared, win and lose (`main.js`), typing
+  blips with a pitch per speaker (`story.js`, `SPEAKERS.pitch`), the star's
+  whoosh and landing boom, the climbing Power notes, lesson chime and sunrise
+  (`prologue.js`), clicks, and a tick when Starburst has recharged (`ui.js`).
+- `ui.setVeil` replaced the veil code in `main.js`.
+- Tests: group 10 (26 checks): every effect rendered offline and measured, the
+  first-tap rule, Mute and its memory, the hooks, the title screen on a computer and
+  a phone.
+
+**Chunk 2: the flute and the first songs.**
+- New `src/music.js` (the flute voice and the song player) and
+  `src/music-data.js` (songs written as note lists). The flute: a soft tone with
+  a quiet overtone, a puff of breath at the start of each note, a gentle
+  vibrato that arrives after a moment, soft fades, a little echo. Songs are
+  scheduled a little ahead, loop, and cross-fade.
+- Songs: The Falling Star (title and prologue), Sunmeadow (calm moments), Battle (waves).
+- Tests: songs are rendered offline; the pitches and timing are checked.
+
+**Chunk 3: Marlo's Theme, Lyra's Lullaby, scene music, polish.**
+- Marlo's Theme (lessons), **Lyra's Lullaby** (verse one ends open: "she fell
+  asleep before the second verse"; verse two is saved for the epilogue) and the
+  Lullaby in sorrow (slow, minor, long silences). Scenes name their music in
+  `story-data.js` (`{ music: 'marlo' }` steps). Win and knocked-out stingers.
+- Full test run on both pages, republish the Claude link, update docs.
+
+Later stages add the other cues from `STORY.md` (Nyx, Bloom) when their scenes exist.
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on

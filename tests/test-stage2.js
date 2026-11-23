@@ -17,6 +17,7 @@ const SKELETON = (inner) => `<!doctype html><html lang="en"><head><meta charset=
 const CSP = "default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://code.jquery.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:";
 
 let KEEP_INTRO = false;   // the prologue tests want the opening; every other test skips it
+let SHOW_TITLE = false;   // the title-screen tests want the title screen (debug mode normally skips it)
 
 const OPEN = [];   // every game page opened so far: older ones are closed when a new one opens, so they stop using the (slow) software graphics
 
@@ -42,9 +43,9 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
-  await page.goto('http://game.local/' + (ARTIFACT ? '#debug' : '?debug'));
+  await page.goto('http://game.local/' + (ARTIFACT ? (SHOW_TITLE ? '#debug-title' : '#debug') : (SHOW_TITLE ? '?debug&title' : '?debug')));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
-  if (!KEEP_INTRO) await page.evaluate(() => window.__game.prologue.skip());
+  if (!KEEP_INTRO && !SHOW_TITLE) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
 }
 const until = (page, fn, arg, timeout = 90000) => page.waitForFunction(fn, arg, { timeout });
@@ -1217,10 +1218,269 @@ async function chunk9(browser) {
   check('Ember does not come for a knocked-out round, and the "Knocked out" screen follows', !lostNames.includes('Ember') && lost.title === 'Knocked out' && lost.ember === 'away', JSON.stringify([lostNames, lost]));
 }
 
+// ---------- Sound: the effects, the sound engine, Mute, the title screen ----------
+const audioUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { buildSound, SOUND_NAMES } = await import('/src/audio.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const { createStory } = await import('/src/story.js');
+  const out = { sounds: {} };
+  const RATE = 22050;
+  const render = async (name, pitch = 1) => {   // plays a sound on an offline "recording" context and returns the samples
+    const ctx = new OfflineAudioContext(1, RATE * 4, RATE);
+    const bus = ctx.createGain();
+    bus.connect(ctx.destination);
+    const length = buildSound(ctx, bus, name, 0, pitch, 1);
+    return { length, data: (await ctx.startRendering()).getChannelData(0) };
+  };
+  const freq = (data) => {   // pitch from the zero crossings of the loud part
+    let a = -1, b = -1, crossings = 0;
+    for (let i = 0; i < data.length; i++) if (Math.abs(data[i]) > 0.003) { if (a < 0) a = i; b = i; }
+    for (let i = a + 1; i <= b; i++) if ((data[i - 1] < 0) !== (data[i] < 0)) crossings++;
+    return crossings / 2 / ((b - a) / RATE);
+  };
+  for (const name of SOUND_NAMES) {
+    const { length, data } = await render(name);
+    let peak = 0, sum = 0, bad = 0, lastLoud = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i];
+      if (!Number.isFinite(v)) { bad++; continue; }
+      const a = Math.abs(v);
+      if (a > peak) peak = a;
+      sum += v * v;
+      if (a > 0.002) lastLoud = i / RATE;
+    }
+    out.sounds[name] = { length: +length.toFixed(3), peak: +peak.toFixed(3), rms: +Math.sqrt(sum / data.length).toFixed(4), bad, lastLoud: +lastLoud.toFixed(3) };
+  }
+  out.blip = { low: freq((await render('blip', 1)).data), high: freq((await render('blip', 2)).data) };
+  out.unknown = buildSound(new OfflineAudioContext(1, 100, RATE), null, 'no-such-sound');
+
+  {   // the powers play their sounds: darts, hits, defeats, Starburst
+    const calls = [];
+    const audio = { play: (name) => { calls.push(name); return true; } };
+    const scene = new THREE.Scene();
+    const hero = { kind: 'sol', position: new THREE.Vector3(0, 0, 0), yaw: 0, down: false, face() {} };
+    const gloomlings = [createGloomling({ scene, x: 5, z: 0 })];
+    const powers = createPowers({ scene, hero, gloomlings, events: {}, audio });
+    for (let i = 0; i < 90; i++) powers.update(1 / 30, i / 30);
+    const count = (name) => calls.filter((n) => n === name).length;
+    out.darts = { dart: count('dart'), tick: count('tick'), pop: count('pop'), left: gloomlings.length };
+    for (const [x, z] of [[2, 0], [0, -3], [-3, 1]]) gloomlings.push(createGloomling({ scene, x, z }));
+    calls.length = 0;
+    powers.castPower();
+    for (let i = 0; i < 30; i++) powers.update(1 / 30, i / 30);
+    out.burst = { starburst: count('starburst'), bell: count('bell'), pop: count('pop'), tick: count('tick') };
+  }
+  {   // typing blips: a few per second while a line types, in the speaker's pitch
+    const doc = document.implementation.createHTMLDocument('story test');
+    doc.body.innerHTML = '<div id="bubble"></div><div id="lesson" hidden></div><div id="dialogue" hidden><div id="dialogue-box"><div id="dialogue-face"></div><div id="dialogue-body"><div id="dialogue-name"></div><p id="dialogue-text"></p></div><div id="dialogue-next"></div></div></div>';
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 100);
+    const pitches = [];
+    const story = createStory({ camera, anchors: { pip: { object: new THREE.Object3D(), lift: 0 }, marlo: { object: new THREE.Object3D(), lift: 0 } }, root: doc, touch: false, audio: { play: (name, o) => { if (name === 'blip') pitches.push(o.pitch); return true; } } });
+    story.scene('lose');
+    for (let i = 0; i < 10; i++) story.update(0.1);
+    out.blips = { count: pitches.length, min: Math.min(...pitches), max: Math.max(...pitches) };
+  }
+  return out;
+};
+
+async function chunk10(browser) {
+  let { page } = await openGame(browser, 'audio-unit');
+  const u = await page.evaluate(audioUnit);
+  const names = Object.keys(u.sounds);
+  const badSounds = names.filter((n) => { const s = u.sounds[n]; return s.bad > 0 || s.peak < 0.004 || s.peak > 0.85 || s.rms < 0.0003 || s.length < 0.01 || s.length > 2.6 || s.lastLoud > s.length + 0.1; });
+  check(`all ${names.length} sound effects play when rendered offline: audible, no bad numbers, never clipping, the right length`, names.length >= 20 && badSounds.length === 0, badSounds.map((n) => `${n} ${JSON.stringify(u.sounds[n])}`).join(' | '));
+  check('the big sounds (landing boom, Starburst) are louder than the small ones (dart, typing blip), but nothing comes close to clipping', u.sounds.boom.peak > 4 * u.sounds.dart.peak && u.sounds.starburst.peak > 2 * u.sounds.blip.peak && Math.max(...names.map((n) => u.sounds[n].peak)) < 0.6, JSON.stringify([u.sounds.boom.peak, u.sounds.dart.peak, u.sounds.starburst.peak, u.sounds.blip.peak]));
+  check('a higher "pitch" makes a higher sound (typing blips: low voice about 510 Hz, double pitch about twice that)', near(u.blip.low, 510, 70) && near(u.blip.high / u.blip.low, 2, 0.25), JSON.stringify(u.blip));
+  check('an unknown sound name is ignored', u.unknown === 0);
+  check('darts, light hits and defeats make their sounds', u.darts.dart >= 3 && u.darts.tick >= 3 && u.darts.pop === 1 && u.darts.left === 0, JSON.stringify(u.darts));
+  check('Starburst makes its own sound, a bell for each Gloomling it hits, and a pop for each one it defeats', u.burst.starburst === 1 && u.burst.bell >= 3 && u.burst.pop >= 3, JSON.stringify(u.burst));
+  check('typing makes a blip for every few letters, in the speaker\'s own pitch (Marlo is low)', u.blips.count >= 8 && u.blips.count <= 14 && u.blips.max < 0.7 && u.blips.min > 0.4, JSON.stringify(u.blips));
+
+  // Live game: the first tap starts the sound engine; Mute.
+  ({ page } = await openGame(browser, 'audio-live'));
+  const idle = await page.evaluate(() => { const A = window.__game.audio; return { state: A.state, noContext: A.context === null, played: A.play('click'), shown: !document.getElementById('mute').hidden }; });
+  check('before the first tap there is no sound engine, nothing plays, and the Mute button is there', idle.state === 'idle' && idle.noContext && idle.played === false && idle.shown, JSON.stringify(idle));
+  await page.mouse.click(790, 440);
+  await until(page, () => window.__game.audio.state === 'running');
+  check('the first click starts the sound engine', true);
+  const gap = await page.evaluate(async () => { const A = window.__game.audio; const a = A.play('click'); const b = A.play('click'); await new Promise((r) => setTimeout(r, 150)); return { a, b, c: A.play('click') }; });
+  check('sounds play once the engine runs, and one sound cannot repeat faster than its minimum gap', gap.a && !gap.b && gap.c, JSON.stringify(gap));
+  await page.keyboard.press('KeyM');
+  await page.waitForTimeout(250);
+  const muted = await page.evaluate(() => { const A = window.__game.audio; const b = document.getElementById('mute'); return { muted: A.muted, cls: b.className, pressed: b.getAttribute('aria-pressed'), label: b.getAttribute('aria-label'), stored: localStorage.getItem('powerheroes.muted'), played: A.play('bell'), volume: A.master.gain.value }; });
+  check('M mutes: the button changes, nothing plays, the master volume goes to zero, and the choice is saved', muted.muted && /off/.test(muted.cls) && muted.pressed === 'true' && /Unmute/.test(muted.label) && muted.stored === '1' && muted.played === false && muted.volume < 0.02, JSON.stringify(muted));
+  await page.reload();
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
+  const kept = await page.evaluate(() => ({ muted: window.__game.audio.muted, cls: document.getElementById('mute').className }));
+  check('the muted choice survives a reload, and the button shows it from the start', kept.muted && /off/.test(kept.cls), JSON.stringify(kept));
+  await page.click('#mute');
+  await until(page, () => window.__game.audio.state === 'running');
+  await page.waitForTimeout(300);
+  const back = await page.evaluate(() => { const A = window.__game.audio; return { muted: A.muted, cls: document.getElementById('mute').className, stored: localStorage.getItem('powerheroes.muted'), volume: A.master ? A.master.gain.value : -1, state: A.state }; });
+  check('clicking the Mute button turns the sound back on (it also counts as the first tap)', !back.muted && !/off/.test(back.cls) && back.stored === '0' && back.volume > 0.5 && back.state === 'running', JSON.stringify(back));
+
+  // The sounds are hooked in where things happen.
+  await page.evaluate(() => window.__game.prologue.skip());
+  await until(page, () => window.__game.audio.counts.wave >= 1 && window.__game.audio.counts.spawn >= 1);
+  check('a wave starting plays the wave horn and each Gloomling arriving plays a puff', true);
+  await until(page, () => window.__game.audio.counts.dart >= 1 && window.__game.audio.counts.pop >= 1);
+  check('in the live fight the darts fly and the first defeat pops', true);
+  const bumped = await page.evaluate(() => { const G = window.__game; const before = G.audio.counts.bump || 0; for (let i = 0; i < 10 && (G.audio.counts.bump || 0) === before; i++) { G.player.takeHit(5, 3, 0); G.player.update(0.5, { x: 0, z: 0 }, 0); } return (G.audio.counts.bump || 0) - before; });
+  check('being bumped plays a thump', bumped === 1, `bump +${bumped}`);
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
+  const won = await page.evaluate(() => ({ cleared: window.__game.audio.counts.cleared, win: window.__game.audio.counts.win }));
+  check('each cleared wave plays its chime and the win plays the winning notes', won.cleared >= 3 && won.win === 1, JSON.stringify(won));
+  await page.evaluate(() => window.__game.story.skip());
+  await page.evaluate(() => { const G = window.__game; G.powers.castPower(); });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 80; i++) G.powers.update(0.1, 0); });
+  await until(page, () => window.__game.audio.counts.ready >= 1);
+  check('when Starburst has recharged the button gives a little tick', true);
+
+  // The title screen.
+  SHOW_TITLE = true;
+  ({ page } = await openGame(browser, 'title-live'));
+  SHOW_TITLE = false;
+  const t0 = await page.evaluate(() => { const G = window.__game; return { hidden: document.getElementById('title').hidden, phase: G.prologue.phase, audio: G.audio.state, night: G.world.night, sol: G.player.group.visible, name: document.getElementById('title-name').textContent, skip: !document.getElementById('skip').hidden }; });
+  check('the game opens on the title screen: night, Sol off stage, no sound engine yet, the story waiting', !t0.hidden && t0.phase === 'title' && t0.audio === 'idle' && t0.night === 1 && !t0.sol && !t0.skip && t0.name === 'Power Heroes', JSON.stringify(t0));
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/audio-1-title.png` });
+  await page.keyboard.down('d');
+  await page.waitForTimeout(400);
+  await page.keyboard.up('d');
+  const waiting = await page.evaluate(() => ({ phase: window.__game.prologue.phase, hidden: document.getElementById('title').hidden, x: window.__game.player.position.x }));
+  check('other keys do not begin the story, and Sol cannot walk off', waiting.phase === 'title' && !waiting.hidden && waiting.x === 0, JSON.stringify(waiting));
+  await page.keyboard.press('Space');
+  await until(page, () => window.__game.prologue.phase === 'dark' || window.__game.prologue.phase === 'falling');
+  const begun = await page.evaluate(() => ({ hidden: document.getElementById('title').hidden, ready: window.__game.powers.powerReady, banner: document.getElementById('banner-title').textContent, skip: !document.getElementById('skip').hidden }));
+  check('Space begins: the title goes, the story starts with its banner and Skip button, and Space did not fire Starburst', begun.hidden && begun.ready && begun.banner === 'Prologue' && begun.skip, JSON.stringify(begun));
+  await until(page, () => window.__game.audio.state === 'running');
+  check('and the sound engine is running', true);
+  await until(page, () => window.__game.audio.counts.whoosh >= 1);
+  check('the falling star whooshes', true);
+  await until(page, () => window.__game.audio.counts.boom >= 1);
+  check('the landing booms', true);
+
+  // The title screen on a phone: a tap begins; the Mute button works with a finger and never steers.
+  SHOW_TITLE = true;
+  let context;
+  ({ page, context } = await openGame(browser, 'title-phone', { width: 390, height: 844 }, true));
+  SHOW_TITLE = false;
+  const phoneTitle = await page.evaluate(() => { const r = document.getElementById('title-name').getBoundingClientRect(); const m = document.getElementById('mute').getBoundingClientRect(); const tap = [...document.querySelectorAll('#title-tap span')].find((s) => getComputedStyle(s).display !== 'none'); return { left: r.left, right: r.right, mute: { left: m.left, right: m.right, top: m.top, bottom: m.bottom }, tap: tap && tap.textContent }; });
+  check('on a phone the title fits the screen and says "Tap to begin"; the Mute button is inside the screen', phoneTitle.left >= 0 && phoneTitle.right <= 390 && phoneTitle.mute.right <= 390 && phoneTitle.mute.top >= 0 && phoneTitle.tap === 'Tap to begin', JSON.stringify(phoneTitle));
+  await page.screenshot({ path: `${OUT}/audio-2-title-phone.png` });
+  const client = await context.newCDPSession(page);
+  const touchAt = (type, x, y) => client.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 0 }] });
+  await touchAt('touchStart', 195, 420);
+  const joyOnTitle = await page.evaluate(() => document.getElementById('joystick').classList.contains('active'));
+  await touchAt('touchEnd');
+  await until(page, () => window.__game.prologue.phase !== 'title');
+  await until(page, () => window.__game.audio.state === 'running');
+  check('a tap on the title begins the story and starts the sound (and does not start the joystick)', !joyOnTitle);
+  const mute = await page.evaluate(() => { const m = document.getElementById('mute').getBoundingClientRect(); return { x: m.x + m.width / 2, y: m.y + m.height / 2 }; });
+  await touchAt('touchStart', mute.x, mute.y);
+  const joyOnMute = await page.evaluate(() => document.getElementById('joystick').classList.contains('active'));
+  await touchAt('touchEnd');
+  await page.waitForTimeout(300);
+  const touched = await page.evaluate(() => ({ muted: window.__game.audio.muted }));
+  check('a finger on the Mute button mutes, and does not steer', touched.muted && !joyOnMute, JSON.stringify([touched, joyOnMute]));
+}
+
+// ---------- Music: the flute, the songs, the song player ----------
+const musicUnit = async () => {
+  const { SONGS, parseNotes } = await import('/src/music-data.js');
+  const { scheduleSong, makeEcho } = await import('/src/music.js');
+  const out = {};
+  const RATE = 22050;
+  const strip = (r) => r.events.map((e) => `${e.beat}:${e.beats}:${e.notes.join('+')}`).join(' ');
+  out.parse = {
+    names: strip(parseNotes('D5:2 r:1 F#5:0.5 Bb4:1.5 x:1 D3+A3:2')),
+    total: parseNotes('D5:2 r:1 F#5:0.5 Bb4:1.5 x:1 D3+A3:2').total,
+    major: strip(parseNotes('5:1 3^:2 7v:1', { key: 'D4', mode: 'major' })),
+    minor: strip(parseNotes('6:1 7:1 3:1', { key: 'D4', mode: 'minor' })),
+    bars: strip(parseNotes('D5:1 | E5:1 | F#5:1')),
+  };
+  try { parseNotes('H5:1'); out.badName = false; } catch (error) { out.badName = true; }
+  try { parseNotes('D5:0'); out.badLength = false; } catch (error) { out.badLength = true; }
+  out.songs = Object.fromEntries(Object.entries(SONGS).map(([name, s]) => [name, { events: s.events.length, voices: [...new Set(s.events.map((e) => e.voice))].join(), seconds: +(s.length * 60 / s.tempo).toFixed(1), level: s.level, tempo: s.tempo }]));
+
+  const render = async (name, seconds, only = null, fromBeat = 0) => {   // plays a song on an offline "recording" context
+    const ctx = new OfflineAudioContext(1, Math.ceil(RATE * seconds), RATE);
+    const bus = ctx.createGain();
+    bus.connect(ctx.destination);
+    const echo = makeEcho(ctx, bus);
+    const spb = 60 / SONGS[name].tempo;
+    scheduleSong(ctx, bus, echo, name, -fromBeat * spb, fromBeat, fromBeat + seconds / spb, only);
+    return (await ctx.startRendering()).getChannelData(0);
+  };
+  const strongest = (data, from, to, f) => {   // which pitch near f is loudest? (cents above or below f)
+    let best = 0, bestMag = -1;
+    for (let k = -100; k <= 100; k += 10) {
+      const w = 2 * Math.PI * f * 2 ** (k / 1200) / RATE;
+      let re = 0, im = 0;
+      for (let i = from; i < to; i++) { re += data[i] * Math.cos(w * i); im += data[i] * Math.sin(w * i); }
+      if (re * re + im * im > bestMag) { bestMag = re * re + im * im; best = k; }
+    }
+    return best;
+  };
+  out.mix = {};
+  out.pitch = {};
+  for (const [name, song] of Object.entries(SONGS)) {
+    const seconds = Math.min(12, song.length * 60 / song.tempo);
+    const data = await render(name, seconds);
+    let peak = 0, sum = 0, bad = 0;
+    for (const v of data) { if (!Number.isFinite(v)) { bad++; continue; } peak = Math.max(peak, Math.abs(v)); sum += v * v; }
+    out.mix[name] = { peak: +peak.toFixed(3), rms: +Math.sqrt(sum / data.length).toFixed(4), bad, seconds };
+    // every long flute note in the song is played at the right pitch
+    const flute = await render(name, seconds, ['flute']);
+    const spb = 60 / song.tempo;
+    let checked = 0, worst = 0, firstOnset = null, silent = true;
+    for (const e of song.events) {
+      if (e.voice !== 'flute') continue;
+      const start = e.beat * spb;
+      if (start + e.beats * spb > seconds - 0.2) continue;
+      if (firstOnset === null) { firstOnset = e.beat; const before = Math.max(0, Math.floor((start - 0.05) * RATE)); for (let i = 0; i < before; i++) if (Math.abs(flute[i]) > 0.002) silent = false; }
+      if (e.beats * spb < 0.45) continue;
+      const from = Math.floor((start + e.beats * spb * 0.35) * RATE);
+      const to = Math.floor((start + e.beats * spb * 0.85) * RATE);
+      const cents = strongest(flute, from, to, 440 * 2 ** ((e.notes[0] - 69) / 12));
+      worst = Math.max(worst, Math.abs(cents));
+      checked++;
+    }
+    out.pitch[name] = { checked, worst, firstOnset, silentBeforeFirst: silent };
+  }
+  // the loop: the first note of the second lap sounds again at the right pitch
+  {
+    const name = 'sunmeadow';
+    const song = SONGS[name];
+    const lap = song.length * 60 / song.tempo;
+    const data = await render(name, 2.2, ['flute'], song.length);   // starts at the beginning of lap two
+    out.loop = strongest(data, Math.floor(0.05 * RATE), Math.floor(0.2 * RATE), 440 * 2 ** ((74 - 69) / 12));
+    out.lapSeconds = lap;
+  }
+  return out;
+};
+
+async function chunk11(browser) {
+  let { page } = await openGame(browser, 'music-unit');
+  const u = await page.evaluate(musicUnit);
+  check('notes are read correctly: names, sharps and flats, chords, rests, drum hits, bar lines', u.parse.names === '0:2:74 3:0.5:78 3.5:1.5:70 5:1:0 6:2:50+57' && u.parse.total === 8 && u.parse.bars === '0:1:74 1:1:76 2:1:78', JSON.stringify(u.parse));
+  check('scale degrees follow the key and the mode (D major: A, high F#, low C#; D minor: B-flat, C, F)', u.parse.major === '0:1:69 1:2:78 3:1:61' && u.parse.minor === '0:1:70 1:1:72 2:1:65', JSON.stringify([u.parse.major, u.parse.minor]));
+  check('a bad note name or a zero length is refused', u.badName && u.badLength);
+  const songNames = Object.keys(u.songs);
+  check(`the ${songNames.length} songs load, and every track fills its loop exactly`, songNames.join() === 'falling-star,sunmeadow,battle' && songNames.every((n) => u.songs[n].events > 20 && u.songs[n].level <= 1 && u.songs[n].tempo >= 40 && u.songs[n].tempo <= 160), JSON.stringify(u.songs));
+  check('each song uses a flute and other instruments', u.songs['falling-star'].voices === 'flute,chime,pad' || /flute/.test(u.songs['falling-star'].voices), JSON.stringify(Object.fromEntries(songNames.map((n) => [n, u.songs[n].voices]))));
+  check('rendered offline, every song is audible, finite, and well under clipping', songNames.every((n) => u.mix[n].bad === 0 && u.mix[n].peak > 0.03 && u.mix[n].peak < 0.45 && u.mix[n].rms > 0.006 && u.mix[n].rms < 0.1), JSON.stringify(u.mix));
+  check('every long flute note is at its written pitch (within 20 cents), and the flute is silent before its first note', songNames.every((n) => u.pitch[n].checked >= 3 && u.pitch[n].worst <= 20 && u.pitch[n].silentBeforeFirst), JSON.stringify(u.pitch));
+  check('a song loops: the second lap starts again on the first note', Math.abs(u.loop) <= 20, `off by ${u.loop} cents`);
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

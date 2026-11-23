@@ -1,4 +1,4 @@
-/* story.css: the conversation box and Pip's speech bubble. */
+/* story.css: the conversation box, Pip's speech bubble, and the other overlays (lesson hint, title screen, Skip and Mute buttons). */
 
 /* A conversation. It covers the screen, so a tap anywhere goes on to the next line. */
 #dialogue {
@@ -120,7 +120,7 @@ body:has(#dialogue:not([hidden])) #hint { opacity: 0; transition: none; }   /* t
 /* The skip button (top right), and the hint stepping aside during the prologue. */
 #skip {
   position: fixed;
-  top: calc(48px + env(safe-area-inset-top));
+  top: calc(56px + env(safe-area-inset-top));
   right: calc(12px + env(safe-area-inset-right));
   padding: 8px 14px;
   border: 0;
@@ -133,3 +133,57 @@ body:has(#dialogue:not([hidden])) #hint { opacity: 0; transition: none; }   /* t
 }
 #skip[hidden] { display: none; }
 body.prologue #hint { display: none; }
+
+/* The Mute button (top right). */
+#mute {
+  position: fixed;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 40, 70, 0.55);
+  color: #fff;
+  cursor: pointer;
+  touch-action: none;
+}
+#mute svg { width: 22px; height: 22px; fill: currentColor; }
+#mute .icon-off, #mute.off .icon-on { display: none; }
+#mute.off .icon-off { display: block; }
+#mute.off { background: rgba(120, 40, 50, 0.6); }
+
+/* The title screen: the first tap starts the sound and the story. */
+#title {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: radial-gradient(ellipse at 50% 40%, rgba(10, 16, 56, 0.35), rgba(3, 6, 24, 0.78));
+  color: #fff7e8;
+  cursor: pointer;
+}
+#title[hidden] { display: none; }
+#title-name {
+  margin: 0;
+  font-size: clamp(44px, 12vw, 84px);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: linear-gradient(#fff6c8, #ffc94a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 4px 16px rgba(255, 190, 60, 0.45));
+}
+#title-line { margin: 4px 0 30px; font-size: clamp(16px, 4vw, 22px); font-weight: 600; color: #cfe0ff; }
+#title-tap { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; animation: title-pulse 1.8s ease-in-out infinite; }
+@keyframes title-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { #title-tap { animation: none; } }
