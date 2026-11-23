@@ -2,9 +2,9 @@
 import * as THREE from '../lib/three.module.min.js';
 import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
-import { createHero, createGuest } from './hero.js';
+import { createGuest } from './hero.js';
+import { createSquad } from './squad.js';
 import { HEROES } from './heroes-data.js';
-import { createPowers } from './powers.js';
 import { createWaves } from './waves.js';
 import { createPip } from './pip.js';
 import { createMarlo } from './marlo.js';
@@ -16,8 +16,11 @@ import { createMusic } from './music.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
 const FLAGS = new URLSearchParams(location.search);
-const DEBUG = FLAGS.has('debug') || location.hash === '#debug' || location.hash === '#debug-title';
-const TITLE = !DEBUG || FLAGS.has('title') || location.hash === '#debug-title';   // debug mode skips the title screen (so the tests are quick), unless asked
+const HASH = location.hash.slice(1).split(/[,&-]/);   // "#debug", "#debug-title" and "#debug-squad" work too (in the Claude test link)
+const flag = (name) => FLAGS.has(name) || HASH.includes(name);
+const DEBUG = flag('debug');
+const TITLE = !DEBUG || flag('title');   // debug mode skips the title screen and the squad screen (so the tests are quick), unless asked
+const PICK = !DEBUG || flag('squad');
 const PLAYER_KIND = DEBUG && HEROES[FLAGS.get('hero')] ? FLAGS.get('hero') : 'sol';   // which hero the player controls (a key in heroes-data.js); ?debug&hero=tide previews another
 
 // --- Set up the screen ---
@@ -37,7 +40,6 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // colour: 0 = the island is washed-out, 1 = full colour. It rises as Gloomlings are beaten.
 const fx = { shake: 0, freeze: 0, freezes: 0, colour: 0 };
 const WASHED_OUT = 0.6;    // how strong the grey veil is at the start of a round (0 = none, 1 = solid grey)
-const CONFETTI = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
 const NO_MOVE = { x: 0, z: 0 };   // the controls, as the opening cinematic sees them
 const calmMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;   // people who ask for less motion get no shaking
 let waveFreezePending = false;   // a superpower freezes the game once, the first time it lands
@@ -47,6 +49,7 @@ const said = { first: false, hurt: false, low: false };   // Pip's one-time comm
 const soon = [];   // Pip's comments waiting for their moment: { key, left }
 let ending = null;   // 'won' or 'lost' while Marlo walks over, before the closing conversation
 let endWait = 0;
+let unlocked = ['sol'];   // the heroes you can choose from (the rest join after the first win)
 
 const saySoon = (key, delay) => soon.push({ key, left: delay });   // Pip says something after a short delay (so a wave's comment does not land on its banner)
 
@@ -62,11 +65,18 @@ const input = createInput(document.getElementById('joystick'), document.getEleme
 const audio = createAudio();   // sound starts at the first tap (the title screen)
 audio.bindButton(document.getElementById('mute'));
 const music = createMusic(audio);   // the flute and the songs (they start when the story begins)
-const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active && !frozen()) powers.castPower(); }, onAgain: restart, audio });
-const player = createHero({
+const ui = createUI({
+  camera: world.camera, audio, onAgain: restart,
+  onCast: () => { if (!story.active && !frozen()) powers.castPower(); },
+  onSwap: (index) => { if (!story.active && !frozen()) squad.swapTo(index); },   // a portrait tapped, or 1, 2, 3
+});
+const ember = createGuest({ scene: world.scene, bound: WALK_RADIUS, kind: 'ember' });   // she runs in at the end of Chapter 1
+const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
+const squad = createSquad({
   scene: world.scene,
   bound: WALK_RADIUS,
-  kind: PLAYER_KIND,
+  gloomlings,
+  audio,
   onHurt: (amount) => {
     ui.popNumber(player.position, amount, 'hurt');
     shake(0.16);
@@ -74,15 +84,7 @@ const player = createHero({
     if (!said.hurt) { said.hurt = true; story.say('hurt'); }
   },
   onDown: () => { shake(0.3); audio.play('down'); },
-});
-ui.setHero({ name: player.name, powerName: HEROES[PLAYER_KIND].power.name, powerId: HEROES[PLAYER_KIND].power.id });
-const ember = createGuest({ scene: world.scene, bound: WALK_RADIUS, kind: 'ember' });   // she runs in at the end of Chapter 1
-const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
-const powers = createPowers({
-  scene: world.scene,
-  hero: player,
-  audio,
-  gloomlings,
+  onSwap: (kind) => ui.setHero({ name: HEROES[kind].name, powerName: HEROES[kind].power.name, powerId: HEROES[kind].power.id }),   // the button, the name and the icon follow whoever is in play
   events: {
     cast: () => { waveFreezePending = true; waveHits = 0; waveHitTimer = 0.5; shake(0.12); },
     hit: (gloom, amount, kind) => {
@@ -100,6 +102,9 @@ const powers = createPowers({
     defeat: () => { if (!said.first && !prologue.running) { said.first = true; story.say('first'); } },
   },
 });
+const player = squad.player;   // always whoever is in play (see squad.js)
+const powers = squad.powers;
+chooseSquad([PLAYER_KIND]);
 const pip = createPip({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
 const marlo = createMarlo({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
 const story = createStory({
@@ -123,22 +128,15 @@ const waves = createWaves({
       music.play('battle', 1);
       saySoon(`wave${number}`, 1.2);
     },
-    spawn: (gloom) => { puff(gloom.position); audio.play('spawn'); },
+    spawn: (gloom) => { powers.sparks.puff(gloom.position); audio.play('spawn'); },
     cleared: (number) => {
-      celebrate(number === waves.total ? 110 : 25);
+      powers.sparks.confetti(number === waves.total ? 110 : 25);
       audio.play('cleared');
       if (number < waves.total) story.say('cleared');
     },
-    end: (kind) => { ending = kind; endWait = 0; audio.play(kind === 'won' ? 'win' : 'lose'); music.play('sunmeadow', 2.5); marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
+    end: (kind) => { ending = kind; endWait = 0; if (kind === 'won') unlocked = Object.keys(HEROES); audio.play(kind === 'won' ? 'win' : 'lose'); music.play('sunmeadow', 2.5); marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
   },
 });
-
-// A puff of dark sparks where a Gloomling appears.
-function puff(position) {
-  for (let i = 0; i < 8; i++) {
-    powers.sparks.emit(position.x, 0.3, position.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 0.5, 0.2, 0x6a45b0, -4);
-  }
-}
 
 // Ember runs in from the left edge and stops beside Sol (the win conversation waits for her).
 function emberArrives() {
@@ -147,22 +145,24 @@ function emberArrives() {
   audio.play('swoosh');
 }
 
-// Confetti shooting up all over the island when a wave is cleared (a big burst after the last one).
-function celebrate(count) {
-  for (let i = 0; i < count; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.sqrt(Math.random()) * 9;
-    powers.sparks.emit(
-      Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius,
-      (Math.random() - 0.5) * 2, 6 + Math.random() * 4, (Math.random() - 0.5) * 2,
-      1 + Math.random() * 0.6, 0.2 + Math.random() * 0.15, CONFETTI[i % CONFETTI.length], -9,
-    );
-  }
+// Chooses the squad (the first one is in play) and shows their portraits.
+function chooseSquad(kinds) {
+  squad.set(kinds);
+  ui.setSquad(squad.roster.map((kind) => HEROES[kind]));
 }
 
-// "Play again" and "Try again": a completely fresh round (without the long introduction).
+// "Play again" and "Try again": a fresh round (without the long introduction). Once more than one hero has joined,
+// the squad screen comes first.
 function restart() {
   ui.hideEnd();
+  if (unlocked.length < 2 || !PICK) { startRound(); return; }
+  const heroes = unlocked.map((kind) => ({ kind, name: HEROES[kind].name, type: HEROES[kind].type, power: HEROES[kind].power.name }));
+  ui.showSquad({ heroes, chosen: squad.roster.length > 1 ? squad.roster : ['ember', 'tide'], onGo: (kinds) => { chooseSquad(kinds); startRound(); } });
+}
+
+function startRound() {
+  hintHidden = true;   // the how-to-play hint is for the first round only (it would sit on the portraits)
+  hint.classList.add('gone');
   player.reset();
   powers.reset();
   said.first = said.hurt = said.low = false;
@@ -211,7 +211,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -278,6 +278,7 @@ function frame(now) {
   ui.setVeil(WASHED_OUT * (1 - fx.colour) * (1 - world.night));   // no veil at night: the washed-out look comes in with the sunrise
 
   ui.setHealth(player.health / player.maxHealth);
+  ui.setPortraits(squad.status, squad.swapReady);
   ui.setPower(powers.powerProgress);
   ui.setWaveText(waveText());
   renderer.render(world.scene, world.camera);

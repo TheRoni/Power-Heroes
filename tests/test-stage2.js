@@ -18,6 +18,7 @@ const CSP = "default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs
 
 let KEEP_INTRO = false;   // the prologue tests want the opening; every other test skips it
 let HERO_PARAM = '';      // play as another hero in the live game (?debug&hero=tide)
+let SHOW_SQUAD = false;   // the squad tests want the squad screen (debug mode normally skips it)
 let SHOW_TITLE = false;   // the title-screen tests want the title screen (debug mode normally skips it)
 
 const OPEN = [];   // every game page opened so far: older ones are closed when a new one opens, so they stop using the (slow) software graphics
@@ -44,7 +45,7 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
-  await page.goto('http://game.local/' + (ARTIFACT ? (SHOW_TITLE ? '#debug-title' : '#debug') : (SHOW_TITLE ? '?debug&title' : '?debug') + (HERO_PARAM ? `&hero=${HERO_PARAM}` : '')));
+  await page.goto('http://game.local/' + (ARTIFACT ? '#debug' + (SHOW_TITLE ? '-title' : SHOW_SQUAD ? '-squad' : '') : '?debug' + (SHOW_TITLE ? '&title' : '') + (SHOW_SQUAD ? '&squad' : '') + (HERO_PARAM ? `&hero=${HERO_PARAM}` : '')));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
   if (!KEEP_INTRO && !SHOW_TITLE) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
@@ -1657,10 +1658,203 @@ async function chunk12(browser) {
   }
 }
 
+// ---------- The squad: three heroes, swapping, the squad screen ----------
+const squadCoreUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createSquad } = await import('/src/squad.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const out = {};
+  const make = () => {
+    const scene = new THREE.Scene();
+    const gloomlings = [];
+    const log = { hurt: [], down: [], swaps: [], hits: 0 };
+    const squad = createSquad({ scene, bound: 10.2, gloomlings, events: { hit: () => { log.hits++; } }, onHurt: (a, k) => log.hurt.push(k), onDown: (k) => log.down.push(k), onSwap: (k, s) => log.swaps.push(`${k}@${s}`) });
+    return { scene, gloomlings, log, squad };
+  };
+  const idle = { x: 0, z: 0 };
+  const vis = (squad) => Object.fromEntries(Object.entries(squad.members).map(([k, m]) => [k, m.hero.group.visible]));
+  {   // choosing a squad
+    const { squad, log } = make();
+    squad.set(['sol', 'ember', 'tide', 'volt']);
+    out.roster = { roster: squad.roster.join(), slot: squad.slot, kind: squad.player.kind, name: squad.player.name, health: squad.player.health, down: squad.player.down, visible: JSON.stringify(vis(squad)), swaps: log.swaps.join() };
+    squad.set(['volt', 'nobody', 'tide']);
+    out.roster2 = { roster: squad.roster.join(), kind: squad.player.kind };
+    squad.set(['sol']);
+    out.solo = { roster: squad.roster.join(), toOther: squad.swapTo(1), toSelf: squad.swapTo(0), status: squad.status.length };
+  }
+  {   // one place for everybody, swapping, cooldown
+    const { squad, log } = make();
+    squad.set(['sol', 'ember', 'tide']);
+    const p = squad.player;
+    for (let i = 0; i < 10; i++) p.update(1 / 30, { x: 1, z: 0 }, i / 30);
+    const x = p.position.x;
+    out.shared = { moved: x > 0.5, sameObject: squad.members.ember.hero.group.position === p.position && squad.members.tide.hero.group.position === p.position, sameVelocity: p.velocity === squad.members.volt?.hero?.velocity || true };
+    const yawBefore = p.yaw;
+    const first = squad.swapTo(1);
+    out.swap = { first, kind: p.kind, name: p.name, x: squad.members.ember.hero.group.position.x - x, yaw: p.yaw - yawBefore, visible: JSON.stringify(vis(squad)), ready: squad.swapReady, cooldown: squad.cooldown, again: squad.swapTo(2), self: squad.swapTo(1), swaps: log.swaps.join() };
+    p.update(1.6, idle, 0);
+    out.swapLater = { ready: squad.swapReady, second: squad.swapTo(2), kind: p.kind, visible: JSON.stringify(vis(squad)) };
+    out.noSuchSlot = squad.swapTo(7);
+  }
+  {   // each hero keeps their own health and their own recharge, also on the bench
+    const { squad } = make();
+    squad.set(['sol', 'ember', 'tide']);
+    const p = squad.player, w = squad.powers;
+    p.takeHit(8, 5, 0);
+    const solHealth = p.health;
+    const cast = w.castPower();
+    const solReadyAfterCast = w.powerReady;
+    squad.swapTo(1);
+    const emberFresh = { health: p.health, ready: w.powerReady };
+    w.castPower();
+    p.update(1.6, idle, 0);
+    squad.swapTo(0);
+    const solBack = { health: p.health, ready: w.powerReady, progress: +w.powerProgress.toFixed(2) };
+    w.update(5.2, 0);
+    out.own = { solHealth, cast, solReadyAfterCast, emberFresh, solBack, benchRecharged: w.powerReady, members: Object.fromEntries(Object.entries(squad.members).map(([k, m]) => [k, m.powers.powerReady])) };
+  }
+  {   // only the hero in play shoots, and the sparks are shared
+    const { squad, gloomlings, scene } = make();
+    squad.set(['sol', 'ember', 'tide']);
+    gloomlings.push(createGloomling({ scene, x: 5, z: 0 }));
+    for (let i = 0; i < 25; i++) squad.powers.update(1 / 30, i / 30);
+    const shots = Object.fromEntries(Object.entries(squad.members).map(([k, m]) => [k, m.powers.shotCount]));
+    squad.powers.autoFire = false;
+    const g2 = createGloomling({ scene, x: 5, z: 1 });
+    gloomlings.push(g2);
+    const before = squad.powers.shotCount;
+    for (let i = 0; i < 40; i++) squad.powers.update(1 / 30, i / 30);
+    out.shooting = { shots, sol: shots.sol > 0, others: shots.ember + shots.tide, quiet: squad.powers.shotCount <= before, shared: squad.members.sol.powers.sparks === squad.members.tide.powers.sparks && squad.powers.sparks === squad.members.sol.powers.sparks };
+  }
+  {   // knocked out: the next hero steps in; when everyone is out the round is lost
+    const { squad, log } = make();
+    squad.set(['sol', 'ember', 'tide']);
+    const p = squad.player;
+    p.takeHit(1000, 1, 0);
+    const waiting = { down: p.down, kind: p.kind, hurt: log.hurt.join(), out: log.down.join(), canSwapToOut: squad.swapTo(0) };
+    p.update(0.3, idle, 0);
+    const stillWaiting = p.kind;
+    p.update(0.5, idle, 0);
+    out.knock = { waiting, stillWaiting, kind: p.kind, slot: squad.slot, visible: JSON.stringify(vis(squad)), swaps: log.swaps.join(), backToSol: squad.swapTo(0, true), status: squad.status.map((s) => `${s.kind}:${s.down ? 'out' : 'in'}`).join() };
+    p.update(2, idle, 0);
+    p.takeHit(1000, 1, 0);
+    p.update(0.8, idle, 0);
+    const third = { kind: p.kind, down: p.down };
+    p.takeHit(1000, 1, 0);
+    p.update(0.8, idle, 0);
+    out.allOut = { third, down: p.down, kind: p.kind, slot: squad.slot, lastSwaps: log.swaps.slice(-2).join() };
+    squad.set(['sol', 'ember', 'tide']);
+    out.reset = { down: p.down, health: p.health, slot: squad.slot, healths: squad.status.map((s) => s.health).join() };
+  }
+  {   // the status the portraits read
+    const { squad } = make();
+    squad.set(['tide', 'volt']);
+    const s = squad.status;
+    out.status = s.map((e) => `${e.kind}:${e.active}:${e.down}:${e.ready}:${e.health}`).join(' ');
+  }
+  return out;
+};
+
+async function chunk13(browser) {
+  let { page } = await openGame(browser, 'squad-core');
+  const u = await page.evaluate(squadCoreUnit);
+  check('choosing a squad: up to three, unknown names ignored, the first is in play and the only one to be seen', u.roster.roster === 'sol,ember,tide' && u.roster.slot === 0 && u.roster.kind === 'sol' && u.roster.health === 100 && !u.roster.down && u.roster.visible === '{"sol":true,"ember":false,"tide":false,"volt":false}' && u.roster.swaps === 'sol@0' && u.roster2.roster === 'volt,tide' && u.roster2.kind === 'volt', JSON.stringify([u.roster, u.roster2]));
+  check('a squad of one has nobody to swap to', u.solo.roster === 'sol' && !u.solo.toOther && !u.solo.toSelf && u.solo.status === 1, JSON.stringify(u.solo));
+  check('the whole squad stands in one place: swapping puts the new hero exactly where the old one was, facing the same way', u.shared.moved && u.shared.sameObject && u.swap.first && u.swap.kind === 'ember' && u.swap.name === 'Ember' && u.swap.x === 0 && Math.abs(u.swap.yaw) < 1e-9, JSON.stringify([u.shared, u.swap]));
+  check('after a swap only the new hero is seen, the choice is announced, and a swap cooldown starts (no swapping to yourself, or to a place that is not there)', u.swap.visible === '{"sol":false,"ember":true,"tide":false,"volt":false}' && !u.swap.ready && u.swap.cooldown === 1 && !u.swap.again && !u.swap.self && !u.noSuchSlot && u.swap.swaps === 'sol@0,ember@1', JSON.stringify(u.swap));
+  check('the cooldown ends after 1.5 s and then another swap is allowed', u.swapLater.ready && u.swapLater.second && u.swapLater.kind === 'tide' && u.swapLater.visible === '{"sol":false,"ember":false,"tide":true,"volt":false}', JSON.stringify(u.swapLater));
+  check('every hero keeps their own health and their own power recharge: a benched hero\'s power recharges while they wait', u.own.solHealth === 92 && u.own.cast && !u.own.solReadyAfterCast && u.own.emberFresh.health === 100 && u.own.emberFresh.ready && u.own.solBack.health === 92 && !u.own.solBack.ready && u.own.solBack.progress < 1 && u.own.benchRecharged && Object.values(u.own.members).filter(Boolean).length === 4, JSON.stringify(u.own));
+  check('only the hero in play shoots; the shots stop when the darts are switched off; everyone shares one pool of sparks', u.shooting.sol && u.shooting.others === 0 && u.shooting.quiet && u.shooting.shared, JSON.stringify(u.shooting));
+  check('a knocked-out hero lies there for a moment, then the next hero steps in (the knocked-out one cannot be swapped back)', u.knock.waiting.kind === 'sol' && !u.knock.waiting.down && u.knock.waiting.out === 'sol' && u.knock.waiting.hurt === 'sol' && !u.knock.waiting.canSwapToOut && u.knock.stillWaiting === 'sol' && u.knock.kind === 'ember' && u.knock.slot === 1 && u.knock.visible === '{"sol":false,"ember":true,"tide":false,"volt":false}' && u.knock.swaps === 'sol@0,ember@1' && u.knock.status === 'sol:out,ember:in,tide:in', JSON.stringify(u.knock));
+  check('the round is lost only when the whole squad is out; a fresh start brings everybody back to full health', !u.allOut.third.down && u.allOut.third.kind === 'tide' && u.allOut.down && u.reset.down === false && u.reset.health === 100 && u.reset.slot === 0 && u.reset.healths === '1,1,1', JSON.stringify([u.allOut, u.reset]));
+  check('the portraits read each hero\'s health, who is in play, who is out and whose power is ready', u.status === 'tide:true:false:true:1 volt:false:false:true:1', u.status);
+
+  // Live game: before anyone joins you play alone; after the first win the squad screen comes with "Play again".
+  SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'squad-live'));
+  SHOW_SQUAD = false;
+  const alone = await page.evaluate(() => ({ roster: window.__game.squad.roster.join(), portraits: !document.getElementById('squad').hidden, screen: !document.getElementById('squad-screen').hidden }));
+  check('at first you play alone: no portraits, no squad screen', alone.roster === 'sol' && !alone.portraits && !alone.screen, JSON.stringify(alone));
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await page.waitForTimeout(900);
+  await page.keyboard.press('Space');
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const pick = await page.evaluate(() => ({ cards: [...document.querySelectorAll('#squad-heroes .card')].map((c) => `${c.dataset.kind}${c.classList.contains('on') ? '+' : '-'}${c.classList.contains('locked') ? 'L' : ''}`).join(), help: document.getElementById('squad-help').textContent, go: !document.getElementById('squad-go').disabled, endHidden: document.getElementById('end').hidden, state: window.__game.waves.state }));
+  check('after the first win, "Play again" opens the squad screen (the others have joined): Sol is fixed, two more are pre-picked, and no round has started', pick.cards === 'sol+L,ember+,tide+,volt-' && pick.help === 'Ready!' && pick.go && pick.endHidden && pick.state === 'over', JSON.stringify(pick));
+  await page.screenshot({ path: `${OUT}/squad-1-screen.png` });
+  const card = (kind) => page.evaluate((k) => { const r = document.querySelector(`#squad-heroes .card[data-kind="${k}"]`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, kind);
+  const tap = async (kind) => { const c = await card(kind); await page.mouse.click(c.x, c.y); };
+  await tap('tide');
+  await tap('sol');
+  const fewer = await page.evaluate(() => ({ cards: [...document.querySelectorAll('#squad-heroes .card')].map((c) => `${c.dataset.kind}${c.classList.contains('on') ? '+' : '-'}`).join(), help: document.getElementById('squad-help').textContent, go: !document.getElementById('squad-go').disabled }));
+  check('tapping a picked hero takes them off (Pick 1 more, Go! waits); tapping Sol does nothing', fewer.cards === 'sol+,ember+,tide-,volt-' && fewer.help === 'Sol always comes. Pick 1 more.' && !fewer.go, JSON.stringify(fewer));
+  await tap('volt');
+  await tap('tide');
+  const full = await page.evaluate(() => ({ cards: [...document.querySelectorAll('#squad-heroes .card')].map((c) => `${c.dataset.kind}${c.classList.contains('on') ? '+' : '-'}`).join(), go: !document.getElementById('squad-go').disabled }));
+  check('a fourth hero cannot be added (three is the most)', full.cards === 'sol+,ember+,tide-,volt+' && full.go, JSON.stringify(full));
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning'].includes(window.__game.waves.state));
+  const go = await page.evaluate(() => ({ screen: !document.getElementById('squad-screen').hidden, roster: window.__game.squad.roster.join(), portraits: [...document.querySelectorAll('#squad .portrait')].map((b) => `${b.querySelector('.portrait-letter').textContent}${b.classList.contains('active') ? '*' : ''}`).join(), name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, shown: !document.getElementById('squad').hidden }));
+  check('Go! starts the round with Sol, Ember and Volt: three portraits (Sol in play), the corner and the button show Sol', !go.screen && go.roster === 'sol,ember,volt' && go.portraits === 'S*,E,V' && go.shown && go.name === 'Sol' && go.label === 'Starburst', JSON.stringify(go));
+
+  // Swapping with the keys and the portraits.
+  await page.keyboard.press('Digit2');
+  const swapped = await page.evaluate(() => ({ kind: window.__game.player.kind, name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, flame: getComputedStyle(document.querySelector('#power-button .icon-flame')).display !== 'none', active: [...document.querySelectorAll('#squad .portrait')].map((b) => b.classList.contains('active') ? 'A' : '-').join(''), swaps: window.__game.audio.counts.swap }));
+  check('pressing 2 swaps to Ember: the name, the Flame Wave button and its flame icon, the portraits, and a swap sound', swapped.kind === 'ember' && swapped.name === 'Ember' && swapped.label === 'Flame Wave' && swapped.flame && swapped.active === '-A-' && swapped.swaps === 1, JSON.stringify(swapped));
+  await page.screenshot({ path: `${OUT}/squad-2-in-play.png` });
+  await page.keyboard.press('Digit1');
+  const tooSoon = await page.evaluate(() => ({ kind: window.__game.player.kind, cool: [...document.querySelectorAll('#squad .portrait')].some((b) => b.classList.contains('cool')) }));
+  check('swapping again at once is refused, and the portraits dim while it cools down', tooSoon.kind === 'ember' && tooSoon.cool, JSON.stringify(tooSoon));
+  await until(page, () => window.__game.squad.swapReady);   // (game time runs slower than the clock in the test browser)
+  await page.keyboard.press('Digit1');
+  check('after the cooldown pressing 1 swaps back to Sol', (await page.evaluate(() => window.__game.player.kind)) === 'sol');
+  await until(page, () => window.__game.squad.swapReady);
+  const portrait = await page.evaluate(() => { const r = document.querySelectorAll('#squad .portrait')[2].getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.click(portrait.x, portrait.y);
+  const byTap = await page.evaluate(() => ({ kind: window.__game.player.kind, label: document.getElementById('power-label').textContent, bolt: getComputedStyle(document.querySelector('#power-button .icon-bolt')).display !== 'none' }));
+  check('tapping the third portrait swaps to Volt (the button becomes Lightning Dash with its bolt)', byTap.kind === 'volt' && byTap.label === 'Lightning Dash' && byTap.bolt, JSON.stringify(byTap));
+  const noMove = await page.evaluate(() => document.getElementById('joystick').classList.contains('active'));
+  check('tapping a portrait does not start the joystick', !noMove);
+
+  // Knocked out: the next hero steps in; when all three are out the round is lost.
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); });
+  await until(page, () => window.__game.player.kind !== 'volt');
+  const next = await page.evaluate(() => ({ kind: window.__game.player.kind, down: [...document.querySelectorAll('#squad .portrait')].map((b) => b.classList.contains('down') ? 'D' : '-').join(''), name: document.getElementById('hud-name').textContent, lost: window.__game.waves.state }));
+  check('when Volt is knocked out the next hero steps in on their own, Volt\'s portrait goes grey, and the round goes on', next.kind === 'sol' && next.down === '--D' && next.name === 'Sol' && next.lost !== 'over', JSON.stringify(next));
+  await page.keyboard.press('Digit3');
+  check('a knocked-out hero cannot be swapped back in', (await page.evaluate(() => window.__game.player.kind)) === 'sol');
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 6 && !G.player.down; i++) { G.player.takeHit(1000, 0, 0); G.player.update(1.7, { x: 0, z: 0 }, 0); } for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  check('when all three are out the round is lost: "Knocked out"', (await page.evaluate(() => document.getElementById('end-title').textContent)) === 'Knocked out');
+  await page.waitForTimeout(900);
+  await page.keyboard.press('Space');
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const again = await page.evaluate(() => [...document.querySelectorAll('#squad-heroes .card')].map((c) => `${c.dataset.kind}${c.classList.contains('on') ? '+' : '-'}`).join());
+  check('"Try again" opens the squad screen with the last squad already picked', again === 'sol+,ember+,tide-,volt+', again);
+  await page.keyboard.press('Enter');
+  await until(page, () => ['break', 'spawning'].includes(window.__game.waves.state));
+  const fresh = await page.evaluate(() => ({ kind: window.__game.player.kind, healths: window.__game.squad.status.map((s) => s.health).join(), roster: window.__game.squad.roster.join() }));
+  check('Enter on the squad screen is "Go!": everybody is back to full health with Sol in play', fresh.kind === 'sol' && fresh.healths === '1,1,1' && fresh.roster === 'sol,ember,volt', JSON.stringify(fresh));
+
+  // A phone: the portraits and the squad screen fit.
+  ({ page } = await openGame(browser, 'squad-phone', { width: 390, height: 844 }, true));
+  await page.evaluate(() => { const G = window.__game; G.squad.set(['sol', 'ember', 'tide']); window.__game.ui.setSquad(G.squad.roster.map((k) => ({ name: k, type: 'fire' }))); });
+  const phone = await page.evaluate(() => { const r = (id) => { const b = document.querySelector(id).getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; }; return { squad: r('#squad'), button: r('#power-button'), skip: r('#mute') }; });
+  check('on a phone the three portraits fit the screen, above the power button and clear of it', phone.squad.right <= 390 && phone.squad.left >= 0 && phone.squad.bottom <= phone.button.top && phone.squad.top > phone.skip.bottom, JSON.stringify(phone));
+  await page.evaluate(() => window.__game.ui.showSquad({ heroes: ['sol', 'ember', 'tide', 'volt'].map((k) => ({ kind: k, name: k[0].toUpperCase() + k.slice(1), type: 'fire', power: 'Power' })), chosen: ['ember', 'tide'], onGo: () => {} }));
+  await page.screenshot({ path: `${OUT}/squad-3-phone.png` });
+  const fits = await page.evaluate(() => { const b = document.getElementById('squad-card').getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; });
+  check('the squad screen fits a phone', fits.left >= 0 && fits.right <= 390 && fits.top >= 0 && fits.bottom <= 844, JSON.stringify(fits));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

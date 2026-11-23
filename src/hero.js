@@ -16,18 +16,20 @@ const STILL = { x: 0, z: 0 };   // "no push", used while knocked out
 
 // "kind" is which hero (a key in heroes-data.js). "scene" is where the hero is added. "bound" is how far from
 // the middle of the island they may walk. onHurt(amount) is called when hit. onDown() is called when knocked out.
-// showBar = false makes a hero with no health bar (a guest).
-export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar = true }) {
+// showBar = false makes a hero with no health bar (a guest). "shared" ({ position, velocity }) makes the hero stand where
+// the rest of a squad stands, so swapping heroes needs no moving about.
+export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar = true, shared = null }) {
   const data = HEROES[kind];
   const model = buildHeroModel(kind);
   const group = new THREE.Group();   // this part moves and turns
+  if (shared) Object.defineProperty(group, 'position', { value: shared.position });
   const body = model.body;           // this part leans, hops and squashes inside it
   group.add(body);
   group.traverse((object) => { if (object.isMesh) object.castShadow = true; });
   const bar = createFloatingBar(1.1, 0x8dff52);   // the health bar, floating over the hero's head
   scene.add(group, bar.group);
 
-  const velocity = { x: 0, z: 0 };   // how fast the hero is moving right now (the camera reads this too)
+  const velocity = shared ? shared.velocity : { x: 0, z: 0 };   // how fast the hero is moving right now (the camera reads this too)
   let yaw = 0;                       // which way the hero faces
   let stride = 0;                    // where the hero is in the running step
   let health = data.health;

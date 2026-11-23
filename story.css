@@ -187,3 +187,67 @@ body.prologue #hint { display: none; }
 #title-tap { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; animation: title-pulse 1.8s ease-in-out infinite; }
 @keyframes title-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { #title-tap { animation: none; } }
+
+/* The squad: round portraits above the power button. The ring is the hero's health; a gold dot means their power is ready. */
+#squad {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(132px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 10px;
+}
+#squad[hidden] { display: none; }
+.portrait {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--c) calc(var(--hp, 1) * 360deg), rgba(20, 10, 40, 0.55) 0);
+  opacity: 0.88;
+  cursor: pointer;
+  touch-action: none;
+  transition: transform 0.12s, opacity 0.12s;
+}
+.portrait::before {   /* the face */
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, #fff, var(--c) 75%);
+}
+.portrait-letter { position: relative; font: 900 20px system-ui, sans-serif; color: #2a1a05; }
+.portrait-key { position: absolute; left: -3px; top: -3px; width: 16px; height: 16px; border-radius: 50%; background: rgba(20, 10, 40, 0.85); color: #fff; font: 800 10px/16px system-ui, sans-serif; }
+@media (pointer: coarse) { .portrait-key { display: none; } }
+.portrait.active { opacity: 1; transform: scale(1.16); box-shadow: 0 0 0 3px #fff, 0 4px 12px rgba(0, 0, 0, 0.35); }
+.portrait.down { filter: grayscale(1) brightness(0.55); }
+.portrait.cool:not(.active) { opacity: 0.45; }
+.portrait.ready:not(.active):not(.down)::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 13px; height: 13px; border-radius: 50%; background: #ffe14a; box-shadow: 0 0 7px #ffe14a; }
+
+/* The squad screen: pick who comes. */
+#squad-screen {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 8, 30, 0.72);
+}
+#squad-screen[hidden] { display: none; }
+#squad-card { width: 100%; max-width: 460px; padding: 20px 18px; border-radius: 22px; background: #fffaf0; color: #3a2b1a; text-align: center; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); }
+#squad-title { margin: 0; font-size: 26px; font-weight: 900; }
+#squad-help { margin: 4px 0 14px; font-weight: 700; color: #7a5b3a; }
+#squad-heroes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+.card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 8px; border: 3px solid transparent; border-radius: 16px; background: #f1e6d0; color: inherit; font: 700 13px system-ui, sans-serif; opacity: 0.55; cursor: pointer; touch-action: none; }
+.card.on { opacity: 1; border-color: var(--c); background: #fff; }
+.card.locked { cursor: default; }
+.card-face { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin-bottom: 2px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #fff, var(--c) 75%); font: 900 24px system-ui, sans-serif; color: #2a1a05; }
+.card-name { font-size: 17px; font-weight: 900; }
+.card-type { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; color: var(--c); filter: brightness(0.8); }
+#squad-go { min-width: 150px; padding: 12px 26px; border: 0; border-radius: 999px; background: linear-gradient(#ff9a3c, #f0561f); color: #fff; font: 900 20px system-ui, sans-serif; box-shadow: 0 5px 0 #b13a12; cursor: pointer; touch-action: none; }
+#squad-go:disabled { background: #cdbfa8; box-shadow: 0 5px 0 #a89880; cursor: default; }

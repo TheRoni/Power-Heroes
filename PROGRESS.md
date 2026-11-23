@@ -371,6 +371,34 @@ This changes how the game plays, so each chunk ends playable and is reported.
 - A squad screen before the round (pick 3 of 4; Sol is always there).
 - The corner hero name, health bar and power button follow the active hero.
 
+**Chunk 2 build notes (DONE):**
+- New `src/squad.js` (about 145 lines). All four heroes are made once, hidden. A
+  squad of up to three is chosen with `squad.set(['sol', 'ember', 'tide'])`.
+  `squad.player` and `squad.powers` look like one hero and one set of powers and
+  always mean whoever is in play, so almost nothing else in the game changed.
+- The whole squad stands in one place (`createHero({ shared })` makes every hero use
+  the same position and speed), so a swap is instant and exact. A swap has a
+  1.5 s cooldown, a puff in the hero's type colour and a sound.
+- Every hero has their own health and their own power recharge (benched
+  heroes recharge). Only the hero in play shoots. A knocked-out hero lies there for
+  0.6 s, then the next one steps in; the round is lost when all three are out.
+- Controls: keys 1, 2, 3, or tap a round portrait (above the power button). The
+  portrait's ring is the hero's health; a gold dot means their power is ready;
+  they go grey when knocked out and dim during the cooldown. The corner name and
+  the power button follow the hero in play.
+- The squad screen ("Choose your squad", Sol always comes, pick two more, Go!)
+  comes with "Play again" / "Try again" once other heroes have joined. For now
+  Ember, Tide and Volt all join after the first win (the story will gate them later).
+  Space or Enter means Go!.
+- Small moves: `puff` and `confetti` now live with the sparks (`powers.sparks`),
+  `ui.setVeil`-style helpers for the portraits (`ui.setSquad`, `ui.setPortraits`,
+  `ui.showSquad`), `TYPE_COLORS` in `heroes-data.js`, a `swap` sound.
+- The how-to-play hint is only for the first round.
+- Tests: group 13 (27 checks): the squad on its own (choosing, one place, swap
+  rules and cooldown, own health and recharge, who shoots, knock-outs, losing,
+  reset, the portraits' status) and the live game (the squad screen, picking,
+  keys, taps, knock-outs, losing, Try again, a phone).
+
 **Chunk 3: types.**
 - New `src/types.js` (the circle Fire > Nature > Storm > Water > Fire, and
   Light and Shadow against each other): 1.5x and 0.67x damage; a big "SUPER!"

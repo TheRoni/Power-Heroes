@@ -6,7 +6,8 @@ import { createSuperpower, distanceToSegment } from './superpowers.js';
 import { QUIET } from './audio.js';
 
 const FLAME_COLORS = [0xff4b1f, 0xff8a1f, 0xffc933];                     // red, orange, yellow
-const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];   // the colour that bursts out of a defeated Gloomling
+const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
+const CONFETTI = POP_COLORS;   // the colour that bursts out of a defeated Gloomling
 
 // What an automatic shot looks like. "stretch" makes it long, like a dart.
 const LOOKS = {
@@ -63,15 +64,29 @@ function createSparks(scene, capacity = 240) {
     if (changed) mesh.instanceMatrix.needsUpdate = true;
   }
 
-  return { emit, update, get live() { return items.filter((s) => s.life > 0).length; } };
+  // A puff of dark sparks where a Gloomling appears.
+  function puff(position) {
+    for (let i = 0; i < 8; i++) emit(position.x, 0.3, position.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 0.5, 0.2, 0x6a45b0, -4);
+  }
+
+  // Confetti shooting up all over the island (when a wave is cleared; a big burst after the last one).
+  function confetti(count) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.sqrt(Math.random()) * 9;
+      emit(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius, (Math.random() - 0.5) * 2, 6 + Math.random() * 4, (Math.random() - 0.5) * 2, 1 + Math.random() * 0.6, 0.2 + Math.random() * 0.15, CONFETTI[i % CONFETTI.length], -9);
+    }
+  }
+
+  return { emit, update, puff, confetti, get live() { return items.filter((s) => s.life > 0).length; } };
 }
 
 // "hero" is the hero (kind, position, yaw, down, face). "gloomlings" is the live list of enemies (defeated ones are
 // taken out of it). "events" are optional: hit(gloom, amount, kind) for number pop-ups, defeat(gloom), cast() when
 // the superpower goes off.
-export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUIET }) {
+// "sparks" is an existing pool to share (a squad shares one); without it a new one is made.
+export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUIET, sparks = createSparks(scene) }) {
   const data = HEROES[hero.kind];
-  const sparks = createSparks(scene);
   const shots = [];
   const look = LOOKS[data.attack.look];
   let fireTimer = 0;   // time until the next automatic shot

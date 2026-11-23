@@ -45,6 +45,9 @@
     <span id="power-label">Starburst</span>
   </button>
 
+  <!-- The squad: one round portrait per hero (tap one, or press 1, 2 or 3, to swap). -->
+  <div id="squad" hidden></div>
+
   <!-- The title that sweeps across the screen when a wave starts. -->
   <div id="banner" aria-live="polite">
     <div id="banner-title"></div>
@@ -87,6 +90,16 @@
       <h1 id="end-title"></h1>
       <p id="end-text"></p>
       <button id="end-button" type="button"></button>
+    </div>
+  </div>
+
+  <!-- The squad screen: choose who comes. -->
+  <div id="squad-screen" hidden role="dialog" aria-modal="true" aria-labelledby="squad-title">
+    <div id="squad-card">
+      <h1 id="squad-title">Choose your squad</h1>
+      <p id="squad-help"></p>
+      <div id="squad-heroes"></div>
+      <button id="squad-go" type="button">Go!</button>
     </div>
   </div>
 
