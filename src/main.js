@@ -13,6 +13,7 @@ import { createPrologue } from './prologue.js';
 import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
+import { createAura } from './aura.js';
 import { createRounds } from './rounds.js';
 import { createProgress, shortNumber } from './power.js';
 import { createSave } from './save.js';
@@ -152,8 +153,9 @@ const waves = createWaves({
 });
 
 // The rounds: the squad, XP and Power, the squad screen, saving, and how a round ends (see rounds.js).
+const aura = createAura({ scene: world.scene, position: player.position, sparks: powers.sparks });   // grows with Power (see aura.js)
 const rounds = createRounds({
-  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, pick: PICK,
+  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick: PICK,
   onNewRound: () => {   // the game's own small resets
     hintHidden = true;   // the how-to-play hint is for the first round only (it would sit on the portraits)
     hint.classList.add('gone');
@@ -198,7 +200,7 @@ let hintHidden = false;
 
 if (DEBUG) {
   ui.showFps();
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -221,6 +223,8 @@ function frame(now) {
   powers.update(dt, gameTime);
   waves.update(dt);
   world.follow(player.position, player.velocity, dt, false);
+  aura.update(dt, gameTime, { power: progress.powerOf(player.kind), type: player.type, visible: player.group.visible, speed: Math.hypot(player.velocity.x, player.velocity.z) });
+  player.setGlow(aura.glow);
   world.update(dt, gameTime);
   prologue.update(realDt, now / 1000);
   story.update(realDt);

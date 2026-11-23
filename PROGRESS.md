@@ -483,6 +483,16 @@ how you rank. After a round the number counts up.
   celebration. New `src/aura.js`: Spark (faint glow at the feet), Glow (soft light),
   Blaze (flickering aura in the type colour, rising sparks), Surge (a glowing ring
   on the ground, brighter edges), Radiant (a halo and a light trail).
+- **Chunk 2 build notes (DONE):** the full-screen menus moved from `ui.js` to the new
+  `src/menus.js` (title, squad screen, end screen, and the Space/Enter keys they take).
+  The end screen's **power-up moment**: each squad member's Power counts up (1.4 s,
+  one after another) with rising ticks; when the number arrives the row flares and
+  chimes; crossing an aura tier shows "GLOW!" (or BLAZE, SURGE, RADIANT), plays a
+  fanfare, flares the aura and sets off confetti. New `src/aura.js`: the aura of the hero
+  in play follows Power through the five tiers (a glow at the feet, soft body light, a
+  flickering aura with rising sparks, a ground ring, a halo with a light trail when
+  running) in the hero's type colour; at Surge and Radiant the hero's own edges
+  light up (`hero.setGlow`). Tests: group 17 (8 checks).
 - **Chunk 3: Overdrive.** Hits fill a meter; when it is full, tap the hero's
   name box (or press E): a few seconds of a boosted Power number, a flaring aura
   and a faster-recharging superpower.

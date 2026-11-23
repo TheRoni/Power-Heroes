@@ -7,7 +7,7 @@ import { xpForKill, winBonus, enemyPowerFor, xpForPower } from './power.js';
 const LESSON_XP = { climb: 12, move: 3, strike: 5, power: 7 };   // the prologue: Sol's Power climbs as Marlo teaches (to Power 10), so the numbers in the story are real
 
 // pick: show the squad screen (the tests switch it off). onNewRound(): the game's own small resets (the hint, Pip's words).
-export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, pick, onNewRound }) {
+export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick, onNewRound }) {
   let ending = null;   // 'won', 'again' (a win after the first), or 'lost' while Marlo walks over before the closing conversation
   let endWait = 0;
   let roundXp = 0;     // XP from the Gloomlings beaten in this round so far
@@ -100,7 +100,10 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     if (ending && (marlo.arrived || (endWait += dt) > 8)) {   // Marlo has come over: the closing conversation begins
       const kind = ending;
       ending = null;
-      story.scene({ won: 'win', again: 'winAgain', lost: 'lose' }[kind], () => ui.showEnd(kind === 'lost' ? 'lost' : 'won', gains));
+      story.scene({ won: 'win', again: 'winAgain', lost: 'lose' }[kind], () => ui.showEnd(kind === 'lost' ? 'lost' : 'won', gains, {
+        onFlare: () => aura.flare(1.2),   // the power-up moment: the aura flares as each number arrives
+        onTier: () => { aura.flare(3); powers.sparks.confetti(90); },   // and a new tier is a bigger celebration
+      }));
     }
     if (story.waiting === 'arrive' && ember.arrived) story.resume();   // Ember is here: the talk carries on
   }

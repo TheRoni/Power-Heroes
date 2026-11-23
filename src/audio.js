@@ -5,7 +5,7 @@
 const MUTE_KEY = 'powerheroes.muted';
 const LOUDNESS = 0.9;   // overall volume (the device's own volume knob comes on top)
 const MAX_VOICES = 28;  // never more than this many effect sounds at once, so a busy fight cannot turn into noise
-const GAPS = { dart: 0.05, tick: 0.04, bell: 0.07, pop: 0.05, blip: 0.03, click: 0.05, bump: 0.15, super: 0.12, weak: 0.08, shock: 0.3 };   // least seconds between two of the same sound
+const GAPS = { dart: 0.05, tick: 0.04, bell: 0.07, pop: 0.05, blip: 0.03, click: 0.05, bump: 0.15, super: 0.12, weak: 0.08, shock: 0.3, tier: 0.5 };   // least seconds between two of the same sound
 
 // A "quiet" stand-in for code that is tested without sound.
 export const QUIET = { play: () => false };
@@ -36,6 +36,7 @@ const SOUNDS = {
   sunrise: (k) => { [587, 880, 1175, 1480].forEach((f, i) => k.tone({ from: f, time: 1.8, volume: 0.04, delay: i * 0.25, attack: 0.15 })); },
   super: (k) => { k.tone({ from: 1319, time: 0.25, volume: 0.07, attack: 0.002 }); k.tone({ from: 1760, time: 0.3, volume: 0.06, delay: 0.07, attack: 0.002 }); k.tone({ from: 2637, time: 0.2, volume: 0.025, delay: 0.1 }); },
   weak: (k) => { k.tone({ type: 'triangle', from: 200, to: 120, time: 0.1, volume: 0.05 }); },
+  tier: (k) => { [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => { k.tone({ from: f, time: 0.9, volume: 0.07, delay: i * 0.1, attack: 0.004 }); k.tone({ from: f * 2, time: 0.4, volume: 0.015, delay: i * 0.1 }); }); k.noise({ filter: 'highpass', from: 4000, time: 0.9, volume: 0.03, attack: 0.3 }); },
   shock: (k) => { k.noise({ filter: 'highpass', from: 2500, time: 0.25, volume: 0.07, attack: 0.002 }); [1800, 1400, 2200].forEach((f, i) => k.tone({ type: 'sawtooth', from: f, to: f * 0.5, time: 0.12, volume: 0.03, delay: i * 0.07 })); },
   swap: (k) => { k.noise({ filter: 'bandpass', from: 600, to: 2400, q: 2, time: 0.18, volume: 0.07, attack: 0.02 }); k.tone({ from: 660, to: 990, time: 0.15, volume: 0.05 }); k.tone({ from: 1320, time: 0.2, volume: 0.04, delay: 0.08 }); },
   ready: (k) => { k.tone({ from: 1760, time: 0.1, volume: 0.03, attack: 0.003 }); },

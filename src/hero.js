@@ -38,6 +38,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
   let health = maxHealth();
   let invulnerable = 0;              // seconds of protection left after a hit
   let flash = 0;                     // white flash when hit
+  let glow = 0;                      // a steady glow on the hero's edges (from the aura tiers Surge and Radiant)
   let down = false;                  // knocked out
   let fall = 0;                      // 0 = standing, 1 = lying down
 
@@ -93,7 +94,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
     model.arms.forEach((arm, i) => { arm.rotation.x = (i === 0 ? 1 : -1) * Math.sin(stride) * 0.9 * run; });
     model.animate(time, run, fall);   // the parts only this hero has: flames, cape, motes of light
 
-    for (const material of model.materials) material.emissive.setScalar(flash * 0.8);
+    for (const material of model.materials) material.emissive.setScalar(Math.max(flash * 0.8, glow));
     bar.group.position.set(p.x, 2.6, p.z);
     bar.set(health / maxHealth());
   }
@@ -148,6 +149,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
     get maxHealth() { return maxHealth(); },
     get power() { return power; },
     // A new Power changes the health the hero can have; the share of health they have left stays the same.
+    setGlow(amount) { glow = amount; },
     setPower(next) { const share = health / maxHealth(); power = next; health = Math.round(maxHealth() * share); },
     get down() { return down; },
     get yaw() { return yaw; },

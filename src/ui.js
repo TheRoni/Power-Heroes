@@ -1,16 +1,12 @@
 // ui.js: everything drawn on top of the 3D picture: floating health bars, number pop-ups, the power button,
-// the wave banner, and the win and knocked-out screens.
+// the wave banner, and the squad portraits. (The full-screen menus are in menus.js.)
 import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
 import { QUIET } from './audio.js';
 import { TYPE_COLORS } from './types.js';
 import { shortNumber } from './power.js';
+import { createMenus } from './menus.js';
 
-const ENDINGS = {
-  won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Play again' },
-  lost: { title: 'Knocked out', text: 'Even heroes need a nap. Ready again?', button: 'Try again' },
-};
-const END_LOCK = 800;   // milliseconds after an end screen appears when taps are ignored, so a mashed button cannot skip it
 
 // A small health bar that floats in the 3D world and always faces the camera.
 // Move bar.group where you want it. bar.set(0.5) shows it half full.
@@ -43,57 +39,13 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
   const floaters = document.getElementById('floaters');
   const powerButton = document.getElementById('power-button');
   const banner = document.getElementById('banner');
-  const endScreen = document.getElementById('end');
-  const endButton = document.getElementById('end-button');
-  const titleScreen = document.getElementById('title');
   const portraitBox = document.getElementById('squad');
-  const pickScreen = document.getElementById('squad-screen');
-  const goButton = document.getElementById('squad-go');
   const veil = document.getElementById('tint');
   const point = new THREE.Vector3();
-  let endShownAt = 0;
-  let titleStart = null;   // what to do when the title screen is tapped
+  const menus = createMenus({ audio, onAgain });   // the title, squad and end screens
   let lastVeil = '';
   let portraits = [];      // the squad's round buttons
   let lastPortraits = '';
-  let pickDone = null;     // what the squad screen's Go! button does
-
-  // An end screen's button. The first moment after it appears is ignored (see END_LOCK).
-  function again() {
-    if (endScreen.hidden || performance.now() - endShownAt < END_LOCK) return;
-    audio.play('click');
-    onAgain();
-  }
-
-  // The title screen waits for a tap (or Space / Enter), then hides itself and starts the story.
-  function startFromTitle() {
-    if (titleScreen.hidden || !titleStart) return;
-    const go = titleStart;
-    titleStart = null;
-    titleScreen.hidden = true;
-    go();
-  }
-  titleScreen.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    startFromTitle();
-  });
-  // "onReset" (optional) shows a small "Start over" button for someone who has saved progress.
-  function showTitle(onStart, onReset = null) {
-    titleStart = onStart;
-    titleScreen.hidden = false;
-    const reset = document.getElementById('title-reset');
-    reset.hidden = !onReset;
-    reset.onpointerdown = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (onReset) onReset();
-    };
-  }
-  function hideTitle() {
-    titleStart = null;
-    titleScreen.hidden = true;
-  }
 
   // The buttons react the moment a finger touches them. stopPropagation keeps the joystick from also seeing the touch.
   powerButton.addEventListener('pointerdown', (event) => {
@@ -101,25 +53,11 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     event.stopPropagation();
     onCast();
   });
-  endScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind an end screen reacts to touches
-  endButton.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    again();
-  });
   window.addEventListener('keydown', (event) => {
     if (/^Digit[1-3]$/.test(event.code) && !event.repeat) { onSwap(Number(event.code.slice(5)) - 1); return; }
     if (event.code !== 'Space' && event.code !== 'Enter') return;
-    if (!pickScreen.hidden) {   // on the squad screen, Space and Enter mean "Go!"
-      event.preventDefault();
-      if (!goButton.disabled) goButton.dispatchEvent(new Event('go'));
-    } else if (!titleScreen.hidden) {   // on the title screen, Space and Enter mean "begin"
-      event.preventDefault();
-      startFromTitle();
-    } else if (!endScreen.hidden) {   // on an end screen, Space and Enter mean "again"
-      event.preventDefault();
-      again();
-    } else if (event.code === 'Space') {
+    if (menus.handleKey(event)) return;   // a menu that is showing takes Space and Enter
+    if (event.code === 'Space') {
       event.preventDefault();
       onCast();
     }
@@ -200,51 +138,6 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     });
   }
 
-  // The squad screen: tap heroes to choose who comes (the first one always does), then Go!
-  // heroes is [{ kind, name, type, power }] and chosen the kinds picked so far; onGo(kinds) gets the final squad.
-  function showSquad({ heroes, chosen, onGo }) {
-    const holder = document.getElementById('squad-heroes');
-    const size = Math.min(3, heroes.length);
-    const picked = new Set([heroes[0].kind, ...chosen]);
-    holder.textContent = '';
-    const refresh = () => {
-      for (const card of holder.children) card.classList.toggle('on', picked.has(card.dataset.kind));
-      goButton.disabled = picked.size !== size;
-      document.getElementById('squad-help').textContent = picked.size < size ? `${heroes[0].name} always comes. Pick ${size - picked.size} more.` : 'Ready!';
-    };
-    heroes.forEach((hero, i) => {
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.className = `card${i === 0 ? ' locked' : ''}`;
-      card.dataset.kind = hero.kind;
-      card.style.setProperty('--c', TYPE_COLORS[hero.type].css);
-      card.innerHTML = `<span class="card-face">${hero.name[0]}</span><span class="card-name">${hero.name}</span><span class="card-type">${hero.type}</span><span>${hero.power}</span>`;
-      card.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (i === 0) return;
-        if (picked.has(hero.kind)) picked.delete(hero.kind);
-        else if (picked.size < size) picked.add(hero.kind);
-        audio.play('click');
-        refresh();
-      });
-      holder.appendChild(card);
-    });
-    pickDone = () => {
-      pickScreen.hidden = true;
-      onGo(heroes.filter((hero) => picked.has(hero.kind)).map((hero) => hero.kind));
-    };
-    refresh();
-    pickScreen.hidden = false;
-  }
-  goButton.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!goButton.disabled && pickDone) { audio.play('click'); pickDone(); }
-  });
-  goButton.addEventListener('go', () => { if (pickDone) pickDone(); });
-  pickScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind the squad screen reacts to touches
-
   // The frame-rate box (debug mode only): showFps() once, then fps(now, renderer) every frame.
   let fpsBox = null, fpsFrames = 0, fpsStart = 0;
   function showFps() {
@@ -287,22 +180,6 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     banner.classList.add('show');
   }
 
-  // kind: 'won' or 'lost'. "gains" is what the round did to each hero: [{ name, xp, before, after }].
-  function showEnd(kind, gains = []) {
-    const ending = ENDINGS[kind];
-    document.getElementById('end-gains').innerHTML = gains.map((g) => `<div>${g.name}: Power ${shortNumber(g.before)} → <b>${shortNumber(g.after)}</b> (+${shortNumber(g.xp)} XP)</div>`).join('');
-    document.getElementById('end-title').textContent = ending.title;
-    document.getElementById('end-text').textContent = ending.text;
-    endButton.textContent = ending.button;
-    endScreen.className = kind;
-    endScreen.hidden = false;
-    endShownAt = performance.now();
-  }
-
-  function hideEnd() {
-    endScreen.hidden = true;
-  }
-
   // A number that pops up over a spot in the world, then floats away.
   // kind: 'hit' (white), 'hurt' (red, when Ember is hit) or 'big' (gold, for the Flame Wave).
   function popNumber(position, text, kind = 'hit', lift = 2) {
@@ -317,5 +194,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, showEnd, hideEnd, popNumber, showTitle, hideTitle, setSquad, setPortraits, showSquad, showFps, fps, setHeroPower };
+  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, ...menus.api };
 }

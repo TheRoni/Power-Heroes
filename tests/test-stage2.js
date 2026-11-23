@@ -2228,8 +2228,9 @@ async function chunk16(browser) {
   await waitForClosing(page);
   await page.evaluate(() => window.__game.story.skip());
   await until(page, () => !document.getElementById('end').hidden);
-  const endText = await page.evaluate(() => document.getElementById('end-gains').textContent);
-  check('the end screen says what the round did: "Sol: Power 10 → 17 (+36 XP)"', endText === 'Sol: Power 10 → 17 (+36 XP)', endText);
+  await until(page, () => document.querySelector('#end-gains .gain-power').textContent === '17');
+  const row = await page.evaluate(() => ({ name: document.querySelector('.gain-name').textContent, power: document.querySelector('.gain-power').textContent, xp: document.querySelector('.gain-xp').textContent }));
+  check('the end screen says what the round did, with the Power counting up to the new number: "Sol  Power 17  +36 XP"', row.name === 'Sol' && row.power === '17' && row.xp === '+36 XP', JSON.stringify(row));
   await page.screenshot({ path: `${OUT}/power-1-end.png` });
 
   // A round that is lost still pays for what was beaten, and no bonus.
@@ -2268,10 +2269,132 @@ async function chunk16(browser) {
   check('"Start over" wipes the save and starts a brand new game', wiped.power === 1 && wiped.wins === 0 && wiped.stored === null, JSON.stringify(wiped));
 }
 
+// ---------- Auras and the power-up moment ----------
+const auraUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createAura } = await import('/src/aura.js');
+  const { createHero } = await import('/src/hero.js');
+  const { TYPE_COLORS } = await import('/src/types.js');
+  const out = {};
+  const make = () => {
+    const scene = new THREE.Scene();
+    const position = new THREE.Vector3(1, 0, 2);
+    const emitted = { n: 0 };
+    const aura = createAura({ scene, position, sparks: { emit: () => { emitted.n++; } } });
+    return { scene, position, emitted, aura };
+  };
+  const run = (m, seconds, info) => { for (let i = 0; i < Math.round(seconds * 30); i++) m.aura.update(1 / 30, i / 30, info); };
+  out.tiers = {};
+  for (const power of [1, 99, 100, 299, 300, 999, 1000, 2999, 3000, 50000]) {
+    const m = make();
+    run(m, 2, { power, type: 'fire', visible: true, speed: 0 });
+    const p = m.aura.parts;
+    out.tiers[power] = { tier: m.aura.tier, parts: [p.floor, p.body, p.flame, p.ring, p.halo].map((x) => (x.visible && (x.material.opacity > 0.01) ? 1 : 0)).join(''), sparks: m.emitted.n > 0, glow: m.aura.glow };
+  }
+  {   // sparks only for Blaze and up; a light trail only for Radiant while running
+    const still = make(); run(still, 2, { power: 400, type: 'storm', visible: true, speed: 0 });
+    const running = make(); run(running, 2, { power: 400, type: 'storm', visible: true, speed: 6 });
+    const radiantStill = make(); run(radiantStill, 2, { power: 4000, type: 'storm', visible: true, speed: 0 });
+    const radiantRun = make(); run(radiantRun, 2, { power: 4000, type: 'storm', visible: true, speed: 6 });
+    const glowOnly = make(); run(glowOnly, 2, { power: 150, type: 'storm', visible: true, speed: 6 });
+    out.emit = { blaze: still.emitted.n > 5, blazeRunning: running.emitted.n === still.emitted.n || Math.abs(running.emitted.n - still.emitted.n) < 3, radiantTrail: radiantRun.emitted.n > radiantStill.emitted.n + 20, glowNone: glowOnly.emitted.n === 0 };
+  }
+  {   // it follows the hero, takes the type's colour, hides with the hero, and flares
+    const m = make();
+    run(m, 1, { power: 400, type: 'water', visible: true });
+    const at = [m.aura.group.position.x, m.aura.group.position.z];
+    const colour = m.aura.parts.body.material.color.getHex();
+    m.position.set(-3, 0, 5);
+    run(m, 0.1, { power: 400, type: 'fire', visible: true });
+    const moved = [m.aura.group.position.x, m.aura.group.position.z];
+    const fire = m.aura.parts.body.material.color.getHex();
+    const calm = m.aura.parts.flame.material.opacity;
+    m.aura.flare(1);
+    m.aura.update(1 / 30, 3, { power: 400, type: 'fire', visible: true });
+    const flaring = { opacity: m.aura.parts.flame.material.opacity, amount: m.aura.flaring };
+    run(m, 1.6, { power: 400, type: 'fire', visible: true });
+    const after = m.aura.flaring;
+    run(m, 0.1, { power: 400, type: 'fire', visible: false });
+    out.follow = { at, moved, water: colour === TYPE_COLORS.water.hex, fire: fire === TYPE_COLORS.fire.hex, flares: flaring.opacity > calm && flaring.amount > 0.5, faded: after === 0, hidden: m.aura.group.visible === false };
+  }
+  {   // a hero's edges light up
+    const scene = new THREE.Scene();
+    const hero = createHero({ scene, bound: 10, kind: 'ember' });
+    const emissive = () => hero.group.children[0].children.length > 0 ? 1 : 0;
+    const read = () => { let max = 0; hero.group.traverse((o) => { if (o.isMesh && o.material.emissive && o.material.isMeshLambertMaterial) max = Math.max(max, o.material.emissive.r); }); return +max.toFixed(2); };
+    hero.update(1 / 30, { x: 0, z: 0 }, 0);
+    const none = read();
+    hero.setGlow(0.18);
+    hero.update(1 / 30, { x: 0, z: 0 }, 0);
+    const lit = read();
+    hero.takeHit(5, 1, 0);
+    hero.update(1 / 30, { x: 0, z: 0 }, 0);
+    const hit = read();
+    out.edges = { none, lit, hit };
+  }
+  return out;
+};
+
+async function chunk17(browser) {
+  let { page } = await openGame(browser, 'aura-unit');
+  const u = await page.evaluate(auraUnit);
+  const want = { 1: [0, '10000', 0], 99: [0, '10000', 0], 100: [1, '11000', 0], 299: [1, '11000', 0], 300: [2, '11100', 0], 999: [2, '11100', 0], 1000: [3, '11110', 0.1], 2999: [3, '11110', 0.1], 3000: [4, '11111', 0.18], 50000: [4, '11111', 0.18] };
+  check('the five aura tiers appear at Power 0, 100, 300, 1,000 and 3,000: a glow at the feet, then soft light, a flickering aura, a ground ring, a halo', Object.entries(want).every(([p, [tier, parts, glow]]) => u.tiers[p].tier === tier && u.tiers[p].parts === parts && u.tiers[p].glow === glow), JSON.stringify(u.tiers));
+  check('sparks rise from Blaze up (not before), and a light trail follows a running Radiant hero only', u.emit.blaze && u.emit.glowNone && u.emit.blazeRunning && u.emit.radiantTrail, JSON.stringify(u.emit));
+  check('the aura follows the hero, takes the colour of their type, flares for a moment (then calms down) and hides with the hero', u.follow.at.join() === '1,2' && u.follow.moved.join() === '-3,5' && u.follow.water && u.follow.fire && u.follow.flares && u.follow.faded && u.follow.hidden, JSON.stringify(u.follow));
+  check('at Surge and Radiant the hero\'s own edges light up (a steady glow), and a hit flash is still brighter than that', u.edges.none === 0 && u.edges.lit === 0.18 && u.edges.hit > 0.18, JSON.stringify(u.edges));
+
+  // Live game: the aura in play and the power-up moment (real Power: ?debug&power).
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'aura-live'));
+  POWER_ON = false;
+  const grown = [];
+  for (const xp of [0, 1188, 9568, 101898, 905698]) {   // Power 1, 100, 300, 1,000, 3,000
+    await page.evaluate((x) => { const G = window.__game; G.progress.data.xp.sol = x; G.rounds.refresh(); }, xp);
+    await page.waitForTimeout(300);
+    grown.push(await page.evaluate(() => `${window.__game.progress.powerOf('sol')}:${window.__game.aura.tier}:${window.__game.aura.group.visible ? 'seen' : 'hidden'}`));
+  }
+  check('in the live game Sol\'s aura follows their Power through every tier, and is seen', grown.join(' ') === '1:0:seen 100:1:seen 300:2:seen 1000:3:seen 3000:4:seen', grown.join(' '));
+  await page.evaluate(() => { const G = window.__game; G.progress.data.xp.sol = 9568; G.rounds.refresh(); });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/aura-1-blaze.png` });
+  await page.evaluate(() => { const G = window.__game; G.progress.data.xp.sol = 101898; G.rounds.refresh(); });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/aura-2-surge.png` });
+  await page.evaluate(() => { const G = window.__game; G.progress.data.xp.sol = 905698; G.rounds.refresh(); });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/aura-3-radiant.png` });
+
+  // The power-up moment: the end screen counts up, ticks, flares, and a new tier is a bigger celebration.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'powerup-live'));
+  POWER_ON = false;
+  await page.evaluate(() => {
+    const G = window.__game;
+    G.progress.data.xp.sol = 1100;   // Power 95: the next win crosses 100 (Glow)
+    G.rounds.refresh();
+    G.rounds.defeat({ power: 80 }); G.rounds.defeat({ power: 80 });
+    for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); }
+  });
+  const gain = await page.evaluate(() => window.__game.rounds.gains[0]);
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const first = await page.evaluate(() => document.querySelector('.gain-power').textContent);
+  check('the end screen starts the Power at the old number and counts up', first === String(gain.before) || Number(first) >= gain.before, `${first} (before ${gain.before})`);
+  await page.evaluate(() => { window.__maxSparks = 0; setInterval(() => { window.__maxSparks = Math.max(window.__maxSparks, window.__game.powers.sparks.live); }, 30); });
+  await until(page, () => document.querySelector('.gain').classList.contains('flare'));   // the row flares when the count arrives
+  const done = await page.evaluate(() => ({ power: document.querySelector('.gain-power').textContent, flare: document.querySelector('.gain').classList.contains('flare'), tier: document.querySelector('.gain').classList.contains('tier'), tierText: (document.querySelector('.gain-tier') || {}).textContent, ticks: window.__game.audio.counts.tick, chimes: window.__game.audio.counts.chime, tiers: window.__game.audio.counts.tier, flaring: window.__game.aura.flaring }));
+  check('it ticks while it counts, the row flares when the number arrives, and crossing Power 100 is a bigger celebration: "Glow!", the fanfare, and the aura flaring', done.power === String(gain.after) && gain.before < 100 && gain.after >= 100 && done.flare && done.tier && done.tierText === 'Glow!' && done.ticks >= 3 && done.tiers === 1 && done.flaring > 1, JSON.stringify([gain, done]));
+  await page.screenshot({ path: `${OUT}/aura-4-powerup.png` });
+  const sparks = await page.evaluate(() => window.__maxSparks);
+  check('a new tier also sets off a burst of confetti', sparks > 60, `most sparks at once=${sparks}`);
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
