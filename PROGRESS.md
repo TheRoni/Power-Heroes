@@ -678,6 +678,16 @@ Sonnet from `CLAUDE.md`'s Home Village section; Stage 11 adds the daily life, sp
   personality (proud, shy, cheerful, sleepy, serious...). Their Power and rank are on the name tag.
 - **The Hall and polish (chunk 4).** The Hall's door starts the next round; coming back from a round puts
   you at the Hall door; the village has its own calm music; tests on both pages; republish.
+- **Chunk 1 build notes (DONE):** `village.js` + `village-props.js`: the Home Village isle (radius 18), the Hero
+  Hall (red roof, two blue towers, a glowing door), the training yard (fence, three targets, a rack), the sparring
+  ring (sand, ten posts, ropes, a bell), the pond (water, reeds, lily pads, a dock), the campfire square (the fire,
+  four log benches), the lookout tower, the notice board, a ring of trees, lamps and paths. The hero walks out to
+  16.4 and cannot walk through the Hall, the pond, the tower, the board or the fire. The big button becomes the
+  action button: "Hero Hall" at the door (starts the next round: squad screen, then the arena) and "Rankings" at
+  the board. A "Village" button on the end screen and the squad screen takes you there; you arrive a few steps
+  from the Hall door, Pip says something, Marlo waits at the fire, and there is no grey veil. `title.js` (the
+  title screen moved out of `menus.js`), `scene.js` (the arena's pieces are one group and `setMode`),
+  `hero.js`/`squad.js` (`setBound`). Tests: group 25 (15 checks).
 - **Phone speed:** members are drawn with few shapes (no shadows, a flat blob under them) and far ones
   are simpler; the aim is 14 now and 20 to 30 later.
 - **New files:** `src/village.js`, `src/clan.js`, `src/character-gen.js` (all in the planned folder list).

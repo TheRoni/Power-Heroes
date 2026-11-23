@@ -141,6 +141,7 @@ export const BUBBLES = {
   round5: [{ who: 'marlo', text: 'Stay close, {name}. This one has a name.' }, 'A NAME? Names are worse than numbers!'],
   bramble_spawn: [{ who: 'bramble', text: 'Little light. You are in MY meadow.' }, { who: 'bramble', text: 'Every seed in this isle answers to me.' }],
   bramble_enrage: [{ who: 'bramble', text: 'More! Give me MORE!' }, { who: 'bramble', text: 'She promised me more than this!' }],
+  village: ['Home! Smell that? Soup. Or Gloom. Mostly soup.', { who: 'marlo', text: 'Our clan lives here. Walk about. Nothing bites in the village.' }],
   cleared: ['Nice! Catch your breath.', 'See the colour creeping back? Keep going!', { who: 'marlo', text: 'Colour follows courage.' }],
   first: ["Look! A pop of colour! That's what you're fighting for."],
   hurt: ['Ouch! They pause after each bump. Use it!', 'Careful! Keep moving!', { who: 'marlo', text: 'Every hero gets hit. Heroes get up.' }],

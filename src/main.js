@@ -17,6 +17,7 @@ import { createAura } from './aura.js';
 import { createOverdrive, BOOST } from './overdrive.js';
 import { createRounds } from './rounds.js';
 import { createCampfire } from './campfire.js';
+import { createVillage } from './village.js';
 import { createProgress } from './power.js';
 import { createSave } from './save.js';
 import { registerOffline } from './offline.js';
@@ -68,7 +69,7 @@ audio.bindButton(document.getElementById('mute'));
 const music = createMusic(audio);   // the flute and the songs (they start when the story begins)
 const ui = createUI({
   camera: world.camera, audio, onAgain: () => rounds.restart(),
-  onCast: () => { if (!story.active && !frozen()) powers.castPower(); },
+  onCast: () => { if (story.active) return; if (village.active) rounds.press(); else if (!frozen()) powers.castPower(); },   // (in the village the big button is the action button)
   onSwap: (index) => { if (story.active || frozen()) return; if (index === squad.slot) overdrive.activate(); else squad.swapTo(index); },   // a portrait tapped, or 1, 2, 3 (the hero in play: Overdrive)
   onOverdrive: () => { if (!story.active && !frozen()) overdrive.activate(); },   // the button, or E
 });
@@ -164,8 +165,9 @@ const waves = createWaves({
 const aura = createAura({ scene: world.scene, position: player.position, sparks: powers.sparks });   // grows with Power (see aura.js)
 const overdrive = createOverdrive({ squad, aura, ui, audio, shake });   // hits fill a meter; when it is full, Overdrive
 const campfire = createCampfire({ world, player, marlo, ember, story, audio, aura, progress, ui });   // the night after the boss (see campfire.js)
+const village = createVillage({ world });   // the Home Village, a place to walk about between battles (see village.js)
 const rounds = createRounds({
-  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire, pick: PICK, chapter: CHAPTER,
+  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire, village, pick: PICK, chapter: CHAPTER,
   onNewRound: () => {   // the game's own small resets
     hintHidden = true;   // the how-to-play hint is for the first round only (it would sit on the portraits)
     hint.classList.add('gone');
@@ -206,7 +208,7 @@ let hintHidden = false;
 
 if (DEBUG) {
   ui.showFps();
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura, overdrive, campfire };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura, overdrive, campfire, village };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -225,6 +227,7 @@ function frame(now) {
 
   const move = frozen() ? NO_MOVE : input.move;
   player.update(dt, move, gameTime);
+  if (village.active) village.keepOut(player.position);   // (the Hall, the pond, the tower and so on are solid)
   for (const gloomling of gloomlings) gloomling.update(dt, player, gameTime, gloomlings);
   powers.update(dt, gameTime);
   waves.update(dt);
@@ -242,6 +245,8 @@ function frame(now) {
   marlo.update(realDt, now / 1000, player.position);
   ember.update(realDt, now / 1000);
   campfire.update(realDt, now / 1000);
+  village.update(realDt, now / 1000);
+  ui.setAction(village.active ? (village.actionAt(player.position) || { label: '' }) : null);   // the big button: "Hero Hall", "Rankings", or nothing
   rounds.update(realDt);
   // Pip stays by the hero, but in a conversation Pip hovers by Marlo if he has come over to talk.
   const marloHere = prologue.pipWithMarlo || (story.active && Math.hypot(marlo.position.x - player.position.x, marlo.position.z - player.position.z) < 5);
@@ -271,7 +276,7 @@ function frame(now) {
     fx.shake = 0;
   }
 
-  fx.colour += (waves.progress - fx.colour) * (1 - Math.exp(-3 * realDt));   // colour drifts toward how much of the round is beaten
+  fx.colour += ((village.active ? 1 : waves.progress) - fx.colour) * (1 - Math.exp(-3 * realDt));   // colour drifts toward how much of the round is beaten
   ui.setVeil(WASHED_OUT * (1 - fx.colour) * (1 - world.night));   // no veil at night: the washed-out look comes in with the sunrise
 
   ui.setHealth(player.health / player.maxHealth);
@@ -280,7 +285,7 @@ function frame(now) {
   ui.setWaveText(rounds.note());
   renderer.render(world.scene, world.camera);
 
-  if (!hintHidden && (move.x !== 0 || move.z !== 0)) {
+  if (!hintHidden && (village.active || move.x !== 0 || move.z !== 0)) {   // (the how-to-play hint goes away when you move, or in the village)
     hintHidden = true;
     hint.classList.add('gone');
   }

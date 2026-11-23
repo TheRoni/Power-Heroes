@@ -4,7 +4,7 @@
 // thrown away. The part between BEGIN and END is written by that script: do not edit it by hand.
 
 // BEGIN GENERATED (node tests/bump-sw.js)
-const VERSION = 'power-heroes-88cfaf62';
+const VERSION = 'power-heroes-74783844';
 const FILES = [
   './',
   'index.html',
@@ -24,6 +24,7 @@ const FILES = [
   'src/campfire.js',
   'src/chapters.js',
   'src/character-gen.js',
+  'src/clan.js',
   'src/combos.js',
   'src/flags.js',
   'src/gloom.js',
@@ -52,6 +53,7 @@ const FILES = [
   'src/story-data.js',
   'src/story.js',
   'src/superpowers.js',
+  'src/title.js',
   'src/types.js',
   'src/ui.js',
   'src/village-props.js',

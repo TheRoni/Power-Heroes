@@ -3493,10 +3493,111 @@ async function chunk24(browser) {
   await page.screenshot({ path: `${OUT}/campfire-4-end.png` });
 }
 
+// ---------- The Home Village ----------
+const villageUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createVillage, PLACES, DOOR, VILLAGE_WALK, VILLAGE_RADIUS } = await import('/src/village.js');
+  const out = {};
+  const modes = [];
+  const scene = new THREE.Scene();
+  const village = createVillage({ world: { scene, setMode: (m) => modes.push(m) } });
+  out.start = { active: village.active, inScene: scene.children.length, modes: modes.length };
+  village.enter();
+  out.enter = { active: village.active, modes: modes.join(), shown: village.group.visible };
+  village.leave();
+  out.leave = { active: village.active, modes: modes.join() };
+  village.enter();
+  const pushed = (x, z) => { const p = new THREE.Vector3(x, 0, z); village.keepOut(p); return [+p.x.toFixed(2), +p.z.toFixed(2)]; };
+  out.free = pushed(5, 0).join();
+  out.hall = pushed(0, -11.8);
+  out.pond = pushed(-10, 5);
+  out.tower = pushed(12.5, 7.8);
+  out.board = pushed(-5, -9.0);
+  out.fireSpot = pushed(1.5, 5.0);
+  const actionId = (x, z) => { const a = village.actionAt({ x, z }); return a ? `${a.id}:${a.label}` : null; };
+  out.actions = { door: actionId(DOOR.x, DOOR.z + 1), board: actionId(-5, -8.1), nowhere: actionId(8, 3), hallInside: actionId(0, -12) };
+  out.sizes = { walk: VILLAGE_WALK, radius: VILLAGE_RADIUS, places: Object.keys(PLACES).join(), door: `${DOOR.x},${DOOR.z}` };
+  const fire = scene.children[0].children.find((c) => c.type === 'Group' && c.children.some((k) => k.geometry && k.geometry.type === 'ConeGeometry' && k.material.type === 'MeshBasicMaterial'));
+  const flame = fire.children.find((c) => c.userData && c.userData.height);
+  village.update(0.016, 1.0); const a = flame.scale.y;
+  village.update(0.016, 1.3); const b = flame.scale.y;
+  out.fire = { moves: a !== b };
+  village.leave();
+  const before = flame.scale.y;
+  village.update(0.016, 2.0);
+  out.fire.stillWhenAway = flame.scale.y === before;
+  return out;
+};
+
+async function chunk25(browser) {
+  let { page } = await openGame(browser, 'village-unit');
+  const u = await page.evaluate(villageUnit);
+  check('the village starts hidden (and the arena shown); entering it shows it and tells the world to switch to "village"; leaving puts the arena back', !u.start.active && u.start.inScene === 1 && u.start.modes === 0 && u.enter.active && u.enter.shown && u.enter.modes === 'village' && !u.leave.active && u.leave.modes === 'village,arena', JSON.stringify([u.start, u.enter, u.leave]));
+  check('its places are the Hero Hall, the training yard, the sparring ring, the pond, the campfire square, the lookout tower and the notice board; the isle is 18 wide and you may walk 16.4 out', u.sizes.places === 'hall,yard,ring,pond,square,tower,board' && u.sizes.walk === 16.4 && u.sizes.radius === 18 && u.sizes.door === '0,-10.6', JSON.stringify(u.sizes));
+  check('the Hall, the pond, the tower, the notice board and the fire are solid: standing inside one moves you out of it (to its edge); open ground is left alone', u.free === '5,0' && u.hall[1] > -11.2 && u.pond[1] < 4.0 && u.pond[0] === -10 && u.tower[1] < 7.5 && u.board[1] > -9.0 - 0.01 && u.fireSpot[1] < 4.5 + 0.3, JSON.stringify([u.free, u.hall, u.pond, u.tower, u.board, u.fireSpot]));
+  check('the big button has something to do at the Hall\'s door ("Hero Hall") and at the notice board ("Rankings"), and nothing in the open', u.actions.door === 'hall:Hero Hall' && u.actions.board === 'board:Rankings' && u.actions.nowhere === null, JSON.stringify(u.actions));
+  check('the campfire in the square burns (its flames move) while you are in the village, and stands still when you are not', u.fire.moves && u.fire.stillWhenAway, JSON.stringify(u.fire));
+
+  // The live game: the village from the end screen (?debug&chapter&squad), and the Hall.
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'village-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await winRound(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  await page.waitForTimeout(900);
+  const buttons = await page.evaluate(() => ({ village: !document.getElementById('end-village').hidden, text: document.getElementById('end-village').textContent }));
+  check('after a round the end screen has a "Village" button', buttons.village && buttons.text === 'Village', JSON.stringify(buttons));
+  await page.click('#end-village');
+  await until(page, () => window.__game.village.active);
+  await page.waitForTimeout(600);
+  const here = await page.evaluate(() => { const G = window.__game; return { arena: G.world.arena.visible, state: G.waves.state, enemies: G.gloomlings.length, x: +G.player.position.x.toFixed(1), z: +G.player.position.z.toFixed(1), end: document.getElementById('end').hidden, veil: parseFloat(document.getElementById('tint').style.opacity || '0'), button: document.getElementById('power-button').hidden, note: document.getElementById('hud-wave').textContent, marlo: +Math.hypot(G.marlo.position.x - 1.5, G.marlo.position.z - 5.5).toFixed(1) }; });
+  check('"Village" takes you there: the arena is gone, there are no enemies and no round, you stand just outside the Hall\'s door, the screen has no grey veil, the big button is hidden (nothing to do here yet) and Marlo is at the campfire', !here.arena && here.state === 'idle' && here.enemies === 0 && Math.abs(here.x) < 0.5 && here.z > -8.2 && here.z < -6.6 && here.end && here.veil < 0.02 && here.button && here.note === '' && here.marlo < 4, JSON.stringify(here));
+  await page.screenshot({ path: `${OUT}/village-1-door.png` });
+  await page.evaluate(() => window.__game.player.position.set(30, 0, 0));
+  await page.waitForTimeout(300);
+  const edge = await page.evaluate(() => Math.hypot(window.__game.player.position.x, window.__game.player.position.z));
+  check('you can walk out as far as 16.4 and no farther', edge <= 16.45 && edge > 5, `${edge.toFixed(1)}`);
+  await page.evaluate(() => window.__game.player.position.set(-10, 0, 7));
+  await page.waitForTimeout(400);
+  const pond = await page.evaluate(() => { const p = window.__game.player.position; return +Math.hypot(p.x + 10, p.z - 8).toFixed(1); });
+  check('the pond is solid for the hero too (walking into it is stopped at its edge)', pond >= 4.0, `${pond}`);
+  await page.evaluate(() => window.__game.player.position.set(-5, 0, -8.1));
+  await until(page, () => !document.getElementById('power-button').hidden);
+  const board = await page.evaluate(() => ({ label: document.getElementById('power-label').textContent, power: document.getElementById('power-button').dataset.power }));
+  check('at the notice board the big button says "Rankings" (green, an action button)', board.label === 'Rankings' && board.power === 'action', JSON.stringify(board));
+  await page.keyboard.press('Space');
+  const shown = await page.evaluate(() => !document.getElementById('rankings').hidden);
+  await page.keyboard.press('Escape');
+  check('pressing it (or Space) opens the Power Rankings, and Escape closes them', shown && (await page.evaluate(() => document.getElementById('rankings').hidden)));
+  await page.evaluate(() => window.__game.player.position.set(0, 0, -9.2));
+  await until(page, () => document.getElementById('power-label').textContent === 'Hero Hall');
+  await page.screenshot({ path: `${OUT}/village-2-hall.png` });
+  await page.keyboard.press('Space');
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const hall = await page.evaluate(() => ({ active: window.__game.village.active, arena: window.__game.world.arena.visible, title: document.getElementById('squad-title').textContent, home: !document.getElementById('squad-village').hidden }));
+  check('at the Hall\'s door the big button says "Hero Hall"; pressing it leaves the village (the arena is back) and brings the squad screen for the next round, with a "Village" button to go back', !hall.active && hall.arena && hall.title === 'Round 2/5 · The Long Grass' && hall.home, JSON.stringify(hall));
+  await page.click('#squad-village');
+  await until(page, () => window.__game.village.active);
+  check('the "Village" button on the squad screen takes you back to the village (the squad screen closes)', (await page.evaluate(() => document.getElementById('squad-screen').hidden)));
+  await page.evaluate(() => window.__game.player.position.set(0, 0, -9.2));
+  await until(page, () => document.getElementById('power-label').textContent === 'Hero Hall');
+  await page.keyboard.press('Space');
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
+  const fight = await page.evaluate(() => { const G = window.__game; return { village: G.village.active, arena: G.world.arena.visible, round: G.rounds.label(), x: +G.player.position.x.toFixed(1), power: document.getElementById('power-button').dataset.power, hidden: document.getElementById('power-button').hidden }; });
+  check('"Go!" starts the round in the arena: the hero is back in the middle, the big button is the hero\'s superpower again', !fight.village && fight.arena && fight.round === 'Round 2/5' && Math.abs(fight.x) < 0.5 && fight.power === 'starburst' && !fight.hidden, JSON.stringify(fight));
+  const big = await page.evaluate(() => { const G = window.__game; G.player.position.set(15, 0, 0); return G.player.position.x; });
+  await page.waitForTimeout(300);
+  const arenaEdge = await page.evaluate(() => Math.hypot(window.__game.player.position.x, window.__game.player.position.z));
+  check('and the walking limit is the arena\'s again (10.2), not the village\'s', arenaEdge <= 10.25, `${arenaEdge.toFixed(1)}`);
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

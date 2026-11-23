@@ -2,7 +2,8 @@
 // Power counts up and "Sol passed Wren!" shows) and the Power Rankings board. They take Space and Enter while they are showing.
 import { QUIET } from './audio.js';
 import { TYPE_COLORS } from './types.js';
-import { shortNumber, tierIndex, TIERS, NOT_NAME } from './power.js';
+import { shortNumber, tierIndex, TIERS } from './power.js';
+import { createTitle } from './title.js';
 
 const ENDINGS = {
   won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Play again' },
@@ -21,15 +22,17 @@ export function createMenus({ audio = QUIET, onAgain }) {
   const gainsBox = document.getElementById('end-gains');
   const passesBox = document.getElementById('end-passes');
   const endRankings = document.getElementById('end-rankings');
+  const endVillage = document.getElementById('end-village');
+  const squadVillage = document.getElementById('squad-village');
   const rankingsScreen = document.getElementById('rankings');
   const squadRankings = document.getElementById('squad-rankings');
-  const titleScreen = document.getElementById('title');
   const pickScreen = document.getElementById('squad-screen');
   const goButton = document.getElementById('squad-go');
   let endShownAt = 0;
-  let titleStart = null;   // what to do when the title screen is tapped
   let pickDone = null;     // what the squad screen's Go! button does
   let endBoard = null;     // what the end screen's Power Rankings button does
+  let endHome = null;      // ...and its Village button
+  let pickHome = null;     // ...and the squad screen's Village button
   let pickBoard = null;    // ...and the squad screen's
   let run = 0;             // which count-up is on (a new screen stops the one before)
 
@@ -46,6 +49,11 @@ export function createMenus({ audio = QUIET, onAgain }) {
     event.preventDefault();
     event.stopPropagation();
     again();
+  });
+  endVillage.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (endHome && performance.now() - endShownAt >= END_LOCK) { audio.play('click'); endHome(); }
   });
   endRankings.addEventListener('pointerdown', (event) => {
     event.preventDefault();
@@ -115,6 +123,8 @@ export function createMenus({ audio = QUIET, onAgain }) {
     passesBox.innerHTML = passes.list.map((p) => `<div class="pass${p.big ? ' big' : ''}">${p.big ? '★ ' : ''}${p.hero} passed ${p.rival}! <span class="pass-rank">Now #${p.rank}</span></div>`).join('') + (passes.more ? `<div class="pass">...and ${passes.more} more</div>` : '');
     endBoard = events.onRankings || null;
     endRankings.hidden = !endBoard;
+    endHome = events.onVillage || null;
+    endVillage.hidden = !endHome;
     document.getElementById('end-title').textContent = ending.title;
     document.getElementById('end-text').textContent = ending.text;
     endButton.textContent = ending.button;
@@ -129,77 +139,13 @@ export function createMenus({ audio = QUIET, onAgain }) {
     endScreen.hidden = true;
   }
 
-  // ---- The title screen ----
-
-  // The hero's name: a small button showing it; tapping it opens a text box. "naming" is { name(), set(text) } (main.js).
-  const nameRow = document.getElementById('title-name-row');
-  const renameButton = document.getElementById('title-rename');
-  const renameForm = document.getElementById('title-rename-form');
-  const renameInput = document.getElementById('title-rename-input');
-  let naming = null;
-  function commitName() {   // the typed name counts (and is cleaned up: set() says what it became)
-    if (!naming || renameForm.hidden) return;
-    naming.set(renameInput.value);
-    renameForm.hidden = true;
-    renameButton.hidden = false;
-    document.getElementById('title-rename-name').textContent = naming.name();
-  }
-  nameRow.addEventListener('pointerdown', (event) => event.stopPropagation());   // a tap here does not start the game...
-  nameRow.addEventListener('keydown', (event) => event.stopPropagation());       // ...and typing here is not a game key (WASD, Space)
-  renameButton.addEventListener('click', () => {
-    renameInput.value = naming.name();
-    renameButton.hidden = true;
-    renameForm.hidden = false;
-    renameInput.focus();
-    renameInput.select();
-  });
-  renameInput.addEventListener('input', () => { renameInput.value = renameInput.value.replace(NOT_NAME, ''); });
-  renameForm.addEventListener('submit', (event) => { event.preventDefault(); commitName(); });
-
-  // The title screen waits for a tap (or Space / Enter), then hides itself and starts the story.
-  function startFromTitle() {
-    if (titleScreen.hidden || !titleStart) return;
-    commitName();
-    const go = titleStart;
-    titleStart = null;
-    titleScreen.hidden = true;
-    go();
-  }
-  titleScreen.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    startFromTitle();
-  });
-  // "onReset" (optional) shows a small "Start over" button for someone who has saved progress; "nameBox" (optional) lets
-  // them change the hero's name.
-  function showTitle(onStart, onReset = null, nameBox = null) {
-    titleStart = onStart;
-    titleScreen.hidden = false;
-    naming = nameBox;
-    nameRow.hidden = !naming;
-    if (naming) {
-      renameForm.hidden = true;
-      renameButton.hidden = false;
-      document.getElementById('title-rename-name').textContent = naming.name();
-    }
-    const reset = document.getElementById('title-reset');
-    reset.hidden = !onReset;
-    reset.onpointerdown = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (onReset) onReset();
-    };
-  }
-  function hideTitle() {
-    titleStart = null;
-    titleScreen.hidden = true;
-  }
+  const title = createTitle();   // (the title screen has its own file)
 
   // ---- The squad screen ----
 
   // The squad screen: tap heroes to choose who comes (the first one always does), then Go!
   // heroes is [{ kind, name, type, power }] and chosen the kinds picked so far; onGo(kinds) gets the final squad.
-  function showSquad({ heroes, chosen, onGo, onRankings = null, title = 'Choose your squad' }) {
+  function showSquad({ heroes, chosen, onGo, onRankings = null, onVillage = null, title = 'Choose your squad' }) {
     document.getElementById('squad-title').textContent = title;
     const holder = document.getElementById('squad-heroes');
     const size = Math.min(3, heroes.length);
@@ -230,6 +176,8 @@ export function createMenus({ audio = QUIET, onAgain }) {
     });
     pickBoard = onRankings;
     squadRankings.hidden = !onRankings;
+    pickHome = onVillage;
+    squadVillage.hidden = !onVillage;
     pickDone = () => {
       pickScreen.hidden = true;
       onGo(heroes.filter((hero) => picked.has(hero.kind)).map((hero) => hero.kind));
@@ -244,6 +192,11 @@ export function createMenus({ audio = QUIET, onAgain }) {
   });
   goButton.addEventListener('go', () => { if (pickDone) pickDone(); });
   pickScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind the squad screen reacts to touches
+  squadVillage.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (pickHome) { audio.play('click'); pickHome(); }
+  });
   squadRankings.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -278,9 +231,9 @@ export function createMenus({ audio = QUIET, onAgain }) {
     } else if (!pickScreen.hidden) {   // on the squad screen, Space and Enter mean "Go!"
       event.preventDefault();
       if (!goButton.disabled) goButton.dispatchEvent(new Event('go'));
-    } else if (!titleScreen.hidden) {   // on the title screen, they mean "begin"
+    } else if (title.shown) {   // on the title screen, they mean "begin"
       event.preventDefault();
-      startFromTitle();
+      title.begin();
     } else if (!endScreen.hidden) {   // on an end screen, they mean "again"
       event.preventDefault();
       again();
@@ -290,8 +243,13 @@ export function createMenus({ audio = QUIET, onAgain }) {
     return true;
   }
 
-  // Is a full-screen menu showing? (Then the number keys and E are not for the game.)
-  const open = () => !(titleScreen.hidden && pickScreen.hidden && endScreen.hidden && rankingsScreen.hidden);
+  function hideSquad() {
+    pickScreen.hidden = true;
+    pickDone = null;
+  }
 
-  return { handleKey, open, api: { showTitle, hideTitle, showEnd, hideEnd, showSquad, showRankings, hideRankings } };
+  // Is a full-screen menu showing? (Then the number keys and E are not for the game.)
+  const open = () => title.shown || !(pickScreen.hidden && endScreen.hidden && rankingsScreen.hidden);
+
+  return { handleKey, open, api: { showTitle: title.show, hideTitle: title.hide, showEnd, hideEnd, showSquad, hideSquad, showRankings, hideRankings } };
 }

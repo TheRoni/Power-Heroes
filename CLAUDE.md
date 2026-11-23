@@ -258,7 +258,7 @@ src/                  the game code, one job per file
   flags.js            the switches in the web address (?debug and friends)
   power.js            Power, XP, and growth maths
   rankings.js         the Power Rankings: the other heroes of the isle, sorting, "passed" lines
-  rounds.js           how a round starts and ends: squad choice, XP, unlocks, saving
+  rounds.js           how a round starts and ends: squad choice, XP, unlocks, saving, trips to the village
   gloom.js            enemies
   waves.js            wave timing and round end
   types.js            type circle and damage rules
@@ -266,10 +266,13 @@ src/                  the game code, one job per file
   story.js            conversations and Pip's speech bubbles
   pip.js              Pip, the guide sprite
   village.js          the Home Village world and places
+  village-props.js    the village's buildings and things, built from shapes
   clan.js             clan member behaviour (daily activities)
   character-gen.js    random names, looks, types, Power
+  member-model.js     what a clan member looks like (built from their look)
   ui.js               health bars, buttons, pop-ups
-  menus.js            the full-screen menus: title, squad screen, end screen
+  menus.js            the full-screen menus: squad screen, end screen, Rankings board
+  title.js            the title screen: name box, tap to begin, start over
   hero-models.js      the look of each hero (built from shapes)
   marlo.js            Keeper Marlo, the mentor
   sky.js              the sky: day and night colours, twinkling stars

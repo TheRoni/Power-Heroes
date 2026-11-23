@@ -58,3 +58,8 @@
 #title-rename b { color: #ffe27a; }
 #title-rename-form { display: flex; gap: 8px; justify-content: center; }
 #title-rename-input { width: 9.5em; padding: 8px 12px; border: 2px solid #ffe27a; border-radius: 999px; background: rgba(0, 0, 0, 0.35); color: #fff; font: 800 17px system-ui, sans-serif; text-align: center; }
+
+/* In the village the big button is the action button ("Hero Hall", "Rankings"): green, with its words in it. */
+#power-button[hidden] { display: none; }
+#power-button[data-power="action"] { background: radial-gradient(circle at 50% 35%, #eaffd0, #7bd36a 60%, #3f9a3a); color: #1d4a12; text-shadow: none; font-size: 14px; line-height: 1.15; text-align: center; padding: 0 8px; animation: power-ready 1.2s ease-in-out infinite; }
+#power-button[data-power="action"]::after { display: none; }

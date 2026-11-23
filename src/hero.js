@@ -20,6 +20,7 @@ const STILL = { x: 0, z: 0 };   // "no push", used while knocked out
 // showBar = false makes a hero with no health bar (a guest). "shared" ({ position, velocity }) makes the hero stand where
 // the rest of a squad stands, so swapping heroes needs no moving about.
 export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar = true, shared = null }) {
+  let limit = bound;   // how far from the middle the hero may go (the village is bigger than the arena: setBound)
   const data = HEROES[kind];
   const model = buildHeroModel(kind);
   const group = new THREE.Group();   // this part moves and turns
@@ -61,10 +62,10 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
     p.x += velocity.x * dt;
     p.z += velocity.z * dt;
     const distance = Math.hypot(p.x, p.z);
-    if (distance > bound) {
+    if (distance > limit) {
       const nx = p.x / distance, nz = p.z / distance;
-      p.x = nx * bound;
-      p.z = nz * bound;
+      p.x = nx * limit;
+      p.z = nz * limit;
       const outward = velocity.x * nx + velocity.z * nz;
       if (outward > 0) { velocity.x -= outward * nx; velocity.z -= outward * nz; }
     }
@@ -151,6 +152,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
     get power() { return power; },
     // A new Power changes the health the hero can have; the share of health they have left stays the same.
     setGlow(amount) { glow = amount; },
+    setBound(distance) { limit = distance; },
     get boost() { return boost; },
     setBoost(amount) { boost = amount; },
     setPower(next) { const share = health / maxHealth(); power = next; health = Math.round(maxHealth() * share); },

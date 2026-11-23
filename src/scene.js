@@ -209,7 +209,9 @@ export function createWorld() {
   const sky = createSky();
   scene.background = sky.texture;
   const lights = addLights(scene);
-  scene.add(buildIsland());
+  const arena = new THREE.Group();   // the arena's island, grass, trees and rocks: hidden while you are in the village
+  scene.add(arena);
+  arena.add(buildIsland());
 
   // Grass tufts (which sway) and flowers, so you can see yourself moving across the ground.
   const tuftShape = new THREE.ConeGeometry(0.12, 0.5, 4).translate(0, 0.25, 0);
@@ -217,10 +219,10 @@ export function createWorld() {
   const tufts = scatter(190, rand, tuftShape, ['#5cb83a', '#6cc944', '#4ea32f', '#8ad955'], 0.55, 1.1);
   const flowers = scatter(70, rand, flowerShape, ['#ffffff', '#ffe24a', '#ff8fb3', '#9fd4ff'], 0.8, 1.3);
   place(flowers, 0, 0);
-  scene.add(tufts.mesh, flowers.mesh);
+  arena.add(tufts.mesh, flowers.mesh);
 
-  addTrees(scene, rand);
-  addRocks(scene, rand);
+  addTrees(arena, rand);
+  addRocks(arena, rand);
   const floaters = addFloatingRocks(scene, rand);
   const clouds = addClouds(scene, rand);
 
@@ -279,5 +281,15 @@ export function createWorld() {
     clouds.rotation.y += dt * 0.012;
   }
 
-  return { scene, camera, resize, follow, update, setNight, get night() { return night; } };
+  // 'arena' (the fight island) or 'village' (the bigger Home Village isle): the arena is hidden in the village, and the sun's shadows
+  // cover more ground there.
+  function setMode(mode) {
+    arena.visible = mode !== 'village';
+    const half = mode === 'village' ? 21 : 15;
+    const box = lights.sun.shadow.camera;
+    box.left = -half; box.right = half; box.top = half; box.bottom = -half;
+    box.updateProjectionMatrix();
+  }
+
+  return { scene, camera, arena, resize, follow, update, setNight, setMode, get night() { return night; } };
 }

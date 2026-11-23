@@ -76,9 +76,29 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
     document.getElementById('hud-name').textContent = name;
     setHeroPower(power);
     if (TYPE_COLORS[type]) document.getElementById('hud-hero').style.setProperty('--c', TYPE_COLORS[type].css);   // a dot of the hero's type colour
-    document.getElementById('power-label').textContent = powerName;
-    powerButton.dataset.power = powerId;
-    powerButton.setAttribute('aria-label', powerName);
+    hero = { powerName, powerId };
+    if (!acting) showPower();
+  }
+
+  // The big button shows the hero's own superpower in a fight, and in the village it is the action button ("Hero Hall",
+  // "Rankings"): setAction({ label }) puts the words on it ('' hides it when there is nothing to do here), setAction(null) is the fight.
+  let hero = { powerName: '', powerId: 'starburst' };
+  let acting = null;   // the action button's words (null: the superpower)
+  function showPower() {
+    document.getElementById('power-label').textContent = hero.powerName;
+    powerButton.dataset.power = hero.powerId;
+    powerButton.setAttribute('aria-label', hero.powerName);
+    powerButton.hidden = false;
+  }
+  function setAction(action) {
+    const words = action === null ? null : action.label;
+    if (words === acting) return;
+    acting = words;
+    if (words === null) { showPower(); return; }
+    powerButton.hidden = words === '';
+    powerButton.dataset.power = 'action';
+    document.getElementById('power-label').textContent = words;
+    powerButton.setAttribute('aria-label', words);
   }
 
   // The hero's Power number in the corner ("Power 12", or 12.4K when large).
@@ -238,5 +258,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setBoss, setCurtain, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
+  return { setHealth, setPower, setHero, setAction, setBoss, setCurtain, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
 }

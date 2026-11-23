@@ -30,11 +30,11 @@ const ACTIONS = [
 // The paths, from point to point.
 const PATHS = [[0, -10.4, 0, 3.5], [0, -3, -8, -3], [0, -3, 8, -3], [1.5, 5.5, -6.8, 7.4], [1.5, 5.5, 10.6, 8.6], [-3.4, -8.3, 0, -8.3]];
 
-// "scene" is the world's scene, and "arena" the group with the arena's island and trees (hidden while you are in the village).
-export function createVillage({ scene, arena }) {
+// "world" is the 3D world (scene.js): the village is added to it, and its setMode hides the arena while you are in the village.
+export function createVillage({ world }) {
   const group = new THREE.Group();
   group.visible = false;
-  scene.add(group);
+  world.scene.add(group);
   group.add(buildIsle(VILLAGE_RADIUS));
   for (const [ax, az, bx, bz] of PATHS) group.add(buildPath(ax, az, bx, bz));
   const put = (object, x, z, turn = 0) => { object.position.set(x, 0, z); object.rotation.y = turn; group.add(object); return object; };
@@ -83,8 +83,8 @@ export function createVillage({ scene, arena }) {
     return ACTIONS.find((a) => Math.hypot(position.x - a.x, position.z - a.z) < a.size) || null;
   }
 
-  function enter() { arena.visible = false; group.visible = true; }
-  function leave() { group.visible = false; arena.visible = true; }
+  function enter() { world.setMode('village'); group.visible = true; }
+  function leave() { group.visible = false; world.setMode('arena'); }
   function update(dt, time) { if (group.visible) animateFire(fire, time, dt); }
 
   return {

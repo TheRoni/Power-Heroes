@@ -5,13 +5,14 @@ import { WALK_RADIUS } from './scene.js';
 import { xpForKill, winBonus, enemyPowerFor, xpForPower, shortNumber } from './power.js';
 import { board, passes, windowed, MARLO } from './rankings.js';
 import { CHAPTERS, ROUNDS, SHARDS } from './chapters.js';
+import { DOOR, PLACES, VILLAGE_WALK } from './village.js';
 
 const BOSS_XP = 10;   // a boss is worth this many Gloomlings
 const LESSON_XP = { climb: 12, move: 3, strike: 5, power: 7 };   // the prologue: Sol's Power climbs as Marlo teaches (to Power 10), so the numbers in the story are real
 
 // pick: show the squad screen (the tests switch it off). chapter: play the five rounds of Chapter 1 one after another (the
 // tests keep the one round that repeats). onNewRound(): the game's own small resets (the hint, Pip's words).
-export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire = null, pick, chapter = false, onNewRound }) {
+export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire = null, village = null, pick, chapter = false, onNewRound }) {
   let ending = null;   // 'won', 'again' (a win after the first), or 'lost' while Marlo walks over before the closing conversation
   let endWait = 0;
   let roundXp = 0;     // XP from the Gloomlings beaten in this round so far
@@ -105,7 +106,37 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     const unlocked = progress.unlocked;
     if (unlocked.length < 2 || !pick) { startRound(); return; }
     const heroes = unlocked.map((kind) => ({ kind, name: HEROES[kind].name, type: HEROES[kind].type, power: HEROES[kind].power.name }));
-    ui.showSquad({ heroes, chosen: squad.roster.length > 1 ? squad.roster : ['ember', 'tide'], onGo: (kinds) => { chooseSquad(kinds); startRound(); }, onRankings: showRankings, title: label() ? `${label()} · ${current().name}` : undefined });
+    ui.showSquad({ heroes, chosen: squad.roster.length > 1 ? squad.roster : ['ember', 'tide'], onGo: (kinds) => { chooseSquad(kinds); startRound(); }, onRankings: showRankings, onVillage: village ? toVillage : null, title: label() ? `${label()} · ${current().name}` : undefined });
+  }
+
+  // The Home Village: a place to walk about between battles (village.js). The Hall's door brings you back to the next round.
+  function toVillage() {
+    ui.hideEnd();
+    ui.hideSquad();
+    waves.reset();   // no Gloomlings, no round
+    ending = null;
+    ember.leave();
+    player.setBound(VILLAGE_WALK);
+    village.enter();
+    player.position.set(DOOR.x, 0, DOOR.z + 3.2);   // (a few steps from the door, so the big button has nothing to say yet)
+    player.velocity.x = player.velocity.z = 0;
+    player.face(0);
+    marlo.position.set(PLACES.square.x - 2.8, 0, PLACES.square.z + 0.6);
+    marlo.walkTo(marlo.position.x, marlo.position.z);
+    music.play('sunmeadow', 1.5);
+    story.say('village');
+  }
+  function fromVillage() {
+    village.leave();
+    player.setBound(WALK_RADIUS);
+    marlo.goHome();
+    restart();
+  }
+  // The big button in the village: the Hall's door starts the next round, the notice board shows the Power Rankings.
+  function press() {
+    const action = village.actionAt(player.position);
+    if (action && action.id === 'hall') fromVillage();
+    else if (action && action.id === 'board') showRankings();
   }
 
   // The prologue is over: the first wave (or, for someone who has played before, the squad screen).
@@ -135,6 +166,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
         passes: passed,   // "Sol passed Wren!" (and passing Rook, number 1, is a bigger celebration too)
         onPass: (pass) => { aura.flare(pass.big ? 3 : 1); if (pass.big) powers.sparks.confetti(90); },
         onRankings: showRankings,
+        onVillage: village ? toVillage : null,
       });
       story.scene(closing || { won: 'win', again: 'winAgain', lost: 'lose' }[kind], night ? () => campfire.play(showEnd) : showEnd);   // (after the last round: the night at the campfire first)
     }
@@ -155,7 +187,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   const vars = () => { const power = progress.powerOf('sol'); return { power, next: power + 1, name: progress.name }; };
 
   return {
-    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label, note,
+    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label, note, toVillage, fromVillage, press,
     get round() { return current(); },   // the round of the chapter being played: { name, sizes, types, power, intro, won }, or null
     get ending() { return ending; },
     get gains() { return gains; },
