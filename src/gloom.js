@@ -57,6 +57,7 @@ export function createGloomling({ scene, x, z, passive = false }) {
   let mode = 'chase';   // chase, then windup (the warning), then the bump, then rest, then chase again
   let timer = 0;        // time left in the current mode
   let stun = 0;
+  let soaked = 0;       // seconds left of being soaked (Big Splash): wet Gloomlings shine blue
   let flash = 0;        // white flash when hit
   let yaw = 0;
   let age = 0;          // for the grow-in when it first appears
@@ -72,6 +73,7 @@ export function createGloomling({ scene, x, z, passive = false }) {
     let moving = false;
 
     stun = Math.max(0, stun - dt);
+    soaked = Math.max(0, soaked - dt);
     if (stun > 0 || target.down || passive) {
       mode = 'chase';   // a shove cancels a bump, nobody bumps a hero who is out, and a training dummy never does
     } else if (mode === 'chase') {
@@ -127,7 +129,8 @@ export function createGloomling({ scene, x, z, passive = false }) {
     body.scale.set(wide, (1 + hop * 0.12 + warning * 0.25) * grow, wide);
     for (const eye of eyes) eye.material = mode === 'windup' ? eyeAngry : eyeCalm;
     flash = Math.max(0, flash - dt * 7);
-    skin.emissive.setScalar(flash * 0.9);
+    const wet = Math.min(1, soaked * 2);   // fades out at the end
+    skin.emissive.setRGB(flash * 0.9, flash * 0.9 + wet * 0.1, flash * 0.9 + wet * 0.24);
     bar.group.position.set(p.x, 1.75, p.z);
     bar.set(health / GLOOMLING.health);
   }
@@ -154,6 +157,8 @@ export function createGloomling({ scene, x, z, passive = false }) {
 
   const gloomling = {
     group, position: p, radius: 0.5, update, hit, remove,
+    soak(seconds) { soaked = Math.max(soaked, seconds); },
+    get soaked() { return soaked; },
     get alive() { return alive; },
     get health() { return health; },
     get mode() { return mode; },

@@ -19,6 +19,22 @@ export const HEROES = {
     attack: { look: 'fireball', damage: 10, range: 7, cooldown: 0.7, speed: 16 },
     power: { id: 'flamewave', name: 'Flame Wave', damage: 45, length: 6, angle: 100, cooldown: 5, push: 3 },   // a cone of fire (angle in degrees)
   },
+  tide: {
+    name: 'Tide',
+    type: 'water',
+    health: 100,
+    invulnerable: 0.4,
+    attack: { look: 'bubble', damage: 9, range: 7, cooldown: 0.65, speed: 15 },   // bubbles of water
+    power: { id: 'bigsplash', name: 'Big Splash', damage: 12, radius: 5, push: 4.5, cooldown: 6, soak: 6 },   // a ring wave: pushes Gloomlings far away and soaks them for 6 s
+  },
+  volt: {
+    name: 'Volt',
+    type: 'storm',
+    health: 100,
+    invulnerable: 0.4,
+    attack: { look: 'zap', damage: 8, range: 6.5, cooldown: 0.5, speed: 26 },   // fast little bolts
+    power: { id: 'lightningdash', name: 'Lightning Dash', damage: 40, length: 7, width: 1.6, push: 2, cooldown: 4.5 },   // zips forward, shocking everything on the way
+  },
 };
 
 export const GLOOMLING = {

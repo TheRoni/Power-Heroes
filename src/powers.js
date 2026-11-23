@@ -2,7 +2,7 @@
 // The superpower itself lives in superpowers.js.
 import * as THREE from '../lib/three.module.min.js';
 import { HEROES } from './heroes-data.js';
-import { createSuperpower } from './superpowers.js';
+import { createSuperpower, distanceToSegment } from './superpowers.js';
 import { QUIET } from './audio.js';
 
 const FLAME_COLORS = [0xff4b1f, 0xff8a1f, 0xffc933];                     // red, orange, yellow
@@ -12,18 +12,12 @@ const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];   // the 
 const LOOKS = {
   fireball: { outer: 0xff7a1f, core: 0xffe28a, size: 0.26, coreSize: 0.14, stretch: 1, trail: FLAME_COLORS },
   dart: { outer: 0xfff0a8, core: 0xffffff, size: 0.17, coreSize: 0.1, stretch: 2.6, trail: [0xfff2b0, 0xffffff, 0xffe27a] },
+  bubble: { outer: 0x7fd0ff, core: 0xffffff, size: 0.24, coreSize: 0.13, stretch: 1, trail: [0xbfeaff, 0xffffff, 0x7fd0ff] },
+  zap: { outer: 0xffe14a, core: 0xffffff, size: 0.13, coreSize: 0.07, stretch: 3.4, trail: [0xfff59a, 0xffffff, 0xffd23a] },
 };
 
 const random = (min, max) => min + Math.random() * (max - min);
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
-
-// How far a point is from a line segment. Used so a fast shot can never skip over a Gloomling between two frames.
-function distanceToSegment(px, pz, ax, az, bx, bz) {
-  const sx = bx - ax, sz = bz - az;
-  const lengthSquared = sx * sx + sz * sz;
-  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * sx + (pz - az) * sz) / lengthSquared));
-  return Math.hypot(px - (ax + sx * t), pz - (az + sz * t));
-}
 
 // A pool of tiny glowing balls, used for flames, hit sparks and the colour that pops out of defeated Gloomlings.
 function createSparks(scene, capacity = 240) {

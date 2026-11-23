@@ -180,7 +180,113 @@ function buildSol() {
   };
 }
 
-const BUILDERS = { ember: buildEmber, sol: buildSol };
+// --- Tide: blue jacket, aqua scarf, hair like curling waves, a water-drop pendant, droplets drifting up ---
+
+// One row per lock of hair: [x, y, z, width, height, tilt forward/back, tilt sideways, colour number]
+const WAVE_LOCKS = [
+  [0, 1.64, -0.02, 0.17, 0.5, -0.55, 0, 0],
+  [0.19, 1.6, 0, 0.14, 0.44, -0.3, -0.75, 1],
+  [-0.19, 1.6, 0, 0.14, 0.44, -0.3, 0.75, 1],
+  [0, 1.58, -0.2, 0.16, 0.5, -0.9, 0, 1],
+  [0.3, 1.48, -0.06, 0.12, 0.36, -0.2, -1.1, 0],
+  [-0.3, 1.48, -0.06, 0.12, 0.36, -0.2, 1.1, 0],
+  [0, 1.62, 0.18, 0.12, 0.26, 0.45, 0, 0],
+];
+
+function buildTide() {
+  const base = buildBase({ jacket: 0x2f86e0, trim: 0xbff3ff, boot: 0x1d3a78 });
+  const { body } = base;
+  const water = [lambert(0x3fa7ff, { emissive: 0x06304f }), lambert(0x9fe3ff, { emissive: 0x06304f })];
+  const locks = WAVE_LOCKS.map(([x, y, z, width, height, tiltX, tiltZ, colour], i) => {
+    const lock = part(new THREE.ConeGeometry(width, height, 6).translate(0, height / 2, 0), water[colour], x, y, z);
+    lock.rotation.set(tiltX, 0, tiltZ);
+    body.add(lock);
+    return { lock, tiltX, tiltZ, phase: i * 1.3 };
+  });
+  const glass = new THREE.MeshBasicMaterial({ color: 0xbff3ff });
+  const pendant = part(ball, glass, 0, 0.66, 0.31);   // a water drop on the chest: a round bottom and a point on top
+  pendant.scale.setScalar(0.06);
+  body.add(pendant, part(new THREE.ConeGeometry(0.045, 0.1, 8), glass, 0, 0.74, 0.31));
+  const scarf = buildTail(0.2, 0.55, base.edge);
+  body.add(scarf);
+  const drops = Array.from({ length: 5 }, () => {
+    const drop = new THREE.Mesh(ball, new THREE.MeshBasicMaterial({ color: 0xbff3ff, transparent: true, opacity: 0.8 }));
+    body.add(drop);
+    return drop;
+  });
+  return {
+    ...base,
+    animate(time, run, fall) {
+      for (const l of locks) {
+        l.lock.rotation.x = l.tiltX - run * 0.3;   // the waves sweep back when running
+        l.lock.rotation.z = l.tiltZ + Math.sin(time * 3 + l.phase) * 0.08;
+      }
+      scarf.rotation.x = -0.45 + run * 1.1 + Math.sin(time * 13) * 0.08 * run;
+      scarf.rotation.y = Math.sin(time * 8) * 0.25 * run;
+      drops.forEach((drop, i) => {   // droplets rise from the feet, circling, and fade away at the top
+        const rise = (time * 0.45 + i / drops.length) % 1;
+        const angle = time * 1.1 + i * 1.3;
+        drop.position.set(Math.cos(angle) * 0.58, 0.1 + rise * 1.6, Math.sin(angle) * 0.58);
+        drop.scale.setScalar(0.05 * (1 - rise * 0.7) * (1 - fall * 0.8));
+      });
+    },
+  };
+}
+
+// --- Volt: yellow jacket, dark trim, jagged lightning hair, a bolt on the chest, crackling sparks ---
+
+// One row per spike: [x, y, z, width, height, tilt forward/back, tilt sideways, colour number]
+const BOLT_HAIR = [
+  [0, 1.66, -0.02, 0.12, 0.55, -0.35, 0, 0],
+  [0.17, 1.62, 0, 0.1, 0.5, -0.1, -0.55, 1],
+  [-0.17, 1.62, 0, 0.1, 0.5, -0.1, 0.55, 1],
+  [0.3, 1.5, -0.02, 0.09, 0.4, 0.1, -1, 0],
+  [-0.3, 1.5, -0.02, 0.09, 0.4, 0.1, 1, 0],
+  [0, 1.6, -0.2, 0.1, 0.46, -0.9, 0, 1],
+  [0, 1.64, 0.17, 0.09, 0.3, 0.55, 0, 0],
+];
+
+function buildVolt() {
+  const base = buildBase({ jacket: 0xffd23a, trim: 0x2b2b55, boot: 0x5a3a9a });
+  const { body } = base;
+  const hairMaterials = [lambert(0xffe14a, { emissive: 0x4a3a00 }), lambert(0xfffbd0, { emissive: 0x4a3a00 })];
+  const spikes = BOLT_HAIR.map(([x, y, z, width, height, tiltX, tiltZ, colour], i) => {
+    const spike = part(new THREE.ConeGeometry(width, height, 5).translate(0, height / 2, 0), hairMaterials[colour], x, y, z);
+    spike.rotation.set(tiltX, 0, tiltZ);
+    body.add(spike);
+    return { spike, tiltX, tiltZ, phase: i * 2.3 };
+  });
+  const bolt = new THREE.Shape();   // a lightning bolt on the chest
+  [[0.02, 0.13], [-0.07, -0.02], [-0.01, -0.02], [-0.04, -0.13], [0.07, 0.03], [0.01, 0.03]].forEach(([x, y], i) => (i ? bolt.lineTo(x, y) : bolt.moveTo(x, y)));
+  bolt.closePath();
+  const mark = new THREE.Mesh(new THREE.ShapeGeometry(bolt), new THREE.MeshBasicMaterial({ color: 0x2b2b55, side: THREE.DoubleSide }));
+  mark.position.set(0, 0.68, 0.305);
+  body.add(mark);
+  const sparkMaterial = new THREE.MeshBasicMaterial({ color: 0xfffbd0 });
+  const sparks = Array.from({ length: 6 }, () => {
+    const spark = new THREE.Mesh(ball, sparkMaterial);
+    body.add(spark);
+    return spark;
+  });
+  return {
+    ...base,
+    animate(time, run, fall) {
+      for (const s of spikes) {   // the hair twitches with static
+        s.spike.rotation.x = s.tiltX - run * 0.25;
+        s.spike.rotation.z = s.tiltZ + Math.sin(time * 40 + s.phase) * 0.05;
+      }
+      mark.scale.setScalar(1 + Math.sin(time * 11) * 0.12);
+      sparks.forEach((spark, i) => {   // little sparks flicker in and out around the body
+        const flick = Math.sin(time * 23 + i * 5) > 0.2 ? 1 : 0;
+        const angle = time * 2.2 + i * 1.05;
+        spark.position.set(Math.cos(angle) * 0.6, 0.4 + ((i * 0.37 + time * 0.9) % 1) * 1.1, Math.sin(angle) * 0.6);
+        spark.scale.setScalar(0.04 * flick * (1 - fall));
+      });
+    },
+  };
+}
+
+const BUILDERS = { ember: buildEmber, sol: buildSol, tide: buildTide, volt: buildVolt };
 
 // "kind" is the hero's key in heroes-data.js, for example 'sol'.
 export function buildHeroModel(kind) {

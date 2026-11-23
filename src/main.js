@@ -18,7 +18,7 @@ import { createMusic } from './music.js';
 const FLAGS = new URLSearchParams(location.search);
 const DEBUG = FLAGS.has('debug') || location.hash === '#debug' || location.hash === '#debug-title';
 const TITLE = !DEBUG || FLAGS.has('title') || location.hash === '#debug-title';   // debug mode skips the title screen (so the tests are quick), unless asked
-const PLAYER_KIND = 'sol';   // which hero the player controls (a key in heroes-data.js)
+const PLAYER_KIND = DEBUG && HEROES[FLAGS.get('hero')] ? FLAGS.get('hero') : 'sol';   // which hero the player controls (a key in heroes-data.js); ?debug&hero=tide previews another
 
 // --- Set up the screen ---
 const canvas = document.getElementById('game');

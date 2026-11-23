@@ -342,6 +342,26 @@ This changes how the game plays, so each chunk ends playable and is reported.
 - `powers.js` becomes one set of powers per hero (each with its own recharge)
   that share one pool of sparks.
 
+**Chunk 1 build notes (DONE):**
+- `heroes-data.js`: **Tide** (Water; water-bubble shots, 9 damage, every 0.65 s;
+  Big Splash: ring of 5 units, 12 damage, shoves 4.5, soaks for 6 s, recharge 6 s)
+  and **Volt** (Storm; fast bolts, 8 damage, every 0.5 s; Lightning Dash: zips 7
+  units in 0.2 s, 40 damage to everything within 0.8 of the path, recharge 4.5 s).
+- `hero-models.js`: Tide (blue spiky waves of hair, a water-drop pendant, an aqua
+  collar and scarf, droplets rising around them) and Volt (yellow, jagged hair
+  that twitches, a bolt on the chest, flickering sparks).
+- `superpowers.js`: Starburst and Big Splash are now both "rings" (same code,
+  different colours, Big Splash also soaks and sprays droplets); Lightning Dash is
+  new. `distanceToSegment` moved here (shared with `powers.js`).
+- `gloom.js`: `soak(seconds)` and `soaked` (a wet Gloomling shines blue, and it
+  wears off); this is what the Shock Chain combo will look for.
+- The power button has a water-drop and a bolt icon, and a colour for each power.
+- Preview any hero without the squad: add `&hero=tide` (or volt, ember, sol) to
+  `?debug`.
+- Tests: group 12 (14 checks): both heroes' data and looks, their shots, Big
+  Splash (reach, shove, soak, wears off), Lightning Dash (distance, path, aim),
+  and the live game as Tide and as Volt.
+
 **Chunk 2: the squad and swapping.**
 - New `src/squad.js`: three heroes, one active. The other two wait on the
   bench (hidden; their portraits show their health). Swap with keys 1, 2, 3 or by

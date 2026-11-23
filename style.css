@@ -199,13 +199,17 @@ body {
   cursor: pointer;
 }
 #power-button svg {
+  display: none;   /* only the icon of the hero's own power shows (below) */
   width: 38px;
   height: 38px;
   fill: #fff;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
-#power-button:not([data-power="flamewave"]) .icon-flame, #power-button[data-power="flamewave"] .icon-star { display: none; }
+#power-button[data-power="flamewave"] .icon-flame, #power-button[data-power="starburst"] .icon-star,
+#power-button[data-power="bigsplash"] .icon-drop, #power-button[data-power="lightningdash"] .icon-bolt { display: block; }
 #power-button[data-power="starburst"] { background: radial-gradient(circle at 50% 35%, #fffbe0, #ffd24a 60%, #d99a1c); color: #5a3b00; text-shadow: none; }
+#power-button[data-power="bigsplash"] { background: radial-gradient(circle at 50% 35%, #d8f4ff, #4fb4ff 60%, #1f6fd0); }
+#power-button[data-power="lightningdash"] { background: radial-gradient(circle at 50% 35%, #fff9c4, #ffe14a 60%, #e0a800); color: #4a3a00; text-shadow: none; }
 #power-button::after {   /* the dark recharge sweep */
   content: "";
   position: absolute;

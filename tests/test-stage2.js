@@ -17,6 +17,7 @@ const SKELETON = (inner) => `<!doctype html><html lang="en"><head><meta charset=
 const CSP = "default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://code.jquery.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:";
 
 let KEEP_INTRO = false;   // the prologue tests want the opening; every other test skips it
+let HERO_PARAM = '';      // play as another hero in the live game (?debug&hero=tide)
 let SHOW_TITLE = false;   // the title-screen tests want the title screen (debug mode normally skips it)
 
 const OPEN = [];   // every game page opened so far: older ones are closed when a new one opens, so they stop using the (slow) software graphics
@@ -43,7 +44,7 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
-  await page.goto('http://game.local/' + (ARTIFACT ? (SHOW_TITLE ? '#debug-title' : '#debug') : (SHOW_TITLE ? '?debug&title' : '?debug')));
+  await page.goto('http://game.local/' + (ARTIFACT ? (SHOW_TITLE ? '#debug-title' : '#debug') : (SHOW_TITLE ? '?debug&title' : '?debug') + (HERO_PARAM ? `&hero=${HERO_PARAM}` : '')));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
   if (!KEEP_INTRO && !SHOW_TITLE) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
@@ -1544,10 +1545,122 @@ async function chunk11(browser) {
   check('asking for the song that is already playing changes nothing, and an unknown song is ignored', same === 'battle' && (await page.evaluate(() => { const M = window.__game.music; M.play('no-such-song'); return M.song; })) === 'battle');
 }
 
+// ---------- Squad heroes: Tide and Volt ----------
+const squadUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { HEROES, GLOOMLING } = await import('/src/heroes-data.js');
+  const { buildHeroModel } = await import('/src/hero-models.js');
+  const { createHero } = await import('/src/hero.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const out = {};
+  out.data = Object.fromEntries(['tide', 'volt'].map((k) => [k, { name: HEROES[k].name, type: HEROES[k].type, health: HEROES[k].health, look: HEROES[k].attack.look, power: HEROES[k].power.id, cooldown: HEROES[k].power.cooldown }]));
+  out.models = {};
+  for (const kind of ['tide', 'volt']) {
+    const model = buildHeroModel(kind);
+    let parts = 0;
+    model.body.traverse(() => { parts++; });
+    let bad = 0;
+    for (const [run, fall] of [[0, 0], [1, 0], [0.5, 1]]) { for (let i = 0; i < 20; i++) model.animate(i / 10, run, fall); }
+    model.body.traverse((o) => { if (o.isMesh && [o.position.x, o.position.y, o.position.z, o.scale.x].some((v) => !Number.isFinite(v))) bad++; });
+    const scene = new THREE.Scene();
+    const hero = createHero({ scene, bound: 10.2, kind });
+    for (let i = 0; i < 20; i++) hero.update(1 / 30, { x: 1, z: 0 }, i / 30);
+    out.models[kind] = { parts, feet: model.feet.length, arms: model.arms.length, bad, moved: hero.position.x > 1, name: hero.name, type: hero.type };
+  }
+  const fakeHero = (kind, x = 0, z = 0, yaw = 0) => ({ kind, position: new THREE.Vector3(x, 0, z), yaw, down: false, faced: 0, face(a) { this.faced++; this.yaw = a; }, takeHit() { return false; } });
+  const setup = (kind, positions) => {
+    const scene = new THREE.Scene();
+    const hero = fakeHero(kind);
+    const gloomlings = positions.map(([x, z]) => createGloomling({ scene, x, z }));
+    const log = { hits: [], kinds: [], defeats: 0 };
+    const powers = createPowers({ scene, hero, gloomlings, events: { hit: (g, a, k) => { log.hits.push(a); log.kinds.push(k); }, defeat: () => { log.defeats++; } } });
+    return { hero, gloomlings, powers, log };
+  };
+  const run = (s, seconds, moving = false) => {   // "moving": the Gloomlings walk and slide too
+    for (let i = 0; i < Math.round(seconds * 30); i++) {
+      s.powers.update(1 / 30, i / 30);
+      if (moving) for (const g of [...s.gloomlings]) g.update(1 / 30, s.hero, i / 30, s.gloomlings);
+    }
+  };
+  for (const kind of ['tide', 'volt']) {   // each hero's automatic shots
+    const s = setup(kind, [[5, 0]]);
+    run(s, 2);
+    out[`${kind}Shots`] = { hits: s.log.hits.length, each: s.log.hits[0], kinds: [...new Set(s.log.kinds)].join() };
+  }
+  {   // Big Splash: pushes far, soaks, does only a little damage
+    const s = setup('tide', [[2, 0], [0, -4], [4.8, 0], [9, 0]]);
+    s.powers.autoFire = false;   // only the splash, so every number is its own
+    const [A, B, C, D] = s.gloomlings;
+    const before = s.gloomlings.map((g) => ({ x: g.position.x, z: g.position.z }));
+    s.powers.castPower();
+    run(s, 0.5, true);
+    const pushed = (g, i) => Math.hypot(g.position.x - before[i].x, g.position.z - before[i].z);
+    out.splash = { alive: s.gloomlings.map((g) => g.alive).join(), soaked: s.gloomlings.map((g) => +g.soaked.toFixed(1)).join(), health: s.gloomlings.map((g) => g.health).join(), pushA: pushed(A, 0), pushB: pushed(B, 1), big: s.log.kinds.filter((k) => k === 'big').length, power: s.powers.powerReady };
+    run(s, 6.5, true);
+    out.dry = s.gloomlings.map((g) => g.soaked).join();
+  }
+  {   // Lightning Dash: zips forward, shocks what is near the path, once each, and aims at the nearest Gloomling
+    const s = setup('volt', [[0, 3], [1, 5], [3, 3], [0, 9], [0, -3.5]]);
+    s.powers.autoFire = false;
+    s.powers.castPower();
+    run(s, 0.1);
+    const midway = s.hero.position.z;
+    run(s, 0.5);
+    const alive = s.gloomlings.map((g) => g.alive);
+    out.dash = { z: s.hero.position.z, x: s.hero.position.x, midway, hitCount: s.log.kinds.filter((k) => k === 'big').length, defeated: s.log.defeats, alive: alive.join(), faced: s.hero.faced, ready: s.powers.powerReady };
+    const t = setup('volt', [[4, 0.2]]);
+    t.powers.autoFire = false;
+    t.powers.castPower();
+    run(t, 0.6);
+    out.aimed = { x: t.hero.position.x, z: t.hero.position.z };
+  }
+  {   // a Gloomling's soak runs out by itself
+    const g = createGloomling({ scene: new THREE.Scene(), x: 0, z: 0 });
+    g.soak(2);
+    out.soak = [g.soaked];
+    for (let i = 0; i < 90; i++) g.update(1 / 30, { position: new THREE.Vector3(20, 0, 20), down: false, takeHit() {} }, i / 30, [g]);
+    out.soak.push(g.soaked);
+  }
+  return out;
+};
+
+async function chunk12(browser) {
+  let { page } = await openGame(browser, 'squad-unit');
+  const u = await page.evaluate(squadUnit);
+  check('Tide is Water with Big Splash and Volt is Storm with Lightning Dash, each with its own attack look', JSON.stringify(u.data) === JSON.stringify({ tide: { name: 'Tide', type: 'water', health: 100, look: 'bubble', power: 'bigsplash', cooldown: 6 }, volt: { name: 'Volt', type: 'storm', health: 100, look: 'zap', power: 'lightningdash', cooldown: 4.5 } }), JSON.stringify(u.data));
+  check('both new heroes are built from many parts with arms and feet, animate without bad numbers, and run like any hero', ['tide', 'volt'].every((k) => u.models[k].parts > 30 && u.models[k].feet === 2 && u.models[k].arms === 2 && u.models[k].bad === 0 && u.models[k].moved) && u.models.tide.name === 'Tide' && u.models.volt.type === 'storm', JSON.stringify(u.models));
+  check('Tide throws water bubbles (9 damage) and Volt fires quick bolts (8 damage) at Gloomlings in range', u.tideShots.hits >= 2 && u.tideShots.each === 9 && u.voltShots.hits >= 3 && u.voltShots.each === 8 && u.tideShots.kinds === 'hit' && u.voltShots.kinds === 'hit', JSON.stringify([u.tideShots, u.voltShots]));
+  check('Big Splash reaches 5 units (not 9), shoves hard, soaks for 6 s and does only a little damage, so everyone is still standing', u.splash.alive === 'true,true,true,true' && u.splash.soaked.split(',').slice(0, 3).every((v) => +v > 4.5) && +u.splash.soaked.split(',')[3] === 0 && u.splash.health.split(',').slice(0, 3).every((v) => +v === 18) && u.splash.pushA > 2 && u.splash.pushB > 3.5 && u.splash.big === 3 && !u.splash.power, JSON.stringify(u.splash));
+  check('the soak wears off by itself', u.dry === '0,0,0,0' && u.soak[0] === 2 && u.soak[1] === 0, JSON.stringify([u.dry, u.soak]));
+  check('Lightning Dash zips about 7 units straight ahead in a fifth of a second, and keeps going only that far', near(u.dash.z, 7, 0.2) && near(u.dash.x, 0, 0.2) && u.dash.midway > 2 && u.dash.midway < 7 && u.dash.faced >= 1 && !u.dash.ready, JSON.stringify(u.dash));
+  check('it shocks the two Gloomlings on the path (40 damage, once each), and not the ones beside, beyond or behind', u.dash.hitCount === 2 && u.dash.defeated === 2 && u.dash.alive === 'true,true,true', JSON.stringify(u.dash));
+  check('Lightning Dash aims at the nearest Gloomling', u.aimed.x > 6 && Math.abs(u.aimed.z) < 1.5, JSON.stringify(u.aimed));
+
+  // Live game: play as Tide or Volt (?debug&hero=...). The button, the name and the icon follow the hero.
+  for (const [kind, label, icon, other] of [['tide', 'Big Splash', '.icon-drop', '.icon-bolt'], ['volt', 'Lightning Dash', '.icon-bolt', '.icon-drop']]) {
+    HERO_PARAM = kind;
+    ({ page } = await openGame(browser, `squad-${kind}`));
+    HERO_PARAM = '';
+    const ui = await page.evaluate(([icon, other]) => {
+      const shown = (sel) => getComputedStyle(document.querySelector(`#power-button ${sel}`)).display !== 'none';
+      return { kind: window.__game.player.kind, name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, icon: shown(icon), other: shown(other), flame: shown('.icon-flame'), star: shown('.icon-star'), bg: getComputedStyle(document.getElementById('power-button')).backgroundImage.slice(0, 40) };
+    }, [icon, other]);
+    check(`playing as ${kind}: the corner shows the name, the button says "${label}", and only its own icon shows`, ui.kind === kind && ui.name.toLowerCase() === kind && ui.label === label && ui.icon && !ui.other && !ui.flame && !ui.star, JSON.stringify(ui));
+    await page.evaluate(() => { const G = window.__game; G.player.position.set(0, 0, 0); });
+    await until(page, () => window.__game.gloomlings.length >= 3);
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `${OUT}/squad-${kind}-power.png` });
+    const used = await page.evaluate(() => ({ ready: window.__game.powers.powerReady, casts: window.__game.audio.counts[window.__game.player.kind === 'tide' ? 'bigsplash' : 'lightningdash'] }));
+    check(`the ${label} button works in the live game and plays its sound`, !used.ready && used.casts === 1, JSON.stringify(used));
+  }
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
