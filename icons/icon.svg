@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Power Heroes: a golden star (the Newcomer who fell from the sky) glowing on a sky-blue square. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fd2ff"/>
+      <stop offset="1" stop-color="#2f7fd0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff6c8" stop-opacity="0.95"/>
+      <stop offset="0.5" stop-color="#ffe27a" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#ffe27a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6b0"/>
+      <stop offset="1" stop-color="#ffb42e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <circle cx="256" cy="250" r="215" fill="url(#glow)"/>
+  <path d="M256.0 102.0 L297.1 195.4 L398.7 205.6 L322.6 273.6 L344.2 373.4 L256.0 322.0 L167.8 373.4 L189.4 273.6 L113.3 205.6 L214.9 195.4 Z" fill="url(#gold)" stroke="#ffd24a" stroke-width="22" stroke-linejoin="round"/>
+  <path d="M256.0 102.0 L297.1 195.4 L398.7 205.6 L322.6 273.6 L344.2 373.4 L256.0 322.0 L167.8 373.4 L189.4 273.6 L113.3 205.6 L214.9 195.4 Z" fill="url(#gold)" stroke="#fff6b0" stroke-width="6" stroke-linejoin="round" opacity="0.9"/>
+  <path d="M128 102 Q131.6 128.4 158 132 Q131.6 135.6 128 162 Q124.4 135.6 98 132 Q124.4 128.4 128 102 Z" fill="#ffffff" opacity="0.95"/>
+  <path d="M396 150 Q398.64 169.36 418 172 Q398.64 174.64 396 194 Q393.36 174.64 374 172 Q393.36 169.36 396 150 Z" fill="#ffffff" opacity="0.85"/>
+  <path d="M378 356 Q379.92 370.08 394 372 Q379.92 373.92 378 388 Q376.08 373.92 362 372 Q376.08 370.08 378 356 Z" fill="#ffffff" opacity="0.7"/>
+</svg>

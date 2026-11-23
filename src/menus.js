@@ -1,5 +1,5 @@
-// menus.js: the full-screen menus: the title screen, the squad screen, and the end screen after a round, where each
-// hero's Power counts up. They take Space and Enter while they are showing.
+// menus.js: the full-screen menus: the title screen, the squad screen, the end screen after a round (where each hero's
+// Power counts up and "Sol passed Wren!" shows) and the Power Rankings board. They take Space and Enter while they are showing.
 import { QUIET } from './audio.js';
 import { TYPE_COLORS } from './types.js';
 import { shortNumber, tierIndex, TIERS } from './power.js';
@@ -11,18 +11,26 @@ const ENDINGS = {
 const END_LOCK = 800;    // milliseconds after an end screen appears when taps are ignored, so a mashed button cannot skip it
 const COUNT_TIME = 1.4;  // seconds a Power number takes to count up
 const COUNT_GAP = 0.35;  // seconds between one hero's count-up starting and the next one's
+const PASS_WAIT = 350;   // milliseconds after the numbers arrive until the first "passed" line, and then between lines
+const PASS_GAP = 450;
 
 // "onAgain" is called when the player taps "Play again" / "Try again". "audio" plays the clicks and the count-up sounds.
 export function createMenus({ audio = QUIET, onAgain }) {
   const endScreen = document.getElementById('end');
   const endButton = document.getElementById('end-button');
   const gainsBox = document.getElementById('end-gains');
+  const passesBox = document.getElementById('end-passes');
+  const endRankings = document.getElementById('end-rankings');
+  const rankingsScreen = document.getElementById('rankings');
+  const squadRankings = document.getElementById('squad-rankings');
   const titleScreen = document.getElementById('title');
   const pickScreen = document.getElementById('squad-screen');
   const goButton = document.getElementById('squad-go');
   let endShownAt = 0;
   let titleStart = null;   // what to do when the title screen is tapped
   let pickDone = null;     // what the squad screen's Go! button does
+  let endBoard = null;     // what the end screen's Power Rankings button does
+  let pickBoard = null;    // ...and the squad screen's
   let run = 0;             // which count-up is on (a new screen stops the one before)
 
   // ---- The end screen ----
@@ -38,6 +46,11 @@ export function createMenus({ audio = QUIET, onAgain }) {
     event.preventDefault();
     event.stopPropagation();
     again();
+  });
+  endRankings.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (endBoard && performance.now() - endShownAt >= END_LOCK) { audio.play('click'); endBoard(); }
   });
 
   // The power-up moment: each hero's Power counts up, one after another, with a ticking sound that rises. When a number
@@ -77,14 +90,31 @@ export function createMenus({ audio = QUIET, onAgain }) {
         }
       });
       if (waiting) requestAnimationFrame(frame);
+      else revealPasses(id, events);
     }
     requestAnimationFrame(frame);
+  }
+
+  // "Sol passed Wren!": the lines appear one after another, each with a chime (passing number 1 gets the fanfare).
+  // events.onPass(pass) tells the game, for the aura and the confetti.
+  function revealPasses(id, events) {
+    [...passesBox.children].forEach((line, i) => setTimeout(() => {
+      if (id !== run) return;
+      const pass = events.passes ? events.passes.list[i] : null;
+      line.classList.add('show');
+      audio.play(pass && pass.big ? 'tier' : 'chime', { pitch: 1.1 + 0.12 * i });
+      if (pass && events.onPass) events.onPass(pass);
+    }, PASS_WAIT + i * PASS_GAP));
   }
 
   // kind: 'won' or 'lost'. "gains" is what the round did to each hero: [{ name, xp, before, after }].
   function showEnd(kind, gains = [], events = {}) {
     const ending = ENDINGS[kind];
     gainsBox.innerHTML = gains.map((g) => `<div class="gain"><span class="gain-name">${g.name}</span><span class="gain-label">Power</span><span class="gain-power">${shortNumber(g.before)}</span><span class="gain-xp">+${shortNumber(g.xp)} XP</span></div>`).join('');
+    const passes = events.passes || { list: [], more: 0 };
+    passesBox.innerHTML = passes.list.map((p) => `<div class="pass${p.big ? ' big' : ''}">${p.big ? '★ ' : ''}${p.hero} passed ${p.rival}! <span class="pass-rank">Now #${p.rank}</span></div>`).join('') + (passes.more ? `<div class="pass">...and ${passes.more} more</div>` : '');
+    endBoard = events.onRankings || null;
+    endRankings.hidden = !endBoard;
     document.getElementById('end-title').textContent = ending.title;
     document.getElementById('end-text').textContent = ending.text;
     endButton.textContent = ending.button;
@@ -135,7 +165,7 @@ export function createMenus({ audio = QUIET, onAgain }) {
 
   // The squad screen: tap heroes to choose who comes (the first one always does), then Go!
   // heroes is [{ kind, name, type, power }] and chosen the kinds picked so far; onGo(kinds) gets the final squad.
-  function showSquad({ heroes, chosen, onGo }) {
+  function showSquad({ heroes, chosen, onGo, onRankings = null }) {
     const holder = document.getElementById('squad-heroes');
     const size = Math.min(3, heroes.length);
     const picked = new Set([heroes[0].kind, ...chosen]);
@@ -163,6 +193,8 @@ export function createMenus({ audio = QUIET, onAgain }) {
       });
       holder.appendChild(card);
     });
+    pickBoard = onRankings;
+    squadRankings.hidden = !onRankings;
     pickDone = () => {
       pickScreen.hidden = true;
       onGo(heroes.filter((hero) => picked.has(hero.kind)).map((hero) => hero.kind));
@@ -177,10 +209,38 @@ export function createMenus({ audio = QUIET, onAgain }) {
   });
   goButton.addEventListener('go', () => { if (pickDone) pickDone(); });
   pickScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind the squad screen reacts to touches
+  squadRankings.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (pickBoard) { audio.play('click'); pickBoard(); }
+  });
+
+  // ---- The Power Rankings board ----
+
+  // rows: the board (rankings.js): [{ rank, name, type, power, you }], or { gap: true } where rows were left out.
+  function showRankings(rows, note = '') {
+    document.getElementById('rankings-list').innerHTML = rows.map((row) => (row.gap ? '<li class="rank-gap" aria-hidden="true"></li>'
+      : `<li class="rank-row${row.you ? ' you' : ''}" style="--c:${TYPE_COLORS[row.type].css}"><span class="rank-no">#${row.rank}</span><span class="rank-dot"></span><span class="rank-name">${row.name}</span><span class="rank-power">${shortNumber(row.power)}</span></li>`)).join('');
+    document.getElementById('rankings-note').textContent = note;
+    rankingsScreen.hidden = false;
+  }
+  function hideRankings() { rankingsScreen.hidden = true; }
+  rankingsScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind the board reacts to touches
+  document.getElementById('rankings-back').addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    audio.play('click');
+    hideRankings();
+  });
 
   // A menu that is showing takes Space and Enter. Returns true if it used the key.
   function handleKey(event) {
-    if (!pickScreen.hidden) {   // on the squad screen, Space and Enter mean "Go!"
+    if (!rankingsScreen.hidden) {   // the board: Space, Enter and Escape close it
+      event.preventDefault();
+      hideRankings();
+    } else if (event.code === 'Escape') {   // (Escape means nothing anywhere else)
+      return false;
+    } else if (!pickScreen.hidden) {   // on the squad screen, Space and Enter mean "Go!"
       event.preventDefault();
       if (!goButton.disabled) goButton.dispatchEvent(new Event('go'));
     } else if (!titleScreen.hidden) {   // on the title screen, they mean "begin"
@@ -195,5 +255,8 @@ export function createMenus({ audio = QUIET, onAgain }) {
     return true;
   }
 
-  return { handleKey, api: { showTitle, hideTitle, showEnd, hideEnd, showSquad } };
+  // Is a full-screen menu showing? (Then the number keys and E are not for the game.)
+  const open = () => !(titleScreen.hidden && pickScreen.hidden && endScreen.hidden && rankingsScreen.hidden);
+
+  return { handleKey, open, api: { showTitle, hideTitle, showEnd, hideEnd, showSquad, showRankings, hideRankings } };
 }

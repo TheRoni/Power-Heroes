@@ -234,6 +234,7 @@ tests/                automatic browser tests (not part of the game)
 index.html            the page that starts the game
 style.css             layout and on-screen buttons
 story.css             the conversation box and Pip's speech bubble
+menus.css             the Rankings board, and the menus on a phone held sideways
 manifest.webmanifest  app name and icons for the home screen
 sw.js                 offline support (service worker)
 icons/                app icons
@@ -251,6 +252,7 @@ src/                  the game code, one job per file
   aura.js             aura visuals by tier
   overdrive.js        the Overdrive meter and its few seconds of boosted power
   power.js            Power, XP, and growth maths
+  rankings.js         the Power Rankings: the other heroes of the isle, sorting, "passed" lines
   rounds.js           how a round starts and ends: squad choice, XP, unlocks, saving
   gloom.js            enemies
   waves.js            wave timing and round end

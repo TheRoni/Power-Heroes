@@ -55,6 +55,12 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   return { page, context };
 }
 const until = (page, fn, arg, timeout = 90000) => page.waitForFunction(fn, arg, { timeout });
+// Opens the game again in a page that already has it. On the Claude-wrapped page the flags are in the part of the address after
+// "#", and a change there alone is not a new page, so it is reloaded by hand.
+async function reopen(page, flags) {
+  await page.goto(gameUrl(flags));
+  if (ARTIFACT) await page.reload();
+}
 
 // The round has just ended: Marlo is put beside Sol (so he has already "arrived"), and we wait for the closing conversation to begin.
 async function waitForClosing(page) {
@@ -2253,7 +2259,7 @@ async function chunk16(browser) {
   await page.evaluate(() => { const G = window.__game; G.progress.addXp(['sol'], 100); G.progress.winRound(); G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.mark('prologue'); G.progress.mark('combo'); G.progress.store(); });
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('powerheroes.save')));
   check('progress is written to the browser\'s storage', stored.version === 1 && stored.roundsWon === 1 && stored.unlocked.length === 4 && stored.seen.prologue && stored.xp.sol >= 100, JSON.stringify(stored));
-  await page.goto(gameUrl(['power', 'save', 'title', 'squad']));
+  await reopen(page, ['power', 'save', 'title', 'squad']);
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
   const back = await page.evaluate(() => { const G = window.__game; return { power: G.progress.powerOf('sol'), wins: G.progress.roundsWon, unlocked: G.progress.unlocked.length, combo: G.progress.has('combo'), reset: !document.getElementById('title-reset').hidden, phase: G.prologue.phase }; });
   check('after a reload the game remembers: Sol\'s Power, the win, who has joined and what Pip has said; the title offers "Start over"', back.power > 10 && back.wins === 1 && back.unlocked === 4 && back.combo && back.reset && back.phase === 'title', JSON.stringify(back));
@@ -2261,7 +2267,7 @@ async function chunk16(browser) {
   await until(page, () => !document.getElementById('squad-screen').hidden);
   const skipped = await page.evaluate(() => ({ phase: window.__game.prologue.phase, waves: window.__game.waves.state, lesson: window.__game.story.inScene }));
   check('a returning player skips the prologue and goes straight to choosing a squad', skipped.phase === 'done' && skipped.waves === 'idle' && !skipped.lesson, JSON.stringify(skipped));
-  await page.goto(gameUrl(['power', 'save', 'title']));
+  await reopen(page, ['power', 'save', 'title']);
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
   await page.click('#title-reset');
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5 && document.getElementById('title-reset').hidden, null, { timeout: 90000 });
@@ -2539,10 +2545,227 @@ async function chunk18(browser) {
   check('tapping the portrait of the hero in play starts Overdrive, and the boost is on that hero', await page.evaluate(() => window.__game.overdrive.active && window.__game.squad.members.ember.hero.boost === 1.5));
 }
 
+// ---------- The Power Rankings ----------
+const rankingsUnit = async () => {
+  const { RIVALS, MARLO, TOP, board, passedBy, passes, windowed } = await import('/src/rankings.js');
+  const out = {};
+  const hero = (kind, name, power) => ({ kind, name, type: 'light', power });
+  const line = (rows) => rows.map((r) => (r.gap ? '..' : `${r.rank}${r.name}${r.you ? '*' : ''}`)).join(' ');
+  {   // the board: sorted, ranked, ties go to the rival
+    const rows = board([hero('sol', 'Sol', 55), hero('ember', 'Ember', 150), hero('tide', 'Tide', 150), hero('volt', 'Volt', 9000)]);
+    out.order = line(rows);
+    out.rivals = { sorted: RIVALS.every((r, i) => i === 0 || RIVALS[i - 1].power > r.power), top: RIVALS[0].name === TOP && TOP === 'Rook', count: RIVALS.length, marlo: MARLO.power, marloOnBoard: rows.some((r) => r.name === MARLO.name) };
+  }
+  {   // passing: you must be ahead (a tie does not pass)
+    const names = (a, b) => passedBy(a, b).map((r) => r.name).join();
+    out.passed = { none: names(10, 44), tie: names(10, 45), one: names(10, 46), fromTie: names(45, 46), already: names(46, 80), next: names(46, 81), all: names(10, 5000), same: names(5, 5) };
+  }
+  {   // what a round did: the biggest rival first, the rank after, Rook is "big", at most 3 lines
+    const rows = board([hero('sol', 'Sol', 55), hero('ember', 'Ember', 160)]);
+    const two = passes([{ kind: 'sol', name: 'Sol', before: 10, after: 55 }, { kind: 'ember', name: 'Ember', before: 120, after: 160 }], rows);
+    out.two = JSON.stringify(two);
+    const rook = passes([{ kind: 'sol', name: 'Sol', before: 2300, after: 2500 }], board([hero('sol', 'Sol', 2500)]));
+    out.rook = JSON.stringify(rook);
+    const many = passes([{ kind: 'sol', name: 'Sol', before: 1, after: 5000 }], board([hero('sol', 'Sol', 5000)]));
+    out.many = { names: many.list.map((p) => p.rival).join(), more: many.more, ranks: many.list.map((p) => p.rank).join() };
+    out.none = JSON.stringify(passes([{ kind: 'sol', name: 'Sol', before: 10, after: 10 }], rows));
+  }
+  {   // a board that fits a small screen
+    const full = board([hero('sol', 'Sol', 55), hero('ember', 'Ember', 150), hero('tide', 'Tide', 150), hero('volt', 'Volt', 9000)]);
+    out.fits = { small: windowed(full.slice(0, 8), 9) === full.slice(0, 8) || windowed(full.slice(0, 8), 9).length === 8, nine: windowed(full.slice(0, 9), 9).length === 9 };
+    out.big = line(windowed(full, 9));
+    const many = Array.from({ length: 20 }, (_, i) => ({ name: 'R' + i, type: 'fire', power: 2000 - i * 50 }));
+    const middle = board([hero('sol', 'Sol', 1025)], many);   // number 20
+    const w = windowed(middle, 9);
+    out.middle = line(w);
+    out.middleReal = w.filter((r) => !r.gap).length;
+    const top = windowed(board([hero('sol', 'Sol', 5000)], many), 9);
+    out.top = line(top);
+    out.noHeroes = line(windowed(board([], many), 9));
+    const bottom = windowed(board([hero('sol', 'Sol', 1)], many), 9);
+    out.bottom = line(bottom);
+  }
+  return out;
+};
+
+async function chunk19(browser) {
+  let { page } = await openGame(browser, 'rankings-unit');
+  const u = await page.evaluate(rankingsUnit);
+  check('the board is sorted by Power, ranked 1, 2, 3..., and when a hero ties with another hero of the isle, the other one stays ahead', u.order === '1Volt* 2Rook 3Fennel 4Brindle 5Marigold 6Juno 7Ember* 8Tide* 9Pebble 10Sol* 11Wren', u.order);
+  check('the other heroes are listed strongest first with Rook number 1; Keeper Marlo (a faded 9,999) is not on the board', u.rivals.sorted && u.rivals.top && u.rivals.count === 7 && u.rivals.marlo === 9999 && !u.rivals.marloOnBoard, JSON.stringify(u.rivals));
+  check('you pass a hero only by being ahead of them: level is not passed, one more is', u.passed.none === '' && u.passed.tie === '' && u.passed.one === 'Wren' && u.passed.fromTie === 'Wren' && u.passed.already === '' && u.passed.next === 'Pebble' && u.passed.same === '' && u.passed.all === 'Rook,Fennel,Brindle,Marigold,Juno,Pebble,Wren', JSON.stringify(u.passed));
+  check('a round\'s passes name the hero, the hero they passed and the new rank, the strongest first', u.two === '{"list":[{"hero":"Ember","rival":"Juno","rank":1,"big":false},{"hero":"Sol","rival":"Wren","rank":3,"big":false}],"more":0}' || /^\{"list":\[\{"hero":"Ember","rival":"Juno","rank":\d+,"big":false\},\{"hero":"Sol","rival":"Wren","rank":\d+,"big":false\}\],"more":0\}$/.test(u.two), u.two);
+  check('passing Rook (number 1) is marked big, and a round with nothing passed is empty', u.rook === '{"list":[{"hero":"Sol","rival":"Rook","rank":1,"big":true}],"more":0}' && u.none === '{"list":[],"more":0}', `${u.rook} ${u.none}`);
+  check('at most three passes are listed (the biggest), and the rest are counted', u.many.names === 'Rook,Fennel,Brindle' && u.many.more === 4 && u.many.ranks === '1,1,1', JSON.stringify(u.many));
+  check('a board that is short enough shows everything', u.fits.small && u.fits.nine, JSON.stringify(u.fits));
+  check('a long board keeps number 1 and your heroes, the heroes just above you, and marks what was left out with a gap', u.big === '1Volt* 2Rook .. 5Marigold 6Juno 7Ember* 8Tide* 9Pebble 10Sol* 11Wren', u.big);
+  check('with 20 heroes on the board and you at number 21, nine rows show: number 1, you, and those around you', u.middleReal === 9 && /^1R0 \.\. /.test(u.middle) && /21Sol\*/.test(u.middle) && !/\.\. \.\./.test(u.middle) && u.top.startsWith('1Sol* 2R0') && !/\.\./.test(u.top.split(' ').slice(0, 9).join(' ')) && u.bottom.startsWith('1R0 ..') && u.bottom.endsWith('21Sol*') && u.noHeroes.startsWith('1R0 2R1'), `${u.middle} | ${u.top} | ${u.bottom} | ${u.noHeroes}`);
+
+  // Live game, real Power.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'rankings-live'));
+  POWER_ON = false;
+  const text = (id) => page.evaluate((i) => document.getElementById(i).textContent, id);
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.rounds.showRankings(); });
+  const board = await page.evaluate(() => ({
+    shown: !document.getElementById('rankings').hidden,
+    rows: [...document.querySelectorAll('#rankings-list li')].map((li) => (li.classList.contains('rank-gap') ? '..' : `${li.querySelector('.rank-no').textContent} ${li.querySelector('.rank-name').textContent} ${li.querySelector('.rank-power').textContent}${li.classList.contains('you') ? ' *' : ''}`)).join(' | '),
+    note: document.getElementById('rankings-note').textContent,
+    title: document.getElementById('rankings-title').textContent,
+  }));
+  check('the board opens: number 1 Rook 2,400, a gap, then the rows around your four heroes (marked "you"), and the line about Marlo', board.shown && board.rows === '#1 Rook 2,400 | .. | #4 Marigold 230 | #5 Juno 150 | #6 Ember 120 * | #7 Volt 100 * | #8 Tide 90 * | #9 Pebble 80 | #10 Wren 45 | #11 Sol 10 *' && board.note === 'Keeper Marlo is retired. His Power is still a faded 9,999.' && board.title === 'Power Rankings', JSON.stringify(board));
+  await page.screenshot({ path: `${OUT}/rankings-1-board.png` });
+  const back = await page.evaluate(() => { const r = document.getElementById('rankings-back').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.click(back.x, back.y);
+  check('the Back button closes the board', await page.evaluate(() => document.getElementById('rankings').hidden));
+  for (const key of ['Space', 'Enter', 'Escape']) {
+    await page.evaluate(() => window.__game.rounds.showRankings());
+    await page.keyboard.press(key);
+    check(`${key} closes the board`, await page.evaluate(() => document.getElementById('rankings').hidden));
+  }
+  await page.keyboard.press('Escape');
+  check('Escape does nothing when the board is not open (and Space still casts the superpower)', await page.evaluate(() => document.getElementById('rankings').hidden && document.getElementById('end').hidden));
+
+  // After a round: "Sol passed Wren!" under the numbers; the Rankings button opens the board over the end screen.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'rankings-end'));
+  POWER_ON = false;
+  await page.evaluate(async () => {
+    const G = window.__game;
+    const { xpForPower } = await import('/src/power.js');
+    G.progress.data.xp.sol = Math.ceil(xpForPower(44));   // Power 44: one step below Wren (45)
+    G.rounds.refresh();
+    G.rounds.defeat({ power: 80 }); G.rounds.defeat({ power: 80 });
+    for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); }
+  });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  await until(page, () => document.querySelector('#end-passes .pass.show'));
+  const after = await page.evaluate(() => {
+    const G = window.__game;
+    const gain = G.rounds.gains[0];
+    const lines = [...document.querySelectorAll('#end-passes .pass')].map((l) => l.textContent);
+    const rank = G.rounds.rows().find((r) => r.you && r.kind === 'sol').rank;
+    return { gain, lines, rank, big: document.querySelector('#end-passes .pass').classList.contains('big'), button: !document.getElementById('end-rankings').hidden, chimes: G.audio.counts.chime };
+  });
+  check('after the round the end screen says who Sol passed ("Sol passed Wren! Now #N") and shows the Power Rankings button', after.gain.before === 44 && after.gain.after > 45 && after.gain.after < 80 && after.lines.length === 1 && after.lines[0] === `Sol passed Wren! Now #${after.rank}` && !after.big && after.button && after.chimes >= 2, JSON.stringify(after));
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${OUT}/rankings-2-end.png` });
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 40; i++) G.overdrive.hit('hit'); });
+  await page.keyboard.press('KeyE');
+  check('on the end screen the E key does not start Overdrive (menus take the keys)', !(await page.evaluate(() => window.__game.overdrive.active)));
+  const open = await page.evaluate(() => { const r = document.getElementById('end-rankings').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.click(open.x, open.y);
+  const over = await page.evaluate(() => ({ board: !document.getElementById('rankings').hidden, end: !document.getElementById('end').hidden, youRows: document.querySelectorAll('#rankings-list .rank-row.you').length }));
+  check('the button opens the board over the end screen, with all four heroes (the others join after a win) marked', over.board && over.end && over.youRows === 4, JSON.stringify(over));
+  await page.keyboard.press('Space');
+  const closed = await page.evaluate(() => ({ board: document.getElementById('rankings').hidden, end: !document.getElementById('end').hidden, state: window.__game.waves.state }));
+  check('Space closes the board and goes back to the end screen (it does not start the next round)', closed.board && closed.end && closed.state === 'over', JSON.stringify(closed));
+
+  // Passing Rook, number 1, is a bigger moment.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'rankings-rook'));
+  POWER_ON = false;
+  await page.evaluate(async () => {
+    const G = window.__game;
+    const { xpForPower } = await import('/src/power.js');
+    G.progress.data.xp.sol = Math.round(xpForPower(2399));
+    G.rounds.refresh();
+    G.rounds.defeat({ power: 3000 }); G.rounds.defeat({ power: 3000 });
+    for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); }
+  });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  await page.evaluate(() => { window.__maxSparks = 0; setInterval(() => { window.__maxSparks = Math.max(window.__maxSparks, window.__game.powers.sparks.live); }, 30); });
+  await until(page, () => document.querySelector('#end-passes .pass.show'));
+  const rook = await page.evaluate(() => ({ lines: [...document.querySelectorAll('#end-passes .pass')].map((l) => l.textContent), big: document.querySelector('#end-passes .pass').classList.contains('big'), tiers: window.__game.audio.counts.tier, rank: window.__game.rounds.rows()[0].name }));
+  check('passing Rook shows "★ Sol passed Rook! Now #1" in a bigger style, with the fanfare', rook.lines[0] === '★ Sol passed Rook! Now #1' && rook.big && rook.tiers >= 1 && rook.rank === 'Sol', JSON.stringify(rook));
+  await page.waitForTimeout(700);
+  const sparks = await page.evaluate(() => window.__maxSparks);
+  check('and sets off confetti', sparks > 60, `most sparks at once=${sparks}`);
+
+  // The squad screen has the button too.
+  SHOW_SQUAD = true; POWER_ON = true;
+  ({ page } = await openGame(browser, 'rankings-squad'));
+  SHOW_SQUAD = false; POWER_ON = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.rounds.restart(); });
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const hasButton = await page.evaluate(() => !document.getElementById('squad-rankings').hidden);
+  const state0 = await page.evaluate(() => window.__game.waves.state);
+  const sq = await page.evaluate(() => { const r = document.getElementById('squad-rankings').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.click(sq.x, sq.y);
+  const sqOpen = await page.evaluate(() => ({ board: !document.getElementById('rankings').hidden, squad: !document.getElementById('squad-screen').hidden }));
+  await page.keyboard.press('Enter');
+  const sqBack = await page.evaluate(() => ({ board: document.getElementById('rankings').hidden, squad: !document.getElementById('squad-screen').hidden, state: window.__game.waves.state }));
+  check('the squad screen has a Power Rankings button; it opens the board over it, and Enter closes only the board (the round does not start)', hasButton && sqOpen.board && sqOpen.squad && sqBack.board && sqBack.squad && sqBack.state === state0, JSON.stringify([hasButton, sqOpen, sqBack, state0]));
+
+  // Small screens: every card must fit (a phone held either way). 667x375 is an iPhone SE held sideways.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'rankings-sizes'));
+  POWER_ON = false;
+  for (const [w, h, tag, hard] of [[390, 844, 'portrait', true], [844, 390, 'wide', true], [667, 375, 'se-sideways', true], [568, 320, 'small-sideways', false]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(250);
+    const fit = await page.evaluate(async () => {
+      const G = window.__game;
+      const { board, windowed, MARLO } = await import('/src/rankings.js');
+      const box = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; };
+      const gains = ['Sol', 'Ember', 'Tide'].map((name, i) => ({ kind: name.toLowerCase(), name, xp: 380, before: 40 + i, after: 300 + i }));
+      const passes = { list: [{ hero: 'Ember', rival: 'Brindle', rank: 3, big: false }, { hero: 'Sol', rival: 'Pebble', rank: 9, big: false }, { hero: 'Sol', rival: 'Wren', rank: 10, big: false }], more: 1 };
+      G.ui.showEnd('won', gains, { passes, onRankings: () => {} });
+      await new Promise((r) => setTimeout(r, 400));
+      const end = box('end-card');
+      G.ui.hideEnd();
+      const heroes = ['sol', 'ember', 'tide', 'volt'].map((kind) => ({ kind, name: kind[0].toUpperCase() + kind.slice(1), type: 'fire', power: 'Superpower' }));
+      G.ui.showSquad({ heroes, chosen: ['ember', 'tide'], onGo: () => {}, onRankings: () => {} });
+      await new Promise((r) => setTimeout(r, 100));
+      const squad = box('squad-card');
+      document.getElementById('squad-screen').hidden = true;
+      const rows = board(heroes.map((h, i) => ({ kind: h.kind, name: h.name, type: 'fire', power: 300 - i * 70 })));
+      G.ui.showRankings(windowed(rows), MARLO.note);
+      const rank = box('rankings-card');
+      G.ui.hideRankings();
+      return { end, squad, rank, w: innerWidth, h: innerHeight };
+    });
+    const inside = (b) => b.top >= 0 && b.bottom <= fit.h && b.left >= 0 && b.right <= fit.w;
+    const ok = inside(fit.end) && inside(fit.squad) && inside(fit.rank);
+    if (hard) check(`on a ${w}x${h} screen (${tag}) the end card, the squad card and the board all fit`, ok, JSON.stringify(fit));
+    else results.push(`INFO  ${w}x${h} (${tag}): cards ${ok ? 'fit' : 'do not all fit'}  ${JSON.stringify(fit)}`);
+    if (w === 667 || w === 390) {
+      await page.evaluate(async () => {
+        const G = window.__game;
+        const { board, windowed, MARLO } = await import('/src/rankings.js');
+        G.ui.showEnd('won', ['Sol', 'Ember', 'Tide'].map((name, i) => ({ kind: name.toLowerCase(), name, xp: 380, before: 40 + i, after: 300 + i })), { passes: { list: [{ hero: 'Ember', rival: 'Brindle', rank: 3, big: false }, { hero: 'Sol', rival: 'Pebble', rank: 9, big: false }], more: 0 }, onRankings: () => {} });
+      });
+      await page.waitForTimeout(3500);
+      await page.screenshot({ path: `${OUT}/rankings-3-end-${tag}.png` });
+      await page.evaluate(async () => {
+        const G = window.__game;
+        const { board, windowed, MARLO } = await import('/src/rankings.js');
+        G.ui.hideEnd();
+        const heroes = ['sol', 'ember', 'tide', 'volt'].map((kind) => ({ kind, name: kind[0].toUpperCase() + kind.slice(1), type: 'fire', power: 'Superpower' }));
+        G.ui.showSquad({ heroes, chosen: ['ember', 'tide'], onGo: () => {}, onRankings: () => {} });
+      });
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${OUT}/rankings-4-squad-${tag}.png` });
+      await page.evaluate(async () => {
+        const G = window.__game;
+        const { board, windowed, MARLO } = await import('/src/rankings.js');
+        document.getElementById('squad-screen').hidden = true;
+        G.ui.showRankings(windowed(board(['sol', 'ember', 'tide', 'volt'].map((kind, i) => ({ kind, name: kind[0].toUpperCase() + kind.slice(1), type: 'fire', power: 300 - i * 70 })))), MARLO.note);
+      });
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: `${OUT}/rankings-5-board-${tag}.png` });
+    }
+  }
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

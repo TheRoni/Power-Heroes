@@ -2,17 +2,20 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 6 (movement, the first fight, the story begins, the Newcomer and
-  Marlo, flute music and sound, the squad). All 307 automatic checks pass on the
-  normal page and on the Claude test link, which was republished at the end of Stage 6.
+  Stages 1 to 7 (movement, the first fight, the story begins, the Newcomer and
+  Marlo, flute music and sound, the squad, Power and Rankings). All 381 automatic
+  checks pass on the normal page and on the Claude test link, which was
+  republished at the end of Stage 7.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
   hero who falls from the sky; **Keeper Marlo** is your mentor and teaches the
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 6 is done (built on Sonnet):** Tide and Volt, a squad of three with
-  swapping (keys 1-3 or portraits), the squad screen, types (SUPER! and weak), and
-  the first combo, Shock Chain. **Next: Stage 7, Power, auras and Rankings.**
+- **Stage 7 is done (built on Sonnet):** every hero and Gloomling has a Power
+  number that grows with XP (no limit, saved in the browser), the power-up moment
+  after a round, auras from Spark to Radiant, Overdrive, and a Power Rankings board
+  (Rook is number 1; "Sol passed Wren!"). **Next: Stage 8, the phone app.**
+- Stage 6 (Tide and Volt, the squad, types, Shock Chain) came before it.
 - Stage 5 (title, sound, flute music) was done before it. Nobody has *listened* to
   it yet (see "Known problems").
 
@@ -26,10 +29,11 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (288
-  checks in 15 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (362
+  checks in 19 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
-  screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain).
+  screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
+  16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings).
   A full run takes 10 to 25 minutes in the test browser.
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
@@ -77,10 +81,11 @@
   button, and flute music (six songs, including Lyra's Lullaby). (Plan below.)
 - [x] **Stage 6: The squad.** Tide and Volt, a squad of three with swapping,
   types with SUPER! and weak, and the first combo (Shock Chain). (Plan below.)
+- [x] **Stage 7: Power, auras and Rankings.** Power numbers, XP, saving, the
+  power-up moment, auras Spark to Radiant, Overdrive, a Power Rankings board.
+  (Plan below.)
 
 ### Next
-- [ ] **Stage 7: Power, auras and Rankings.** Power numbers, XP, the power-up
-  moment, auras Spark to Blaze, Overdrive, a Power Rankings board, saving.
 - [ ] **Stage 8: Phone app.** Title screen with name entry, icons, offline
   play, install to the home screen (needs GitHub Pages).
 
@@ -508,6 +513,43 @@ how you rank. After a round the number counts up.
 - **Chunk 4: Rankings, polish, republish.** A Power Rankings board (your heroes
   among Rook, Marlo's faded 9,999 and others), "You passed Rook!" moments, tests
   on both pages, republish.
+- **Chunk 4 build notes (DONE):** new `src/rankings.js` (the other heroes of the isle:
+  Rook 2,400 at number 1, then Fennel, Brindle, Marigold, Juno, Pebble and Wren down to 45;
+  sorting with ties going to the rival; who a round passed; a short version of the board
+  for small screens) and new `menus.css` (the board, the "passed" lines, and the end,
+  squad and board screens on a phone held sideways: the end card puts its words left and
+  its numbers right, the squad screen puts the heroes in one row). The board shows your
+  heroes (marked "you") among the others, number 1 always, a dotted gap where rows are
+  left out, and "Keeper Marlo is retired. His Power is still a faded 9,999." (he is not
+  ranked). A "Power Rankings" button is on the end screen and the squad screen. After a
+  round the end screen says "Sol passed Wren! Now #10" (up to three lines, one after
+  another with a chime); passing Rook is a gold line, the fanfare and confetti. The number
+  keys and E are ignored while a menu is on screen. Tests: group 19 (25 checks, including
+  that every card fits on 390x844, 844x390, 667x375 and 568x320 screens).
+
+## Stage 8 plan: the phone app
+**Goal:** the game can be added to a phone's home screen, opens like an app and works
+with no internet; and you can name your hero. (Hosting needs GitHub Pages: see the
+director to-do. Until then the Claude test link covers phone testing, but it cannot
+install or work offline.)
+- **Chunk 1: Name entry.** A small "Name: Sol" button on the title screen opens a text
+  box (1 to 10 letters, digits, spaces, apostrophes or hyphens; empty means Sol).
+  The name is saved, and used everywhere: the corner, the conversations
+  (`{name}` in `story-data.js`), the end screen, the Rankings board. Space and Enter
+  type normally inside the box.
+- **Chunk 2: Icons and the manifest.** New `icons/` (a golden star on a sky-blue
+  rounded square: `icon.svg`, plus 192, 512, maskable 512 and 180 pixel PNGs and a
+  favicon, drawn by a small script `tests/make-icons.js`), `manifest.webmanifest`
+  (name, colours, full screen, any orientation) and the tags in `index.html`.
+- **Chunk 3: Offline.** New `sw.js` (the service worker: saves every game file on first
+  visit, then loads from the saved copy; a version number replaces the old copy) and
+  `src/offline.js` (registers it, only on a real web address). A new test file
+  `tests/test-stage8.js` serves the game from a real local address, goes offline and
+  reloads; and checks that every game file is on the service worker's list.
+- **Chunk 4: Republish and notes.** The Claude link, a short "how to install" note,
+  mismatches list.
+- New files (the director was told here): `src/offline.js`, `tests/test-stage8.js`,
+  `tests/make-icons.js`.
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
@@ -515,7 +557,7 @@ how you rank. After a round the number counts up.
   48 letters a second feels right. Difficulty numbers are in `src/heroes-data.js`.
 - The prologue has a Skip button; the win and knocked-out conversations do not
   (you tap through them). Closing the page mid-prologue replays it next visit
-  (saving comes in Stage 7).
+  (progress is saved when the prologue ends).
 - **Nobody has listened to the sound yet.** Claude cannot hear: the effects and songs
   were checked by measuring (every note's pitch, timing, loudness, clicks, clipping),
   not by ear. The flute is made of plain tones, breath and an echo, so it will sound
@@ -523,13 +565,17 @@ how you rank. After a round the number counts up.
   too quiet, too sharp, annoying). The numbers to change are in `src/audio.js`
   (effects) and `src/music.js` / `src/music-data.js` (music).
 - Sound only starts after the first tap on the title screen (a browser rule).
-- Open differences from `CLAUDE.md`: no Power numbers, auras or Overdrive
-  (Stage 7); only Gloomlings so far (no Brutes, Spitters, Shielders or the
-  Golden Gloom: Stage 12); Rook and the other 11 heroes are not made yet;
-  Ember, Tide and Volt all join after the first win (the story gates them in
-  Stages 9 and 13); the other combos (Wildfire, Vortex Blast, Shatter) need heroes
-  that come later; the squad screen asks "pick 3 of 4" and nothing is saved yet (Stage 7). The Power
-  numbers Marlo and Pip say in the story are only words for now.
+- Open differences from `CLAUDE.md`: no Awakenings or secret aura forms yet
+  (Stages 14 and 15); only Gloomlings so far (no Brutes, Spitters, Shielders or the
+  Golden Gloom: Stage 12); Rook is only a name on the Rankings board and the other
+  11 heroes are not made yet; Ember, Tide and Volt all join after the first win (the
+  story gates them in Stages 9 and 13); the other combos (Wildfire, Vortex Blast,
+  Shatter) need heroes that come later; the squad screen asks "pick 3 of 4". The
+  other heroes on the Rankings board have a fixed Power (they do not grow yet), and
+  the squad screen will need scrolling once there are more than a handful of heroes.
+- Overdrive and the Rankings are tested by the automatic tests, not by hand on a
+  phone: how long 6 seconds of Overdrive feels, and how fast the meter fills (about
+  30 hits), are guesses (`src/overdrive.js`).
 - `sky.js` and `prologue.js` are new files that were not in the first plan
   (the director was told in the Stage 4 plan).
 - Trees only grow along the far side of the island.

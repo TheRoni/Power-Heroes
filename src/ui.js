@@ -54,10 +54,10 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
     onCast();
   });
   window.addEventListener('keydown', (event) => {
-    if (/^Digit[1-3]$/.test(event.code) && !event.repeat) { onSwap(Number(event.code.slice(5)) - 1); return; }
-    if (event.code === 'KeyE' && !event.repeat) { onOverdrive(); return; }
-    if (event.code !== 'Space' && event.code !== 'Enter') return;
-    if (menus.handleKey(event)) return;   // a menu that is showing takes Space and Enter
+    if (/^Digit[1-3]$/.test(event.code) && !event.repeat) { if (!menus.open()) onSwap(Number(event.code.slice(5)) - 1); return; }
+    if (event.code === 'KeyE' && !event.repeat) { if (!menus.open()) onOverdrive(); return; }
+    if (event.code !== 'Space' && event.code !== 'Enter' && event.code !== 'Escape') return;
+    if (menus.handleKey(event)) return;   // a menu that is showing takes Space and Enter (and Escape closes the Rankings)
     if (event.code === 'Space') {
       event.preventDefault();
       onCast();

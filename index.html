@@ -4,9 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#5db7f2">
+  <!-- Opens like an app when added to the home screen (Android and iPhone). -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Power Heroes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <title>Power Heroes</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="story.css">
+  <link rel="stylesheet" href="menus.css">
 </head>
 <body>
   <!-- The 3D picture is drawn here. -->
@@ -90,10 +99,16 @@
   <!-- The end screen: "Isle saved!" or "Knocked out", with a button to go again. -->
   <div id="end" hidden role="dialog" aria-modal="true" aria-labelledby="end-title">
     <div id="end-card">
-      <h1 id="end-title"></h1>
-      <p id="end-text"></p>
-      <div id="end-gains"></div>
-      <button id="end-button" type="button"></button>
+      <div id="end-head">
+        <h1 id="end-title"></h1>
+        <p id="end-text"></p>
+      </div>
+      <div id="end-body">
+        <div id="end-gains"></div>
+        <div id="end-passes"></div>
+        <button id="end-button" type="button"></button>
+        <button id="end-rankings" class="link-button" type="button" hidden>Power Rankings</button>
+      </div>
     </div>
   </div>
 
@@ -104,6 +119,17 @@
       <p id="squad-help"></p>
       <div id="squad-heroes"></div>
       <button id="squad-go" type="button">Go!</button>
+      <button id="squad-rankings" class="link-button" type="button" hidden>Power Rankings</button>
+    </div>
+  </div>
+
+  <!-- The Power Rankings: who is strongest in the Sky Isles. It opens over the end screen or the squad screen. -->
+  <div id="rankings" hidden role="dialog" aria-modal="true" aria-labelledby="rankings-title">
+    <div id="rankings-card">
+      <h1 id="rankings-title">Power Rankings</h1>
+      <ol id="rankings-list"></ol>
+      <p id="rankings-note"></p>
+      <button id="rankings-back" type="button">Back</button>
     </div>
   </div>
 
