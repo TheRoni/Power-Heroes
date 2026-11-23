@@ -5,7 +5,7 @@ import * as THREE from '../lib/three.module.min.js';
 
 const FADE = 0.8;       // seconds the screen takes to go dark, and again to come back
 const FIRE = { x: 0, z: 0 };   // where the fire is (everybody is moved round it while the screen is dark)
-const SEATS = { sol: { x: -1.8, z: 0.9 }, marlo: { x: 0.3, z: -2.1 }, ember: { x: 1.9, z: 0.8 } };
+const SEATS = { sol: { x: -1.8, z: 0.9 }, marlo: { x: -2.4, z: -1.3 }, ember: { x: 1.9, z: 0.8 } };
 const RISE = 1.2;       // seconds the shard takes to rise out of the fire
 const FLY = 0.9;        // ...and to fly to Sol
 const random = (min, max) => min + Math.random() * (max - min);
@@ -23,7 +23,7 @@ function glowTexture(inner, outer) {
   return new THREE.CanvasTexture(canvas);
 }
 
-function buildFire() {
+export function buildFire() {
   const group = new THREE.Group();
   const wood = new THREE.MeshLambertMaterial({ color: 0x5a3a1c });
   const stone = new THREE.MeshLambertMaterial({ color: 0x8a8f9c });
@@ -62,6 +62,25 @@ function buildFire() {
   return { group, flames, glow, embers };
 }
 
+// The flames lean and flicker, the glow breathes, little sparks float up. "clock" is the time in seconds.
+export function animateFire(fire, clock, dt) {
+  for (const flame of fire.flames) {
+    const { height, phase: offset } = flame.userData;
+    const flicker = 1 + Math.sin(clock * 11 + offset) * 0.1 + Math.sin(clock * 23 + offset * 2) * 0.06;
+    flame.scale.set(1 + Math.sin(clock * 7 + offset) * 0.08, flicker, 1 + Math.cos(clock * 8 + offset) * 0.08);
+    flame.position.y = 0.45 + (height * flicker) / 2;
+    flame.rotation.z = Math.sin(clock * 3 + offset) * 0.08;
+  }
+  fire.glow.material.opacity = 0.85 + Math.sin(clock * 9) * 0.1;
+  for (const spark of fire.embers) {
+    const d = spark.userData;
+    d.age += dt * d.speed;
+    if (d.age > 2) { d.age = 0; d.x = random(-0.3, 0.3); d.z = random(-0.3, 0.3); }
+    spark.position.set(d.x + Math.sin(d.age * 3 + d.z * 9) * 0.25, 0.7 + d.age * 1.2, d.z);
+    spark.material.opacity = Math.max(0, 1 - d.age / 2);
+  }
+}
+
 // The shard: a little crystal of light (a stretched octahedron with a glow).
 function buildShard() {
   const group = new THREE.Group();
@@ -75,7 +94,7 @@ function buildShard() {
 }
 
 // The picture in the shard: a young father with a small girl on his shoulders, her arms up, in soft gold light.
-function buildVision() {
+export function buildVision() {   // (exported so the pictures of it can be taken: tests/look-boss.js style)
   const group = new THREE.Group();
   const materials = [];
   const gold = (color) => { const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0 }); materials.push(m); return m; };
@@ -98,7 +117,7 @@ function buildVision() {
   halo.position.y = 1.5;
   group.add(halo);
   group.visible = false;
-  group.scale.setScalar(1.15);
+  group.scale.setScalar(1.35);
   return { group, materials, halo };
 }
 
@@ -191,24 +210,7 @@ export function createCampfire({ world, player, marlo, ember, story, audio, aura
     if (phase === 'idle') return;
     if (phase === 'lit' || phase === 'scene') world.setNight(1, time);   // (every frame, so the stars twinkle)
 
-    // The flames lean and flicker, the glow breathes, little sparks float up.
-    if (fire.group.visible) {
-      for (const flame of fire.flames) {
-        const { height, phase: offset } = flame.userData;
-        const flicker = 1 + Math.sin(clock * 11 + offset) * 0.1 + Math.sin(clock * 23 + offset * 2) * 0.06;
-        flame.scale.set(1 + Math.sin(clock * 7 + offset) * 0.08, flicker, 1 + Math.cos(clock * 8 + offset) * 0.08);
-        flame.position.y = 0.45 + (height * flicker) / 2;
-        flame.rotation.z = Math.sin(clock * 3 + offset) * 0.08;
-      }
-      fire.glow.material.opacity = 0.85 + Math.sin(clock * 9) * 0.1;
-      for (const spark of fire.embers) {
-        const d = spark.userData;
-        d.age += dt * d.speed;
-        if (d.age > 2) { d.age = 0; d.x = random(-0.3, 0.3); d.z = random(-0.3, 0.3); }
-        spark.position.set(d.x + Math.sin(d.age * 3 + d.z * 9) * 0.25, 0.7 + d.age * 1.2, d.z);
-        spark.material.opacity = Math.max(0, 1 - d.age / 2);
-      }
-    }
+    if (fire.group.visible) animateFire(fire, clock, dt);
 
     // The shard rises out of the fire, hangs there and turns, then flies to Sol.
     if (shardState !== 'hidden' && shardState !== 'taken') {
@@ -239,10 +241,10 @@ export function createCampfire({ world, player, marlo, ember, story, audio, aura
     // The picture fades in above the fire, turns slowly, and fades out when the shard goes.
     visionAmount += (visionGoal - visionAmount) * (1 - Math.exp(-3 * dt));
     if (vision.group.visible) {
-      vision.group.position.set(FIRE.x, 0.4 + Math.sin(clock * 1.3) * 0.08, FIRE.z - 0.3);
+      vision.group.position.set(FIRE.x + 0.4, 0.6 + Math.sin(clock * 1.3) * 0.1, FIRE.z - 0.2);
       vision.group.rotation.y = Math.sin(clock * 0.5) * 0.5;
       for (const material of vision.materials) material.opacity = visionAmount * 0.85;
-      vision.halo.material.opacity = visionAmount * 0.55;
+      vision.halo.material.opacity = visionAmount * 0.4;
       if (visionGoal === 0 && visionAmount < 0.01) vision.group.visible = false;
     }
   }

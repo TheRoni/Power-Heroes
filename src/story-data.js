@@ -88,6 +88,25 @@ export const SCENES = {
     ['gardener', 'She promised us more. We just wanted to matter.'],
     ['marlo', '...Matter. Yes. So did we all.'],
   ],
+  // The night at the campfire after round 5: Marlo plays the flute, tells about Lyra, and a memory shard comes out of the fire.
+  // (The words in quotes after a line are cues: they make the fire, the shard and the picture happen. See campfire.js.)
+  campfire: [
+    { music: 'lullaby', fade: 3 },
+    ['pip', 'A fire! My favourite thing that is not a snack.'],
+    ['ember', 'My fire is hotter.'],
+    ['pip', 'Your fire is a personality.'],
+    ['marlo', 'Quiet, both of you. I am going to play something.', 'flute'],
+    ['marlo', 'I wrote it for my daughter. Lyra.'],
+    ['sol', 'Where is she?'],
+    ['marlo', 'I do not know. That is the whole of the story.'],
+    ['marlo', 'She used to fall asleep before the second verse. Every time.', 'shard-rise'],
+    ['pip', '...Marlo. Something is glowing.'],
+    ['marlo', 'A memory shard. The fire gives them up when the song is true.', 'vision'],
+    ['marlo', '...There she is. On my shoulders. She thought she could touch the stars.'],
+    ['sol', "She's beautiful."],
+    ['marlo', 'Take it, {name}. It is the first piece. There are more.', 'shard-take'],
+    ['marlo', 'Now sleep. Tidecove is next.'],
+  ],
   win5: [
     { music: 'sunmeadow', fade: 3 },
     ['pip', 'He turned back into a PERSON. A gardener! With a LEAF in his hair!'],

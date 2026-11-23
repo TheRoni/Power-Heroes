@@ -2,16 +2,16 @@
 // joined, saving, and the walk-over before the closing conversation.
 import { HEROES } from './heroes-data.js';
 import { WALK_RADIUS } from './scene.js';
-import { xpForKill, winBonus, enemyPowerFor, xpForPower } from './power.js';
+import { xpForKill, winBonus, enemyPowerFor, xpForPower, shortNumber } from './power.js';
 import { board, passes, windowed, MARLO } from './rankings.js';
-import { CHAPTERS, ROUNDS } from './chapters.js';
+import { CHAPTERS, ROUNDS, SHARDS } from './chapters.js';
 
 const BOSS_XP = 10;   // a boss is worth this many Gloomlings
 const LESSON_XP = { climb: 12, move: 3, strike: 5, power: 7 };   // the prologue: Sol's Power climbs as Marlo teaches (to Power 10), so the numbers in the story are real
 
 // pick: show the squad screen (the tests switch it off). chapter: play the five rounds of Chapter 1 one after another (the
 // tests keep the one round that repeats). onNewRound(): the game's own small resets (the hint, Pip's words).
-export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick, chapter = false, onNewRound }) {
+export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire = null, pick, chapter = false, onNewRound }) {
   let ending = null;   // 'won', 'again' (a win after the first), or 'lost' while Marlo walks over before the closing conversation
   let endWait = 0;
   let roundXp = 0;     // XP from the Gloomlings beaten in this round so far
@@ -19,6 +19,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   let passed = { list: [], more: 0 };   // who the last round passed on the Rankings board
   let closing = null;   // the closing conversation, when it is not the usual one for the ending (a round of the chapter)
   let wonText = null;   // what the end screen says after a round of the chapter
+  let night = false;    // the chapter is won: the campfire comes before the end screen
   let retryAtBoss = false;   // a round lost to the boss is tried again at the boss (not the waves before him)
 
   // The round of Chapter 1 to play now (null: ordinary rounds, after the chapter is done or when it is switched off).
@@ -76,6 +77,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     ending = won ? (first ? 'won' : 'again') : 'lost';
     closing = won && number > 1 ? `win${number}` : null;   // round 1 has the first-win conversation (Ember arrives); the others have their own
     wonText = won && round ? round.won : null;
+    night = won && number === ROUNDS && Boolean(campfire);
     retryAtBoss = !won && waves.atBoss;
     endWait = 0;
     audio.play(won ? 'win' : 'lose');
@@ -126,25 +128,34 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     if (ending && (marlo.arrived || (endWait += dt) > 8)) {   // Marlo has come over: the closing conversation begins
       const kind = ending;
       ending = null;
-      story.scene(closing || { won: 'win', again: 'winAgain', lost: 'lose' }[kind], () => ui.showEnd(kind === 'lost' ? 'lost' : 'won', gains, {
-        text: wonText,   // "Round 2 won!" and the like (nothing: the usual words)
+      const showEnd = () => ui.showEnd(kind === 'lost' ? 'lost' : 'won', gains, {
+        text: wonText && wonText.shard ? { ...wonText, text: `${wonText.text} Memory shard ${progress.shards} of ${SHARDS}.` } : wonText,   // "Round 2 won!" and the like (nothing: the usual words)
         onFlare: () => aura.flare(1.2),   // the power-up moment: the aura flares as each number arrives
         onTier: () => { aura.flare(3); powers.sparks.confetti(90); },   // and a new tier is a bigger celebration
         passes: passed,   // "Sol passed Wren!" (and passing Rook, number 1, is a bigger celebration too)
         onPass: (pass) => { aura.flare(pass.big ? 3 : 1); if (pass.big) powers.sparks.confetti(90); },
         onRankings: showRankings,
-      }));
+      });
+      story.scene(closing || { won: 'win', again: 'winAgain', lost: 'lose' }[kind], night ? () => campfire.play(showEnd) : showEnd);   // (after the last round: the night at the campfire first)
     }
     if (story.waiting === 'arrive' && ember.arrived) story.resume();   // Ember is here: the talk carries on
   }
 
   const label = () => (current() ? `Round ${progress.round}/${ROUNDS}` : '');   // "Round 2/5" (nothing in an ordinary round)
 
+  // The small note in the corner, such as "Round 2/5 · Wave 2/3 · 5 left · Gloom Power 120".
+  function note() {
+    const where = label() ? `${label()} · ` : '';
+    if (waves.state === 'break') return where + (waves.wave === 1 ? 'Get ready…' : `Wave ${waves.wave} coming…`);
+    if (waves.state === 'spawning' || waves.state === 'fighting') return `${where}Wave ${waves.wave}/${waves.total} · ${waves.remaining} left · Gloom Power ${shortNumber(waves.enemyPower)}`;
+    return '';
+  }
+
   // The words that story lines can use: "Power {power}" is Sol's Power now, and {name} is what the player called the hero.
   const vars = () => { const power = progress.powerOf('sol'); return { power, next: power + 1, name: progress.name }; };
 
   return {
-    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label,
+    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label, note,
     get round() { return current(); },   // the round of the chapter being played: { name, sizes, types, power, intro, won }, or null
     get ending() { return ending; },
     get gains() { return gains; },

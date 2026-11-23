@@ -2,8 +2,9 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 8 (movement, the first fight, the story begins, the Newcomer and
-  Marlo, flute music and sound, the squad, Power and Rankings, the phone app). All
+  Stages 1 to 9 (movement, the first fight, the story begins, the Newcomer and
+  Marlo, flute music and sound, the squad, Power and Rankings, the phone app, and
+  Chapter 1 with its boss and its campfire). All
   automatic checks pass on the normal page and on the Claude test link, which was
   republished at the end of each stage.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
@@ -11,13 +12,16 @@
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 8 is done (built on Sonnet):** you can name your hero on the title screen,
-  the game has app icons and a manifest, and a service worker saves the game so it
-  opens with no internet. The only thing left is the director's one-time step: turn on
-  GitHub Pages (see the to-do below), so there is a real web address to install from.
-  **Next: Stage 9, Chapter 1 complete (Sunmeadow, General Bramble).**
-- Stage 7 (Power, XP, auras, Overdrive, Rankings) and Stage 6 (Tide and Volt, the
-  squad, types, Shock Chain) came before it.
+- **Stage 9 is done (built on Sonnet):** Chapter 1 is five rounds with a story between them.
+  The last round ends with General Bramble, a thorny boss (a fan of thorns, a root slam, a
+  roar, Gloomlings called to help); beaten, he turns back into a tired young gardener and says
+  his last words. Then the campfire: night falls, Marlo plays the flute, tells about Lyra, and
+  the first memory shard rises out of the fire and shows little Lyra on her father's shoulders.
+  **Next: Stage 10, the Home Village (the open-world part).**
+- Stage 8 (name your hero, app icons, offline play) came before it; the only thing left there is
+  the director's one-time step: turn on GitHub Pages (see the to-do below), so there is a real
+  web address to install from. Stage 7 (Power, XP, auras, Overdrive, Rankings) and Stage 6
+  (Tide and Volt, the squad, types, Shock Chain) came before that.
 - Stage 5 (title, sound, flute music) was done before it. Nobody has *listened* to
   it yet (see "Known problems").
 
@@ -33,12 +37,12 @@
 ## Tests (in `tests/`, not part of the game)
 - `tests/test-stage1.js` (19 checks: movement), `tests/test-stage8.js` (13 checks: the
   manifest, the icons, the service worker, and playing with no internet, from a real
-  local web address) and `tests/test-stage2.js` (everything else, in 23 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  local web address) and `tests/test-stage2.js` (everything else, in 24 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
   screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
   16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings,
   20 naming the hero, 21 the five rounds of Chapter 1, 22 General Bramble, 23 his last
-  words and trying again)
+  words and trying again, 24 the campfire and the memory shard)
   A full run takes 10 to 25 minutes in the test browser.
 - **After changing any game file, run `node tests/bump-sw.js`** (it rewrites the file
   list and the version in `sw.js`; without it a phone could keep an old copy of the
@@ -99,15 +103,16 @@
   power-up moment, auras Spark to Radiant, Overdrive, a Power Rankings board.
   (Plan below.)
 
+- [x] **Stage 8: Phone app.** Name entry, icons, a manifest and offline play (the one
+  thing left is turning on GitHub Pages: see the director to-do). (Plan below.)
+- [x] **Stage 9: Chapter 1, Sunmeadow, complete.** Five rounds, General Bramble, the
+  campfire with Marlo's flute and the first memory shard. (Plan below.)
+
 ### Next
-- [ ] **Stage 8: Phone app.** Title screen with name entry, icons, offline
-  play, install to the home screen (needs GitHub Pages).
+- [ ] **Stage 10: Home Village, first version.** Marlo's old clan: a walkable
+  village, clan members with auras, the Rankings board, the Hero Hall. (Plan below.)
 
 ### The adventure
-- [ ] **Stage 9: Chapter 1, Sunmeadow, complete.** 5 rounds, General Bramble,
-  the campfire scene with Marlo's flute, the first memory shard.
-- [ ] **Stage 10: Home Village, first version.** Marlo's old clan: a walkable
-  village, clan members with auras, the Rankings board, the Hero Hall.
 - [ ] **Stage 11: Village life.** Daily activities, day and night, talk,
   spar, guest teammates.
 - [ ] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder,
@@ -638,8 +643,46 @@ his flute, tells about Lyra, and you get the first memory shard. (Plan written o
   fight Pip and Marlo talk about him and Marlo promises the story "tonight, by the fire". If the
   hero's squad loses to him, "Try again" starts at the boss (not the two waves before).
   Tests: group 23 (9 checks).
+- **Chunk 4 build notes (DONE):** `campfire.js`: after the closing talk of round 5 the screen goes
+  dark, night falls over a campfire (logs, a ring of stones, flickering flames, a warm glow,
+  floating sparks) with Sol, Marlo and Ember round it, Pip joking and Marlo playing the lullaby.
+  He tells about Lyra ("She used to fall asleep before the second verse. Every time."); a memory
+  shard rises out of the fire and shows a picture: a young father with a small girl on his
+  shoulders, her arms up, a star in her hair; then it flies to Sol (the aura flares) and is
+  saved (`progress.shards`). Day returns and the end screen says "Chapter 1 complete! Sunmeadow
+  is green again. Memory shard 1 of 5." The campfire is made of shapes and runs by the real
+  clock, so it moves while people talk. Tests: group 24 (13 checks).
 - Tide and Volt still join after the first win for now (the story gates them in Stage 13);
   Ember and Sol are the Chapter 1 pair in the words.
+
+## Stage 10 plan: the Home Village (first version)
+**Goal:** the open-world part. A calm, walkable village on its own floating isle with no enemies and no
+timer: Marlo's old clan lives there, you walk up and talk to them, you can see who is strong by their
+aura, and the Hero Hall is where you pick your squad and start the next battle. (Plan written on
+Sonnet from `CLAUDE.md`'s Home Village section; Stage 11 adds the daily life, sparring and guests.)
+- **The place (chunk 1).** `src/village.js`: a bigger isle than the arena (radius about 18, the arena is
+  hidden while you are in the village), with places: the **Hero Hall** (a chunky building with a
+  glowing door), the **training yard** (dummies and posts), the **sparring ring** (a sand circle with
+  ropes), the **pond** (water, reeds, lily pads), the **campfire square** (the fire from Chapter 1,
+  logs and benches), the **lookout tower**, a **notice board** (the Power Rankings), trees, lamps and
+  paths. The hero walks with the same controls; the walking limit and the camera follow the bigger isle.
+  A "Village" button on the end screen takes you there; walking into the Hall's glowing door brings the
+  squad screen and the next round.
+- **The clan (chunks 2 and 3).** `src/character-gen.js` makes random clan members from mix-and-match parts
+  (body shape, hair, hat, colours, accessory), each with a name, a type, a Power number and a personality;
+  the clan is made once from a saved seed, so the same people are there every visit. `src/clan.js` puts
+  about 14 of them in the village (each near a place), idling and wandering a little, with an aura that
+  shows their Power at a glance and a small name tag with their Power when you are near. The Rankings
+  board now lists these real people (Rook stays number 1), so you can go and find them.
+- **Talk (chunk 3).** Walk up to someone and a "Talk" button appears: one short line from their
+  personality (proud, shy, cheerful, sleepy, serious...). Their Power and rank are on the name tag.
+- **The Hall and polish (chunk 4).** The Hall's door starts the next round; coming back from a round puts
+  you at the Hall door; the village has its own calm music; tests on both pages; republish.
+- **Phone speed:** members are drawn with few shapes (no shadows, a flat blob under them) and far ones
+  are simpler; the aim is 14 now and 20 to 30 later.
+- **New files:** `src/village.js`, `src/clan.js`, `src/character-gen.js` (all in the planned folder list).
+  Changes to old files: `scene.js` (the arena's pieces are grouped so they can be hidden; a "mode" switch),
+  `hero.js`/`squad.js` (the walking limit can change), `menus.js` (a "Village" button), `rankings.js`.
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on

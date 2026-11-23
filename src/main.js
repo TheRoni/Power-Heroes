@@ -16,11 +16,11 @@ import { createMusic } from './music.js';
 import { createAura } from './aura.js';
 import { createOverdrive, BOOST } from './overdrive.js';
 import { createRounds } from './rounds.js';
-import { createProgress, shortNumber } from './power.js';
+import { createCampfire } from './campfire.js';
+import { createProgress } from './power.js';
 import { createSave } from './save.js';
 import { registerOffline } from './offline.js';
 import { flag, DEBUG, TITLE, PICK, CHAPTER, PERSIST, PLAYER_KIND } from './flags.js';
-
 
 // --- Set up the screen ---
 const canvas = document.getElementById('game');
@@ -58,7 +58,7 @@ function shake(amount) {
   if (!calmMotion) fx.shake = Math.max(fx.shake, amount);
 }
 
-const frozen = () => prologue.cinematic || rounds.ending !== null || story.waiting === 'arrive';   // the controls are off
+const frozen = () => prologue.cinematic || rounds.ending !== null || story.waiting === 'arrive' || campfire.active;   // the controls are off
 
 // --- Create everything ---
 const world = createWorld();
@@ -124,7 +124,7 @@ const story = createStory({
   onSpeak: () => pip.excite(),
   onWait: (kind) => (kind === 'arrive' ? rounds.arrive() : prologue.startLesson(kind)),   // a lesson begins, or Ember runs in
   vars: () => rounds.vars(),   // "Power {power}" in a line is Sol's Power
-  onCue: (cue) => prologue.cue(cue),
+  onCue: (cue) => { if (!campfire.cue(cue)) prologue.cue(cue); },   // the campfire's cues (the fire, the shard), or the prologue's
   audio,
   music,
 });
@@ -163,8 +163,9 @@ const waves = createWaves({
 // The rounds: the squad, XP and Power, the squad screen, saving, and how a round ends (see rounds.js).
 const aura = createAura({ scene: world.scene, position: player.position, sparks: powers.sparks });   // grows with Power (see aura.js)
 const overdrive = createOverdrive({ squad, aura, ui, audio, shake });   // hits fill a meter; when it is full, Overdrive
+const campfire = createCampfire({ world, player, marlo, ember, story, audio, aura, progress, ui });   // the night after the boss (see campfire.js)
 const rounds = createRounds({
-  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick: PICK, chapter: CHAPTER,
+  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire, pick: PICK, chapter: CHAPTER,
   onNewRound: () => {   // the game's own small resets
     hintHidden = true;   // the how-to-play hint is for the first round only (it would sit on the portraits)
     hint.classList.add('gone');
@@ -184,14 +185,6 @@ const begin = () => (progress.has('prologue') ? (music.play('sunmeadow', 1), pro
 const naming = { name: () => progress.name, set: (text) => { HEROES.sol.name = progress.setName(text); showHero(player.kind); } };   // the title screen's name box
 if (TITLE) ui.showTitle(begin, progress.saved ? () => { save.clear(); location.reload(); } : null, naming);   // the first tap starts the sound and the story
 else prologue.go();
-
-// The small note in the corner, such as "Wave 2/3 · 5 left".
-function waveText() {
-  const round = rounds.label() ? `${rounds.label()} · ` : '';   // "Round 2/5 · " in the chapter
-  if (waves.state === 'break') return round + (waves.wave === 1 ? 'Get ready…' : `Wave ${waves.wave} coming…`);
-  if (waves.state === 'spawning' || waves.state === 'fighting') return `${round}Wave ${waves.wave}/${waves.total} · ${waves.remaining} left · Gloom Power ${shortNumber(waves.enemyPower)}`;
-  return '';
-}
 
 // --- Keep the picture the right size, on every screen and when the phone is turned ---
 function resize() {
@@ -213,7 +206,7 @@ let hintHidden = false;
 
 if (DEBUG) {
   ui.showFps();
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura, overdrive };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura, overdrive, campfire };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -248,6 +241,7 @@ function frame(now) {
   marlo.raise(waves.state === 'spawning' || waves.state === 'fighting' || prologue.lanternUp);   // he holds his lantern up while the fight is on
   marlo.update(realDt, now / 1000, player.position);
   ember.update(realDt, now / 1000);
+  campfire.update(realDt, now / 1000);
   rounds.update(realDt);
   // Pip stays by the hero, but in a conversation Pip hovers by Marlo if he has come over to talk.
   const marloHere = prologue.pipWithMarlo || (story.active && Math.hypot(marlo.position.x - player.position.x, marlo.position.z - player.position.z) < 5);
@@ -283,7 +277,7 @@ function frame(now) {
   ui.setHealth(player.health / player.maxHealth);
   ui.setPortraits(squad.status, squad.swapReady);
   ui.setPower(powers.powerProgress);
-  ui.setWaveText(waveText());
+  ui.setWaveText(rounds.note());
   renderer.render(world.scene, world.camera);
 
   if (!hintHidden && (move.x !== 0 || move.z !== 0)) {

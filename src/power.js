@@ -55,7 +55,7 @@ export const enemyPowerFor = (averagePower, wave) => Math.max(6, Math.round(aver
 // "start(kind)" says each hero's Power when they join (heroes-data.js). "save" ({ load(), store(data) }) is optional.
 // "flat" (a number) makes every hero's Power that number whatever their XP (debug mode: the tests expect Power 10).
 export function createProgress(start, save = null, flat = null) {
-  const fresh = () => ({ version: 1, xp: { sol: 0 }, roundsWon: 0, unlocked: ['sol'], seen: {}, round: 1 });
+  const fresh = () => ({ version: 1, xp: { sol: 0 }, roundsWon: 0, unlocked: ['sol'], seen: {}, round: 1, shards: [] });
   let data = (save && save.load()) || fresh();
   let name = cleanName(save && save.loadName ? save.loadName() : null);   // the hero's name (kept even when the progress is wiped)
   const xpOf = (kind) => data.xp[kind] ?? xpForPower(start(kind) || 1);
@@ -69,6 +69,8 @@ export function createProgress(start, save = null, flat = null) {
     get roundsWon() { return data.roundsWon; },
     get round() { return data.round || 1; },   // the round of the chapter to play next (one more than the last one is: the chapter is done)
     advance(last) { data.round = Math.min(last, (data.round || 1) + 1); },
+    get shards() { return (data.shards || []).length; },   // memory shards found (one for each chapter)
+    collectShard(chapter = 1) { data.shards = data.shards || []; if (!data.shards.includes(chapter)) data.shards.push(chapter); },
     get unlocked() { return [...data.unlocked]; },
     averagePower(kinds) { return Math.round(kinds.reduce((sum, kind) => sum + powerOf(kind), 0) / Math.max(1, kinds.length)); },
     // Gives XP to some heroes. Returns what happened to each: { kind, xp, before, after }.

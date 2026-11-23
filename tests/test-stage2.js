@@ -2956,6 +2956,10 @@ const nextRound = async (page) => {   // from the end screen: "Next round", the 
   await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
   return title;
 };
+const skipCampfire = async (page) => {   // the night after round 5: wait for Marlo's story, and skip it
+  await until(page, () => window.__game.campfire.phase === 'scene' && window.__game.story.active);
+  await page.evaluate(() => window.__game.story.skip());
+};
 const winRound = async (page) => {   // beat everything at once, then let Marlo's closing conversation run to the end screen
   await page.evaluate(() => {
     const G = window.__game;
@@ -3032,9 +3036,10 @@ async function chunk21(browser) {
   check('round 5 is General Bramble: its banner and the boss marked (the boss itself comes next)', squad5 === 'Round 5/5 · General Bramble' && r5.sub === 'General Bramble' && r5.boss === 'bramble' && r5.total === 3, JSON.stringify([squad5, r5]));
   await winRound(page);
   await page.evaluate(() => window.__game.story.skip());
+  await skipCampfire(page);
   await until(page, () => !document.getElementById('end').hidden);
   const e5 = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round, label: window.__game.rounds.label(), now: window.__game.rounds.round }));
-  check('winning round 5 says "Isle saved!" with a "Keep playing" button; the chapter is done (no round to play now)', e5.title === 'Isle saved!' && e5.button === 'Keep playing' && e5.round === 6 && e5.label === '' && e5.now === null, JSON.stringify(e5));
+  check('winning round 5 (after the night at the campfire) says "Chapter 1 complete!" with a "Keep playing" button; the chapter is done (no round to play now)', e5.title === 'Chapter 1 complete!' && e5.button === 'Keep playing' && e5.round === 6 && e5.label === '' && e5.now === null, JSON.stringify(e5));
   await page.screenshot({ path: `${OUT}/chapter-3-done.png` });
   const free = await nextRound(page);
   const f = await page.evaluate(() => ({ note: document.getElementById('hud-wave').textContent, total: window.__game.waves.total, banner: document.getElementById('banner-title').textContent }));
@@ -3054,7 +3059,7 @@ async function chunk21(browser) {
   await until(page, () => !document.getElementById('squad-screen').hidden);
   await page.click('#squad-go');
   await until(page, () => window.__game.waves.state === 'break' || window.__game.waves.state === 'spawning');
-  await page.evaluate(() => { const G = window.__game; G.player.takeHit(100000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  await page.evaluate(() => { const G = window.__game; for (const kind of G.squad.roster) G.squad.members[kind].hero.takeHit(1e6, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });   // (the whole squad, one by one: the round is lost only when everybody is out)
   await waitForClosing(page);
   await page.evaluate(() => window.__game.story.skip());
   await until(page, () => !document.getElementById('end').hidden);
@@ -3327,9 +3332,10 @@ async function chunk23(browser) {
   }
   check('Pip speaks first in the closing conversation ("He turned back into a PERSON")', spoke);
   await page.evaluate(() => window.__game.story.skip());
+  await skipCampfire(page);
   await until(page, () => !document.getElementById('end').hidden);
   const end = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round, xp: window.__game.rounds.gains[0].xp }));
-  check('then "Isle saved!" with "Keep playing", the chapter done, and the XP includes the boss (worth ten Gloomlings: 30) and the win bonus (20)', end.title === 'Isle saved!' && end.button === 'Keep playing' && end.round === 6 && end.xp === 50, JSON.stringify(end));
+  check('then (after the campfire) "Chapter 1 complete!" with "Keep playing", the chapter done, and the XP includes the boss (worth ten Gloomlings: 30) and the win bonus (20)', end.title === 'Chapter 1 complete!' && end.button === 'Keep playing' && end.round === 6 && end.xp === 50, JSON.stringify(end));
 
   // Lost to the boss: "Try again" goes straight back to him (not the two waves before).
   CHAPTER_ON = true; SHOW_SQUAD = true;
@@ -3357,10 +3363,140 @@ async function chunk23(browser) {
   check('and he is right there: wave 3 of 3, only him on the island, "General Bramble" on the banner (no warm-up waves again)', again.wave === 3 && again.total === 3 && again.enemies === 1 && again.title === 'General Bramble' && again.note.startsWith('Round 5/5 · Wave 3/3'), JSON.stringify(again));
 }
 
+// ---------- The campfire and the first memory shard ----------
+const campfireUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createCampfire } = await import('/src/campfire.js');
+  const { SCENES } = await import('/src/story-data.js');
+  const out = {};
+  const at = (o) => [o.position.x, o.position.y, o.position.z].map((n) => +n.toFixed(1)).join();
+  const make = (kind = 'sol') => {
+    const log = { night: [], curtain: [], scenes: [], sounds: [], flares: 0, shards: 0, stored: 0, marlo: [], ember: [], done: 0, follow: 0 };
+    const scene = new THREE.Scene();
+    let talkDone = null;
+    const player = { kind, position: new THREE.Vector3(5, 0, 5), velocity: { x: 3, z: 3 }, face(a) { log.faced = +a.toFixed(2); } };
+    const marlo = { position: new THREE.Vector3(8, 0, 8), walkTo(x, z) { log.marlo.push(`walk ${x.toFixed(1)},${z.toFixed(1)}`); }, goHome() { log.marlo.push('home'); }, raise(on) { log.marlo.push(`raise ${on}`); } };
+    const ember = { runIn(...a) { log.ember.push(a.map((n) => +n.toFixed(1)).join()); }, leave() { log.ember.push('leave'); } };
+    const story = { scene(name, done) { log.scenes.push(name); talkDone = done; } };
+    const fire = createCampfire({ world: { scene, setNight: (a) => log.night.push(a), follow: () => { log.follow++; } }, player, marlo, ember, story, audio: { play: (n) => log.sounds.push(n) }, aura: { flare: () => { log.flares++; } }, progress: { collectShard() { log.shards++; }, store() { log.stored++; } }, ui: { setCurtain: (on) => log.curtain.push(on) } });
+    const run = (seconds) => { for (let i = 0; i < Math.round(seconds * 30); i++) fire.update(1 / 30, i / 30); };
+    return { fire, log, player, marlo, run, scene, talkDone: () => talkDone && talkDone() };
+  };
+  {
+    const a = make();
+    out.idle = { phase: a.fire.phase, active: a.fire.active };
+    a.fire.play(() => { a.log.done++; });
+    out.dusk = { phase: a.fire.phase, active: a.fire.active, curtain: a.log.curtain.join() };
+    a.run(0.5);
+    out.duskMid = { phase: a.fire.phase, nights: a.log.night.length, moved: at(a.player) };
+    a.run(0.5);
+    out.lit = { phase: a.fire.phase, night: a.log.night[a.log.night.length - 1], curtain: a.log.curtain.join(), player: at(a.player), velocity: `${a.player.velocity.x},${a.player.velocity.z}`, marlo: at(a.marlo), walk: a.log.marlo.join(), ember: a.log.ember.join(';'), follow: a.log.follow, faced: a.log.faced };
+    a.run(1.3);
+    out.scene = { phase: a.fire.phase, scenes: a.log.scenes.join(), active: a.fire.active };
+    out.cues = { nope: a.fire.cue('nope'), flute: a.fire.cue('flute'), rise: a.fire.cue('shard-rise') };
+    a.run(0.5);
+    out.rising = a.fire.shard;
+    a.run(1);
+    out.hover = a.fire.shard;
+    a.fire.cue('vision');
+    a.run(2);
+    const vision = a.scene.children[2];
+    out.vision = { shown: vision.visible, opacity: +vision.children[0].material.opacity.toFixed(2), nights: a.log.night.filter((n) => n === 1).length > 30 };
+    a.fire.cue('shard-take');
+    a.run(0.5);
+    out.flying = { shard: a.fire.shard, taken: a.log.shards };
+    a.run(0.6);
+    out.taken = { shard: a.fire.shard, shards: a.log.shards, stored: a.log.stored, flares: a.log.flares, sounds: a.log.sounds.join() };
+    a.run(3);
+    out.visionGone = !vision.visible;
+    a.talkDone();
+    out.dawn = { phase: a.fire.phase, curtain: a.log.curtain[a.log.curtain.length - 1], marlo: a.log.marlo.join() };
+    a.run(1);
+    out.dawnMid = { phase: a.fire.phase, ember: a.log.ember.join(';') };
+    a.run(1);
+    out.back = { phase: a.fire.phase, night: a.log.night[a.log.night.length - 1], ember: a.log.ember.join(';'), marlo: a.log.marlo.join(), fire: a.scene.children[0].visible, curtain: a.log.curtain.join(), done: a.log.done };
+    a.run(1);
+    out.over = { phase: a.fire.phase, active: a.fire.active, done: a.log.done, shards: a.log.shards };
+  }
+  {   // the cues are skipped (a test, or a player who skips): the shard is taken anyway, exactly once
+    const b = make();
+    b.fire.play(() => { b.log.done++; });
+    b.run(2.6);
+    b.talkDone();
+    b.run(4.5);
+    out.skipped = { phase: b.fire.phase, shards: b.log.shards, flares: b.log.flares, done: b.log.done, night: b.log.night[b.log.night.length - 1] };
+  }
+  {   // if Ember is the hero in play she is already there (no second Ember runs in)
+    const c = make('ember');
+    c.fire.play(() => {});
+    c.run(1);
+    out.emberHero = c.log.ember.join(';');
+  }
+  {   // the story's words
+    const lines = SCENES.campfire.filter(Array.isArray);
+    out.words = { speakers: lines.map((l) => l[0]).join(), cues: lines.filter((l) => l[2]).map((l) => l[2]).join(), first: SCENES.campfire[0].music, shorter: lines.every((l) => l[1].length < 90), lyra: lines.some((l) => /second verse/.test(l[1])), end: lines[lines.length - 1][1], win5end: SCENES.win5[SCENES.win5.length - 1][1] };
+  }
+  return out;
+};
+
+async function chunk24(browser) {
+  let { page } = await openGame(browser, 'campfire-unit');
+  const u = await page.evaluate(campfireUnit);
+  check('the campfire waits quietly until it is asked; then the screen starts to go dark and nothing else changes yet (no night, nobody moved)', u.idle.phase === 'idle' && !u.idle.active && u.dusk.phase === 'dusk' && u.dusk.active && u.dusk.curtain === 'true' && u.duskMid.phase === 'dusk' && u.duskMid.nights === 0 && u.duskMid.moved === '5,0,5', JSON.stringify([u.idle, u.dusk, u.duskMid]));
+  check('when the screen is dark: night falls, Sol sits on one side of the fire, Marlo on another, Ember runs in to the third, the camera jumps to the fire, and the screen comes back', u.lit.phase === 'lit' && u.lit.night === 1 && u.lit.curtain === 'true,false' && u.lit.player === '-1.8,0,0.9' && u.lit.velocity === '0,0' && u.lit.marlo === '-2.4,0,-1.3' && /walk -2.4,-1.3/.test(u.lit.walk) && u.lit.ember === '3.8,1.6,1.9,0.8,0,0' && u.lit.follow === 1 && Math.abs(u.lit.faced - 2.03) < 0.05, JSON.stringify(u.lit));
+  check('then Marlo\'s story starts (the "campfire" conversation) and the controls are off for as long as it lasts', u.scene.phase === 'scene' && u.scene.scenes === 'campfire' && u.scene.active, JSON.stringify(u.scene));
+  check('the story\'s cues make things happen: the flute (Marlo raises his lantern), then the shard rises out of the fire and hangs there; unknown cues are left to someone else', u.cues.nope === false && u.cues.flute && u.cues.rise && u.rising === 'rising' && u.hover === 'hovering', JSON.stringify([u.cues, u.rising, u.hover]));
+  check('the picture of Lyra fades in over the fire (and the stars keep twinkling), and when the shard is taken it flies to Sol, is saved once, the aura flares and there is a fanfare', u.vision.shown && u.vision.opacity > 0.5 && u.vision.nights && u.flying.shard === 'flying' && u.flying.taken === 0 && u.taken.shard === 'taken' && u.taken.shards === 1 && u.taken.stored === 1 && u.taken.flares === 1 && /chime/.test(u.taken.sounds) && /sunrise/.test(u.taken.sounds) && /tier/.test(u.taken.sounds) && u.visionGone, JSON.stringify([u.vision, u.flying, u.taken, u.visionGone]));
+  check('when the talk is over the screen goes dark again, day comes back, the fire is put out, Ember leaves and Marlo goes home; then the screen comes back and "it is over" is said once', u.dawn.phase === 'dawn' && u.dawn.curtain === true && u.dawnMid.phase === 'dawn' && u.back.phase === 'back' && u.back.night === 0 && /leave/.test(u.back.ember) && /home/.test(u.back.marlo) && !u.back.fire && u.back.curtain === 'true,false,true,false' && u.back.done === 0 && u.over.phase === 'idle' && !u.over.active && u.over.done === 1 && u.over.shards === 1, JSON.stringify([u.dawn, u.dawnMid, u.back, u.over]));
+  check('if the cues are skipped the shard is still taken (once), and the night still ends', u.skipped.phase === 'idle' && u.skipped.shards === 1 && u.skipped.flares === 1 && u.skipped.done === 1 && u.skipped.night === 0, JSON.stringify(u.skipped));
+  check('if Ember is the hero in play, no second Ember runs in', u.emberHero === '', JSON.stringify(u.emberHero));
+  check('the words: Pip, Ember and Marlo joke, Marlo plays and tells about Lyra ("She used to fall asleep before the second verse. Every time."), the shard shows her, and he says Tidecove is next; the lines are short; the lullaby plays', u.words.speakers.startsWith('pip,ember,pip,marlo,marlo,sol,marlo,marlo,pip,marlo') && u.words.cues === 'flute,shard-rise,vision,shard-take' && u.words.first === 'lullaby' && u.words.shorter && u.words.lyra && /Tidecove/.test(u.words.end) && /fire/.test(u.words.win5end), JSON.stringify(u.words));
+
+  // The whole thing in the live game: the boss, his last words, the closing talk, the night, the shard, and the end screen.
+  SAVE_ON = true; CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'campfire-live'));
+  SAVE_ON = false; CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.data.round = 5; G.rounds.restart(); });
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
+  await page.evaluate(() => {
+    const G = window.__game;
+    for (let i = 0; i < 30 * 200 && !G.waves.boss; i++) { G.gloomlings.filter((g) => !g.boss).forEach((g) => { g.remove(); G.gloomlings.splice(G.gloomlings.indexOf(g), 1); }); G.waves.update(1 / 30); }
+  });
+  await until(page, () => window.__game.waves.boss.state !== 'grow');
+  await page.evaluate(() => { const b = window.__game.waves.boss; b.hit(b.health + 1); });
+  await until(page, () => window.__game.story.active);   // his last words
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => window.__game.story.active && document.getElementById('dialogue-name').textContent === 'Pip');   // the closing talk
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => window.__game.campfire.phase === 'dusk' || window.__game.campfire.phase === 'lit' || window.__game.campfire.phase === 'scene');
+  const dark = await page.evaluate(() => ({ curtain: document.getElementById('curtain').classList.contains('on'), end: document.getElementById('end').hidden, phase: window.__game.campfire.phase }));
+  check('after the closing talk the screen goes dark first (and the end screen waits)', dark.end && (dark.curtain || dark.phase !== 'dusk'), JSON.stringify(dark));
+  await until(page, () => window.__game.campfire.phase === 'scene' && window.__game.story.active);
+  const lit = await page.evaluate(() => { const G = window.__game; const d = (o) => +Math.hypot(o.position.x, o.position.z).toFixed(1); return { night: G.world.night, curtain: document.getElementById('curtain').classList.contains('on'), sol: d(G.player), marlo: d(G.marlo), ember: G.ember.state, who: document.getElementById('dialogue-name').textContent }; });
+  check('then it is night, the screen is back, Sol and Marlo are round the fire (within 3 units of it), Ember has come, and Pip begins ("A fire!")', lit.night === 1 && !lit.curtain && lit.sol < 3 && lit.marlo < 3 && lit.ember !== 'away' && lit.who === 'Pip', JSON.stringify(lit));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/campfire-1-fire.png` });
+  let sawShard = false, sawVision = false;
+  for (let guard = 0; guard < 120 && (await page.evaluate(() => window.__game.story.active)); guard++) {
+    const now = await page.evaluate(() => ({ shard: window.__game.campfire.shard, vision: window.__game.world.scene.children.some((c) => c.type === 'Group' && c.visible && c.children.length > 12 && c.children.some((k) => k.type === 'Sprite')) }));
+    if (now.shard === 'hovering' && !sawShard) { sawShard = true; await page.waitForTimeout(500); await page.screenshot({ path: `${OUT}/campfire-2-shard.png` }); }
+    if (now.vision && !sawVision && now.shard === 'hovering') { sawVision = true; await page.waitForTimeout(1500); await page.screenshot({ path: `${OUT}/campfire-3-vision.png` }); }
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Space');
+  }
+  check('reading on, the shard rises out of the fire and hangs there while Marlo speaks, and the picture shows', sawShard);
+  await until(page, () => !document.getElementById('end').hidden);
+  const end = await page.evaluate(() => { const G = window.__game; return { title: document.getElementById('end-title').textContent, text: document.getElementById('end-text').textContent, button: document.getElementById('end-button').textContent, night: G.world.night, shards: G.progress.shards, shard: G.campfire.shard, active: G.campfire.active, saved: JSON.parse(localStorage.getItem('powerheroes.save')).shards, round: G.progress.round, curtain: document.getElementById('curtain').classList.contains('on'), marlo: G.marlo.atHome }; });
+  check('then the end screen says "Chapter 1 complete!" with "Memory shard 1 of 5", it is day again and the screen is clear; the shard is saved, and the chapter is done', end.title === 'Chapter 1 complete!' && end.text === 'Sunmeadow is green again. Memory shard 1 of 5.' && end.button === 'Keep playing' && end.night === 0 && end.shards === 1 && end.shard === 'taken' && !end.active && JSON.stringify(end.saved) === '[1]' && end.round === 6 && !end.curtain, JSON.stringify(end));
+  await page.screenshot({ path: `${OUT}/campfire-4-end.png` });
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

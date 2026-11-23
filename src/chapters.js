@@ -32,10 +32,11 @@ export const CHAPTERS = {
       {
         name: 'General Bramble', boss: 'bramble', sizes: [8, 10], power: 1.4, intro: 'round5',   // two waves, then the boss alone
         types: [['nature'], ['nature', 'storm']],
-        won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Keep playing' },
+        won: { title: 'Chapter 1 complete!', text: 'Sunmeadow is green again.', button: 'Keep playing', shard: true },
       },
     ],
   },
 };
 
 export const ROUNDS = CHAPTERS[1].rounds.length;   // (Chapter 1 is the only chapter so far)
+export const SHARDS = 5;   // memory shards in the whole story: one for each chapter

@@ -191,6 +191,10 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
 
   // The small "Wave 1/3 · 4 left" note under Ember's health bar.
   let lastText = null;
+  // The screen fades to dark and back (the campfire).
+  const curtain = document.getElementById('curtain');
+  const setCurtain = (on) => curtain.classList.toggle('on', on);
+
   // The boss's health bar (the boss from waves.boss, or null to hide it).
   const bossBox = document.getElementById('boss');
   const bossName = document.getElementById('boss-name');
@@ -234,5 +238,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setBoss, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
+  return { setHealth, setPower, setHero, setBoss, setCurtain, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
 }
