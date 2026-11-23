@@ -159,6 +159,17 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
     return true;
   }
 
+  // A line from somebody who is not Pip or Marlo (a person of the village): "text" floats over "object" (anything with a position).
+  function sayAt(text, object, lift = 2.7) {
+    if (active || waiting) return false;
+    lastBubble = text;
+    bubble.textContent = text;
+    bubble.classList.add('show');
+    bubbleLeft = BUBBLE_TIME + 1;
+    bubbleAnchor = { object, lift };
+    return true;
+  }
+
   // Called every frame with the real time that passed (it keeps going even while the game waits).
   function update(dt) {
     if (active) {
@@ -208,7 +219,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
   }, true);
 
   return {
-    scene, say, skip, advance, resume, update,
+    scene, say, sayAt, skip, advance, resume, update,
     get active() { return active; },
     get waiting() { return waiting; },
     get inScene() { return active || waiting !== null; },

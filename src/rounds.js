@@ -3,7 +3,8 @@
 import { HEROES } from './heroes-data.js';
 import { WALK_RADIUS } from './scene.js';
 import { xpForKill, winBonus, enemyPowerFor, xpForPower, shortNumber } from './power.js';
-import { board, passes, windowed, MARLO } from './rankings.js';
+import { board, passes, windowed, MARLO, RIVALS } from './rankings.js';
+import { CLAN_LINES } from './story-data.js';
 import { CHAPTERS, ROUNDS, SHARDS } from './chapters.js';
 import { DOOR, PLACES, VILLAGE_WALK } from './village.js';
 
@@ -32,7 +33,9 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   };
 
   // The Power Rankings: the heroes who have joined you, among the other heroes of the isle.
-  const rows = () => board(progress.unlocked.map((kind) => ({ kind, name: HEROES[kind].name, type: HEROES[kind].type, power: progress.powerOf(kind) })));
+  // (Rook is number 1; the others are the people of the clan, who live in the village, or the first few if the village is not there.)
+  const rivals = () => [RIVALS[0], ...(village ? village.people : RIVALS.slice(1)).map(({ name, type, power }) => ({ name, type, power }))];
+  const rows = () => board(progress.unlocked.map((kind) => ({ kind, name: HEROES[kind].name, type: HEROES[kind].type, power: progress.powerOf(kind) })), rivals());
   const showRankings = () => ui.showRankings(windowed(rows()), MARLO.note);
 
   // Everybody takes their Power (it changed after some XP), and the corner shows the hero in play.
@@ -123,7 +126,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     player.face(0);
     marlo.position.set(PLACES.square.x - 2.8, 0, PLACES.square.z + 0.6);
     marlo.walkTo(marlo.position.x, marlo.position.z);
-    music.play('sunmeadow', 1.5);
+    music.play('village', 1.5);
     story.say('village');
   }
   function fromVillage() {
@@ -132,11 +135,23 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     marlo.goHome();
     restart();
   }
-  // The big button in the village: the Hall's door starts the next round, the notice board shows the Power Rankings.
+  // Somebody of the village says a line (their kind of person has three; never the same one twice in a row).
+  let lastLine = '';
+  function talk(member) {
+    const lines = CLAN_LINES[member.personality];
+    let line;
+    do line = lines[Math.floor(Math.random() * lines.length)]; while (line === lastLine && lines.length > 1);
+    lastLine = line;
+    story.sayAt(`${member.name}: ${line.replace('{power}', shortNumber(member.power))}`, member.model.group);
+  }
+
+  // The big button in the village: the Hall's door starts the next round, the notice board shows the Power Rankings, a person talks.
   function press() {
     const action = village.actionAt(player.position);
-    if (action && action.id === 'hall') fromVillage();
-    else if (action && action.id === 'board') showRankings();
+    if (!action) return;
+    if (action.id === 'hall') fromVillage();
+    else if (action.id === 'board') showRankings();
+    else if (action.id === 'talk') talk(action.member);
   }
 
   // The prologue is over: the first wave (or, for someone who has played before, the squad screen).

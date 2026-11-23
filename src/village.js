@@ -7,6 +7,7 @@ import { buildFire, animateFire } from './campfire.js';
 
 export const VILLAGE_RADIUS = 18;   // the whole isle
 export const VILLAGE_WALK = 16.4;   // how far from the middle the hero may walk
+const TALK_RANGE = 2.4;             // how close you must be to talk to somebody
 const BODY = 0.45;                  // how close to a solid thing the hero's middle may come (on top of its size)
 
 // Where everything is: x to the east, z to the south (the camera looks north). "solid" is circles [x, z, size] the hero cannot walk through.
@@ -31,7 +32,8 @@ const ACTIONS = [
 const PATHS = [[0, -10.4, 0, 3.5], [0, -3, -8, -3], [0, -3, 8, -3], [1.5, 5.5, -6.8, 7.4], [1.5, 5.5, 10.6, 8.6], [-3.4, -8.3, 0, -8.3]];
 
 // "world" is the 3D world (scene.js): the village is added to it, and its setMode hides the arena while you are in the village.
-export function createVillage({ world }) {
+// "clan" (optional) is the people who live here (clan.js): they appear when you come, and go when you leave.
+export function createVillage({ world, clan = null }) {
   const group = new THREE.Group();
   group.visible = false;
   world.scene.add(group);
@@ -78,17 +80,25 @@ export function createVillage({ world }) {
     }
   }
 
-  // The thing the big button would do where you stand (the Hall's door, the notice board), or null.
+  // The thing the big button would do where you stand (the Hall's door, the notice board, or talking to somebody), or null.
   function actionAt(position) {
-    return ACTIONS.find((a) => Math.hypot(position.x - a.x, position.z - a.z) < a.size) || null;
+    const place = ACTIONS.find((a) => Math.hypot(position.x - a.x, position.z - a.z) < a.size);
+    if (place) return place;
+    const person = clan && clan.nearest(position, TALK_RANGE);
+    return person ? { id: 'talk', label: 'Talk', member: person } : null;
   }
 
-  function enter() { world.setMode('village'); group.visible = true; }
-  function leave() { group.visible = false; world.setMode('arena'); }
-  function update(dt, time) { if (group.visible) animateFire(fire, time, dt); }
+  function enter() { world.setMode('village'); group.visible = true; if (clan) clan.show(true); }
+  function leave() { group.visible = false; world.setMode('arena'); if (clan) clan.show(false); }
+  function update(dt, time, hero) {
+    if (!group.visible) return;
+    animateFire(fire, time, dt);
+    if (clan) clan.update(dt, time, hero);
+  }
 
   return {
     group, enter, leave, update, keepOut, actionAt,
     get active() { return group.visible; },
+    get people() { return clan ? clan.members : []; },
   };
 }

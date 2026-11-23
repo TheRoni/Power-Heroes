@@ -1496,7 +1496,7 @@ async function chunk11(browser) {
   check('scale degrees follow the key and the mode (D major: A, high F#, low C#; D minor: B-flat, C, F)', u.parse.major === '0:1:69 1:2:78 3:1:61' && u.parse.minor === '0:1:70 1:1:72 2:1:65', JSON.stringify([u.parse.major, u.parse.minor]));
   check('a bad note name or a zero length is refused', u.badName && u.badLength);
   const songNames = Object.keys(u.songs);
-  check(`the ${songNames.length} songs load, and every track fills its loop exactly`, songNames.join() === 'falling-star,sunmeadow,marlo,lullaby,lullaby-sorrow,battle' && songNames.every((n) => u.songs[n].events >= 10 && u.songs[n].level <= 1 && u.songs[n].tempo >= 40 && u.songs[n].tempo <= 160), JSON.stringify(u.songs));
+  check(`the ${songNames.length} songs load, and every track fills its loop exactly`, songNames.join() === 'falling-star,sunmeadow,marlo,village,lullaby,lullaby-sorrow,battle' && songNames.every((n) => u.songs[n].events >= 10 && u.songs[n].level <= 1 && u.songs[n].tempo >= 40 && u.songs[n].tempo <= 160), JSON.stringify(u.songs));
   check('each song has a flute (the lullabies are the flute alone) and the others add instruments', songNames.every((n) => /flute/.test(u.songs[n].voices)) && songNames.filter((n) => !/lullaby/.test(n)).every((n) => u.songs[n].voices.split(',').length >= 3) && songNames.filter((n) => /lullaby/.test(n)).every((n) => u.songs[n].voices === 'flute'), JSON.stringify(Object.fromEntries(songNames.map((n) => [n, u.songs[n].voices]))));
   check('Lyra\'s Lullaby: verse one (A4, high F#5, E5, D5, C#5, B4 ...) ends OPEN on the fifth (A4), then four bars of silence', u.lullaby.warm === '69,78,76,74,73,71,69,71,69,78,79,78,76,74,73,69' && u.lullaby.warmLast.notes[0] === 69 && u.lullaby.warmLast.beat === 21 && u.lullaby.warmLast.beats === 3 && u.songs.lullaby.seconds === 36 * u.lullaby.warmSpb, JSON.stringify(u.lullaby));
   check('the lullaby in sorrow is the same tune in the minor (F instead of F#, B-flat instead of B), slower, and stops in mid-phrase', u.lullaby.sad === '69,77,76,74,72,70,69,70,69,77,79' && u.lullaby.sadSpb > u.lullaby.warmSpb && u.lullaby.sadLastBeat === 15 && u.songs['lullaby-sorrow'].seconds > 45, JSON.stringify([u.lullaby.sad, u.lullaby.sadLastBeat, u.songs['lullaby-sorrow'].seconds]));
@@ -2615,7 +2615,7 @@ async function chunk19(browser) {
     note: document.getElementById('rankings-note').textContent,
     title: document.getElementById('rankings-title').textContent,
   }));
-  check('the board opens: number 1 Rook 2,400, a gap, then the rows around your four heroes (marked "you"), and the line about Marlo', board.shown && board.rows === '#1 Rook 2,400 | .. | #4 Marigold 230 | #5 Juno 150 | #6 Ember 120 * | #7 Volt 100 * | #8 Tide 90 * | #9 Pebble 80 | #10 Wren 45 | #11 Sol 10 *' && board.note === 'Keeper Marlo is retired. His Power is still a faded 9,999.' && board.title === 'Power Rankings', JSON.stringify(board));
+  check('the board opens: number 1 Rook 2,400, a gap, then the rows around your four heroes (marked "you") among the people of the village, a gap, and the last one; and the line about Marlo', board.shown && board.rows === '#1 Rook 2,400 | .. | #8 Flint 129 | #9 Ember 120 * | #10 Volt 100 * | #11 Sage 98 | #12 Tide 90 * | #13 Pebble 80 | .. | #18 Ivy 38 | #19 Sol 10 *' && board.note === 'Keeper Marlo is retired. His Power is still a faded 9,999.' && board.title === 'Power Rankings', JSON.stringify(board));
   await page.screenshot({ path: `${OUT}/rankings-1-board.png` });
   const back = await page.evaluate(() => { const r = document.getElementById('rankings-back').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
   await page.mouse.click(back.x, back.y);
@@ -2649,9 +2649,10 @@ async function chunk19(browser) {
     const gain = G.rounds.gains[0];
     const lines = [...document.querySelectorAll('#end-passes .pass')].map((l) => l.textContent);
     const rank = G.rounds.rows().find((r) => r.you && r.kind === 'sol').rank;
-    return { gain, lines, rank, big: document.querySelector('#end-passes .pass').classList.contains('big'), button: !document.getElementById('end-rankings').hidden, chimes: G.audio.counts.chime };
+    const expected = G.clan.members.filter((m) => m.power >= gain.before && m.power < gain.after).sort((a, b) => b.power - a.power).slice(0, 3).map((m) => `Sol passed ${m.name}! Now #${rank}`);
+    return { gain, lines, rank, expected, big: document.querySelector('#end-passes .pass').classList.contains('big'), button: !document.getElementById('end-rankings').hidden, chimes: G.audio.counts.chime };
   });
-  check('after the round the end screen says who Sol passed ("Sol passed Wren! Now #N") and shows the Power Rankings button', after.gain.before === 44 && after.gain.after > 45 && after.gain.after < 80 && after.lines.length === 1 && after.lines[0] === `Sol passed Wren! Now #${after.rank}` && !after.big && after.button && after.chimes >= 2, JSON.stringify(after));
+  check('after the round the end screen says who Sol passed, the strongest first, at most three ("Sol passed Wren! Now #N"), and shows the Power Rankings button', after.gain.before === 44 && after.gain.after > 45 && after.gain.after < 80 && after.lines.length >= 1 && after.lines.length <= 3 && JSON.stringify(after.lines) === JSON.stringify(after.expected) && after.lines[after.lines.length - 1] === `Sol passed Wren! Now #${after.rank}` && !after.big && after.button && after.chimes >= 2, JSON.stringify(after));
   await page.waitForTimeout(900);
   await page.screenshot({ path: `${OUT}/rankings-2-end.png` });
   await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 40; i++) G.overdrive.hit('hit'); });
@@ -3594,10 +3595,139 @@ async function chunk25(browser) {
   check('and the walking limit is the arena\'s again (10.2), not the village\'s', arenaEdge <= 10.25, `${arenaEdge.toFixed(1)}`);
 }
 
+// ---------- The clan ----------
+const clanUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createClan } = await import('/src/clan.js');
+  const { makeClan, NAMES, PERSONALITIES, BODIES, HAIR } = await import('/src/character-gen.js');
+  const out = {};
+  const tags = document.createElement('div');
+  document.body.appendChild(tags);
+  const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 100);
+  camera.position.set(0, 12, 12);
+  camera.lookAt(0, 0, 0);
+  const people = makeClan(7, 14);
+  const again = makeClan(7, 14);
+  const other = makeClan(8, 14);
+  out.gen = {
+    count: people.length, names: new Set(people.map((p) => p.name)).size, first: people.slice(0, 6).map((p) => `${p.name}:${p.type[0]}:${p.power}`).join(),
+    rest: people.slice(6).every((p) => NAMES.includes(p.name) && p.power >= 20 && p.power < 600 && PERSONALITIES.includes(p.personality)),
+    looks: people.every((p) => BODIES.includes(p.look.body) && HAIR.includes(p.look.hair) && typeof p.look.skin === 'number' && typeof p.look.outfit === 'number'),
+    same: JSON.stringify(people) === JSON.stringify(again), otherFirst: JSON.stringify(other.slice(0, 6).map((p) => [p.name, p.power])) === JSON.stringify(people.slice(0, 6).map((p) => [p.name, p.power])),
+    otherRest: JSON.stringify(other.slice(6).map((p) => p.name)) !== JSON.stringify(people.slice(6).map((p) => p.name)),
+    types: new Set(people.map((p) => p.type)).size,
+  };
+  const scene = new THREE.Scene();
+  const clan = createClan({ scene, camera, tags, seed: 7 });
+  out.made = { members: clan.members.length, tagsMade: tags.children.length, visible: clan.visible, shown: [...tags.children].filter((t) => !t.hidden).length, first: [clan.members[0].position.x, clan.members[0].position.z].join() };
+  clan.show(true);
+  const home = clan.members.map((m) => ({ x: m.position.x, z: m.position.z }));
+  const far = { x: 0, z: -1 };   // (nobody is within 6.5 of here)
+  for (let i = 0; i < 30 * 40; i++) clan.update(1 / 30, i / 30, far);
+  const strayed = clan.members.map((m, i) => Math.hypot(m.position.x - home[i].x, m.position.z - home[i].z));
+  out.stroll = { max: +Math.max(...strayed).toFixed(2), moved: strayed.filter((d) => d > 0.05).length };
+  out.farTags = [...tags.children].filter((t) => !t.hidden).length;
+  // Somebody comes close: they turn to look, and the tags of the nearest show.
+  const juno = clan.members[2];
+  for (let i = 0; i < 30 * 8; i++) juno.goal = null, clan.update(1 / 30, 50 + i / 30, { x: juno.position.x + 3, z: juno.position.z });
+  const faced = Math.abs(Math.atan2(Math.sin(juno.yaw - Math.PI / 2), Math.cos(juno.yaw - Math.PI / 2)));
+  const shown = [...tags.children].filter((t) => !t.hidden);
+  out.near = { faced: +faced.toFixed(2), shown: shown.length, texts: shown.map((t) => t.textContent).join('|'), placed: shown.every((t) => /translate\(-50%, -100%\) translate\(-?[\d.]+px, -?[\d.]+px\)/.test(t.style.transform)) };
+  out.nearest = { juno: clan.nearest({ x: juno.position.x + 1, z: juno.position.z }).name, none: clan.nearest({ x: 0, z: -1 }), wide: clan.nearest({ x: 0, z: -1 }, 20) !== null };
+  out.auras = clan.members.map((m) => `${m.name}:${m.aura.group.children.length}:${m.aura.flame ? 'f' : '-'}`).join();
+  out.tierRule = clan.members.every((m) => (m.aura.flame !== null) === (m.power >= 300) && m.aura.group.children.length === 1 + (m.power >= 100 ? 1 : 0) + (m.power >= 300 ? 1 : 0));
+  clan.show(false);
+  out.hidden = { visible: clan.visible, tags: [...tags.children].filter((t) => !t.hidden).length };
+  const before = clan.members[5].position.x;
+  for (let i = 0; i < 300; i++) clan.update(1 / 30, i, far);
+  out.hidden.still = clan.members[5].position.x === before;
+  return out;
+};
+
+async function chunk26(browser) {
+  let { page } = await openGame(browser, 'clan-unit');
+  const u = await page.evaluate(clanUnit);
+  const g = u.gen;
+  check('the clan is made of 14 different people: the six from the Rankings first (Wren 45, Pebble 80, Juno 150, Marigold 230, Brindle 340, Fennel 480), then eight made up, with Power from 20 to 600, a personality and a look', g.count === 14 && g.names === 14 && g.first === 'Wren:w:45,Pebble:n:80,Juno:s:150,Marigold:w:230,Brindle:f:340,Fennel:n:480' && g.rest && g.looks && g.types >= 3, JSON.stringify(g));
+  check('the same seed always makes the same clan; another seed keeps the six but makes different others', g.same && g.otherFirst && g.otherRest, JSON.stringify([g.same, g.otherFirst, g.otherRest]));
+  check('in the village there are 14 people with a tag each; everything starts hidden (and out of the arena) until you come, and they stand at their own spot', u.made.members === 14 && u.made.tagsMade === 14 && !u.made.visible && u.made.shown === 0 && u.made.first === '-13,-4.5', JSON.stringify(u.made));
+  check('they stand about and stroll a little (never more than 1.3 from their spot), and several really do move; with nobody near, no tags show', u.stroll.max <= 1.3 && u.stroll.moved >= 7 && u.farTags === 0, JSON.stringify([u.stroll, u.farTags]));
+  check('when somebody comes close they turn to look at them, and the tags of the nearest (at most three) show: the name and "Power N", placed on the screen', u.near.faced < 0.35 && u.near.shown >= 1 && u.near.shown <= 3 && /Juno Power 150/.test(u.near.texts) && u.near.placed, JSON.stringify(u.near));
+  check('you can ask who is nearest to a spot (within 2.4 by default, or as far as you say)', u.nearest.juno === 'Juno' && u.nearest.none === null && u.nearest.wide, JSON.stringify(u.nearest));
+  check('their auras show their Power: a glow at the feet for all, soft body light from 100, and a flickering flame from 300 (Blaze)', u.tierRule, u.auras);
+  check('when you leave the village they are hidden, their tags go, and they stop moving', !u.hidden.visible && u.hidden.tags === 0 && u.hidden.still, JSON.stringify(u.hidden));
+
+  // The live village with its people.
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'clan-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => window.__game.rounds.toVillage());
+  await until(page, () => window.__game.village.active);
+  await page.waitForTimeout(500);
+  const live = await page.evaluate(() => { const G = window.__game; return { visible: G.clan.visible, count: G.clan.members.filter((m) => m.model.group.visible).length, calls: G.renderer.info.render.calls, triangles: G.renderer.info.render.triangles }; });
+  check('in the village the whole clan is there', live.visible && live.count === 14, JSON.stringify(live));
+  results.push(`INFO  the village with its people: ${live.calls} draw calls, ${live.triangles} triangles (software rendering, so no frame rate)`);
+  check('and the picture stays light enough for a phone (a few hundred draw calls at most)', live.calls < 420, `${live.calls}`);
+  await page.evaluate(() => { const G = window.__game; const m = G.clan.members[2]; G.player.position.set(m.position.x + 2.2, 0, m.position.z + 0.5); });
+  await until(page, () => [...document.querySelectorAll('#tags .tag')].some((t) => !t.hidden && /Juno/.test(t.textContent)));
+  await page.waitForTimeout(500);
+  const tag = await page.evaluate(() => [...document.querySelectorAll('#tags .tag')].filter((t) => !t.hidden).map((t) => t.textContent).join('|'));
+  check('walking up to Juno shows his tag: "Juno Power 150"', /Juno Power 150/.test(tag), tag);
+  await page.screenshot({ path: `${OUT}/clan-1-juno.png` });
+  await page.evaluate(() => { const G = window.__game; G.player.position.set(2, 0, 3); });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/clan-2-square.png` });
+  await page.evaluate(() => { const G = window.__game; G.player.position.set(0, 0, -9.2); });
+  await until(page, () => document.getElementById('power-label').textContent === 'Hero Hall');
+  await page.keyboard.press('Space');
+  await until(page, () => !window.__game.village.active);
+  const gone = await page.evaluate(() => ({ visible: window.__game.clan.visible, tags: [...document.querySelectorAll('#tags .tag')].filter((t) => !t.hidden).length }));
+  check('going to the Hall hides the clan again', !gone.visible && gone.tags === 0, JSON.stringify(gone));
+}
+
+// ---------- Talking to the clan, and the clan on the Rankings board ----------
+async function chunk27(browser) {
+  let { page } = await openGame(browser, 'talk-unit');
+  const d = await page.evaluate(async () => {
+    const { CLAN_LINES } = await import('/src/story-data.js');
+    const { PERSONALITIES } = await import('/src/character-gen.js');
+    return { kinds: Object.keys(CLAN_LINES).sort().join(), expected: [...PERSONALITIES].sort().join(), threeEach: Object.values(CLAN_LINES).every((l) => l.length === 3), short: Object.values(CLAN_LINES).every((l) => l.every((x) => x.length < 90)), power: Object.values(CLAN_LINES).flat().filter((x) => x.includes('{power}')).length };
+  });
+  check('every kind of person (proud, shy, cheerful, sleepy, serious, jokey, curious, grumpy) has three short lines, and some of them say their own Power', d.kinds === d.expected && d.threeEach && d.short && d.power >= 4, JSON.stringify(d));
+
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'talk-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => window.__game.rounds.toVillage());
+  await until(page, () => window.__game.village.active);
+  await page.evaluate(() => { const G = window.__game; const m = G.clan.members[2]; G.player.position.set(m.position.x - 1.2, 0, m.position.z); });   // (on the far side of Juno from the others)
+  await until(page, () => document.getElementById('power-label').textContent === 'Talk');
+  const button = await page.evaluate(() => ({ label: document.getElementById('power-label').textContent, power: document.getElementById('power-button').dataset.power, hidden: document.getElementById('power-button').hidden }));
+  check('next to somebody the big button says "Talk" (green)', button.label === 'Talk' && button.power === 'action' && !button.hidden, JSON.stringify(button));
+  await page.evaluate(() => { window.__lines = []; });
+  const heard = [];
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(150);
+    heard.push(await page.evaluate(() => ({ text: document.getElementById('bubble').textContent, shown: document.getElementById('bubble').classList.contains('show') })));
+  }
+  const lines = [...new Set(heard.map((h) => h.text))];
+  check('pressing it makes them say a line, over their head, with their name: "Juno: ..." (one of his three; never the same twice in a row)', heard.every((h) => h.shown) && lines.length >= 2 && lines.every((l) => /^Juno: /.test(l)) && heard.every((h, i) => i === 0 || h.text !== heard[i - 1].text) && lines.every((l) => ['Power 150. Not that I\'m counting.', 'Stand back. My aura needs room.', 'Number one is only a matter of time.'].includes(l.replace(/^Juno: /, ''))), JSON.stringify(lines));
+  await page.screenshot({ path: `${OUT}/talk-1-juno.png` });
+  // The Rankings now name the people of the village.
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); });
+  const board = await page.evaluate(() => { const G = window.__game; const rows = G.rounds.rows(); return { count: rows.length, first: rows[0].name, names: rows.filter((r) => !r.you).map((r) => r.name).join(), others: rows.filter((r) => !r.you).length, sorted: rows.every((r, i) => i === 0 || rows[i - 1].power >= r.power), clan: G.clan.members.map((m) => m.name).join() }; });
+  check('the Power Rankings list the real people of the village (14 of them) and Rook, who is number 1; your heroes are among them', board.count === 19 && board.first === 'Rook' && board.others === 15 && board.sorted && board.names.includes('Juno') && board.names.includes('Basil') && board.clan.split(',').every((n) => board.names.includes(n)), JSON.stringify(board));
+  // Talking to nobody does nothing, and the big button hides in the open again.
+  await page.evaluate(() => window.__game.player.position.set(0, 0, -1));
+  await until(page, () => document.getElementById('power-button').hidden);
+  check('in the open, with nobody near, the big button is hidden again', true);
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

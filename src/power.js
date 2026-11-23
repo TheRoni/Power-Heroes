@@ -69,6 +69,7 @@ export function createProgress(start, save = null, flat = null) {
     get roundsWon() { return data.roundsWon; },
     get round() { return data.round || 1; },   // the round of the chapter to play next (one more than the last one is: the chapter is done)
     advance(last) { data.round = Math.min(last, (data.round || 1) + 1); },
+    get clanSeed() { if (!data.clanSeed) data.clanSeed = 1 + Math.floor(Math.random() * 1e9); return data.clanSeed; },   // makes the same clan every visit
     get shards() { return (data.shards || []).length; },   // memory shards found (one for each chapter)
     collectShard(chapter = 1) { data.shards = data.shards || []; if (!data.shards.includes(chapter)) data.shards.push(chapter); },
     get unlocked() { return [...data.unlocked]; },

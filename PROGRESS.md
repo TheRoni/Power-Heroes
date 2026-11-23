@@ -2,9 +2,9 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 9 (movement, the first fight, the story begins, the Newcomer and
-  Marlo, flute music and sound, the squad, Power and Rankings, the phone app, and
-  Chapter 1 with its boss and its campfire). All
+  Stages 1 to 10 (movement, the first fight, the story begins, the Newcomer and
+  Marlo, flute music and sound, the squad, Power and Rankings, the phone app,
+  Chapter 1 with its boss and its campfire, and the Home Village). All
   automatic checks pass on the normal page and on the Claude test link, which was
   republished at the end of each stage.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
@@ -12,7 +12,13 @@
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 9 is done (built on Sonnet):** Chapter 1 is five rounds with a story between them.
+- **Stage 10 is done (built on Sonnet):** the Home Village. After a round (or from the squad screen) the
+  "Village" button takes you to a calm isle with no enemies: the Hero Hall, a training yard, a sparring ring,
+  a pond, a campfire square, a lookout tower and a notice board, and 14 people of Marlo's old clan with auras,
+  name tags ("Juno Power 150") and a line to say when you talk to them. The notice board shows the Power
+  Rankings, which now list those real people; the Hall's door starts the next round. **Next: Stage 11, village
+  life (day and night, what people do, spars, guests).**
+- **Stage 9 was done before it (built on Sonnet):** Chapter 1 is five rounds with a story between them.
   The last round ends with General Bramble, a thorny boss (a fan of thorns, a root slam, a
   roar, Gloomlings called to help); beaten, he turns back into a tired young gardener and says
   his last words. Then the campfire: night falls, Marlo plays the flute, tells about Lyra, and
@@ -37,12 +43,13 @@
 ## Tests (in `tests/`, not part of the game)
 - `tests/test-stage1.js` (19 checks: movement), `tests/test-stage8.js` (13 checks: the
   manifest, the icons, the service worker, and playing with no internet, from a real
-  local web address) and `tests/test-stage2.js` (everything else, in 24 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  local web address) and `tests/test-stage2.js` (everything else, in 27 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
   screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
   16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings,
   20 naming the hero, 21 the five rounds of Chapter 1, 22 General Bramble, 23 his last
-  words and trying again, 24 the campfire and the memory shard)
+  words and trying again, 24 the campfire and the memory shard, 25 the village, 26 the clan,
+  27 talking and the Rankings board)
   A full run takes 10 to 25 minutes in the test browser.
 - **After changing any game file, run `node tests/bump-sw.js`** (it rewrites the file
   list and the version in `sw.js`; without it a phone could keep an old copy of the
@@ -107,14 +114,14 @@
   thing left is turning on GitHub Pages: see the director to-do). (Plan below.)
 - [x] **Stage 9: Chapter 1, Sunmeadow, complete.** Five rounds, General Bramble, the
   campfire with Marlo's flute and the first memory shard. (Plan below.)
+- [x] **Stage 10: Home Village, first version.** A walkable village with the Hero Hall, the
+  clan (auras, name tags, a line each) and the Rankings board on the notice board. (Plan below.)
 
 ### Next
-- [ ] **Stage 10: Home Village, first version.** Marlo's old clan: a walkable
-  village, clan members with auras, the Rankings board, the Hero Hall. (Plan below.)
+- [ ] **Stage 11: Village life.** Daily activities, day and night, spar, guest
+  teammates, your heroes wander. (Plan below.)
 
 ### The adventure
-- [ ] **Stage 11: Village life.** Daily activities, day and night, talk,
-  spar, guest teammates.
 - [ ] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder,
   Golden Gloom, mystery visitor, more combos.
 - [ ] **Stage 13: Chapters 2 and 3.** Tidecove (Tide, Rook) and Stormspire
@@ -688,11 +695,51 @@ Sonnet from `CLAUDE.md`'s Home Village section; Stage 11 adds the daily life, sp
   from the Hall door, Pip says something, Marlo waits at the fire, and there is no grey veil. `title.js` (the
   title screen moved out of `menus.js`), `scene.js` (the arena's pieces are one group and `setMode`),
   `hero.js`/`squad.js` (`setBound`). Tests: group 25 (15 checks).
+- **Chunk 2 build notes (DONE):** `character-gen.js` (names, types, Power, personalities and looks from a seed; the
+  same seed makes the same clan; the six people of the Rankings come first with their old Power, then eight made up
+  with Power from 20 to 600), `member-model.js` (a person built from their look: three body shapes, five hair styles,
+  hats, a scarf, glasses or a satchel, outfit in their type colour; about 20 shapes each, no shadows, a soft blob
+  under the feet, the fine details switched off when far away) and `clan.js` (14 people, each with a spot they like:
+  the yard, the ring, the pond, the fire, the tower, the notice board; they stand, stroll a little, turn to look at
+  you when you come close, and have an aura by Power: a glow at the feet, soft light from 100, a flickering flame from
+  300; a small name tag "Juno Power 150" shows over the nearest three). The village with all its people is 136 draw
+  calls. The clan's seed is saved (`progress.clanSeed`). Tests: group 26 (12 checks).
+- **Chunk 3 build notes (DONE):** walk up to someone and the big button says "Talk"; pressing it makes them say one of
+  three lines for their kind of person (proud, shy, cheerful, sleepy, serious, jokey, curious, grumpy; some say their
+  own Power) in a bubble over their head. The Power Rankings now list the real people of the village (Rook stays
+  number 1) and "Sol passed Jasper!" names them. A calm village song. Tests: group 27 (5 checks).
 - **Phone speed:** members are drawn with few shapes (no shadows, a flat blob under them) and far ones
   are simpler; the aim is 14 now and 20 to 30 later.
 - **New files:** `src/village.js`, `src/clan.js`, `src/character-gen.js` (all in the planned folder list).
   Changes to old files: `scene.js` (the arena's pieces are grouped so they can be hidden; a "mode" switch),
   `hero.js`/`squad.js` (the walking limit can change), `menus.js` (a "Village" button), `rankings.js`.
+
+## Stage 11 plan: village life (daily rhythm, spars and guests)
+**Goal:** the village feels alive: the day turns into night, the clan does things (train, spar, fish, cook,
+chat, nap, show off), the night gathers everybody round the fire, you can spar with someone for fun, and
+you can ask someone to fight beside you in a battle. (Plan written on Sonnet from `CLAUDE.md`.)
+- **Chunk 1: day and night.** A day in the village lasts about 8 minutes: morning, day, dusk, night
+  (`world.setNight`). The lamps glow at dusk, the Hall's windows light up, the stars come out. At dusk the
+  clan walks to the fire square and sits round it; at night Marlo plays the lullaby there (the flute is
+  already made); in the morning they spread out again. The time is saved only as "what time it was when you
+  left", so you arrive at about the same time of day.
+- **Chunk 2: what they do.** Each person has a daytime job that fits their kind: **train** (hit the targets,
+  with little sparks of their type), **spar** (two people in the ring, quick dodging and a flash of their
+  colours), **fish** (on the pond's dock, a rod and a float), **cook** (at the fire, a pot and steam), **chat**
+  (two people face each other with little speech marks), **nap** (lying down, "Zzz"), **show off** (a pose
+  and a flare of their aura). It takes a few shapes and some small animations, not a new system: `clan.js`
+  gets a list of activities and a small timetable (busier by day).
+- **Chunk 3: your heroes live here.** Ember, Tide and Volt (the ones not in your squad) wander about the
+  village (and sit at the fire at night); you can talk to them too. Marlo stays near the fire.
+- **Chunk 4: a friendly spar.** Next to someone, a second button "Spar" starts a short friendly fight with them
+  in the ring: they fight with their own type and Power (a copy of the boss's moves, but small and gentle); you
+  cannot lose, there is no timer, and you get a little XP. Beating them nudges their respect ("You're
+  something, Newcomer").
+- **Chunk 5: a guest teammate.** "Invite" asks someone to join your next battle as a guest: they fight beside
+  you, with their own type and a simple attack, and leave after the round.
+- **Chunk 6: polish, tests on both pages, republish.**
+- New files likely: `src/activities.js` (what people do and how it looks), `src/guest.js` (a clan member in a
+  battle); `clan.js` grows (or splits).
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
@@ -716,6 +763,12 @@ Sonnet from `CLAUDE.md`'s Home Village section; Stage 11 adds the daily life, sp
   Shatter) need heroes that come later; the squad screen asks "pick 3 of 4". The
   other heroes on the Rankings board have a fixed Power (they do not grow yet), and
   the squad screen will need scrolling once there are more than a handful of heroes.
+- **Village, against `CLAUDE.md`:** done: the isle, the places (yard, ring, pond, campfire square, Hall,
+  tower, notice board), random clan members with name, type, Power, aura, look and personality, walk
+  up and talk, the Hall starts battles, 14 people at about 136 draw calls. Not yet (Stage 11): the clan's daily
+  life, the day-and-night rhythm, sparring and guest teammates, your own heroes wandering about, the isles
+  from the tower. Not planned yet: the village growing with each saved isle, Colourfolk, surprises. The aura
+  is simpler than the heroes' (no rising sparks).
 - Overdrive and the Rankings are tested by the automatic tests, not by hand on a
   phone: how long 6 seconds of Overdrive feels, and how fast the meter fills (about
   30 hits), are guesses (`src/overdrive.js`).

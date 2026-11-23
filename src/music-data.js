@@ -85,6 +85,16 @@ export const SONGS = {
     ],
   },
 
+  // The Home Village: slow and sunny, an easy flute tune over a rocking pluck and a warm pad. (C major)
+  village: {
+    tempo: 78, beats: 4, bars: 8, level: 0.85,
+    tracks: [
+      { voice: 'flute', notes: 'G4:1 C5:1 E5:2 | D5:1 C5:1 A4:2 | G4:1 C5:1 E5:1 G5:1 | F5:2 E5:1 D5:1 | E5:1 D5:1 C5:1 A4:1 | G4:2 A4:1 C5:1 | D5:1 E5:1 D5:1 B4:1 | C5:3 r:1' },
+      { voice: 'pluck', notes: 'C3:1 G3:1 E4:1 G3:1 | F3:1 C4:1 A3:1 C4:1 | C3:1 G3:1 E4:1 G3:1 | G3:1 D4:1 B3:1 D4:1 | A3:1 E4:1 C4:1 E4:1 | F3:1 C4:1 A3:1 C4:1 | G3:1 D4:1 B3:1 D4:1 | C3:1 G3:1 E4:2' },
+      { voice: 'pad', notes: 'C2+G2:4 | F2+C3:4 | C2+G2:4 | G2+D3:4 | A2+E3:4 | F2+C3:4 | G2+D3:4 | C2+G2:4' },
+    ],
+  },
+
   // Lyra's Lullaby: one gentle solo flute, then four bars of silence to breathe. (D major)
   lullaby: {
     tempo: 60, beats: 3, bars: 12, level: 1,

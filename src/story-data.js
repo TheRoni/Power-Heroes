@@ -128,6 +128,18 @@ export const SCENES = {
   ],
 };
 
+// What the people of the village say when you talk to them: three lines for each kind of person. {power} is their own Power.
+export const CLAN_LINES = {
+  proud: ["Power {power}. Not that I'm counting.", 'Stand back. My aura needs room.', 'Number one is only a matter of time.'],
+  shy: ['Oh! Hello. Sorry. Hello.', "I'm only Power {power}. You can look, though.", 'Your glow is... very loud.'],
+  cheerful: ['Great day for getting stronger!', 'Have you tried the pond? Very wet. Ten out of ten.', 'I love it when the grass is green!'],
+  sleepy: ['...Was I standing? I was napping standing up.', 'Power is mostly resting. I read that somewhere.', 'Five more minutes. Or five more Power.'],
+  serious: ['Training is a promise to your future self.', 'Power {power}. Slow and steady.', 'A good hero checks their boots.'],
+  jokey: ['Why did the Gloom cross the meadow? To get hit!', 'My aura is called Mild Breeze. It tickles.', "I'd tell you a Power joke, but it's over 9,999."],
+  curious: ['How do you glow like that? Does it tickle?', 'Did you really fall out of the sky?', 'Is it true Marlo plays the flute at night?'],
+  grumpy: ['Hmph. Newcomers.', "Don't touch the dummies. They're mine.", 'Power {power}. I earned every number.'],
+};
+
 // Bubbles: quick lines that float by while the fight carries on. One is picked at random.
 // A plain line is Pip's. { who: 'marlo', text } is Marlo's.
 export const BUBBLES = {

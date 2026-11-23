@@ -39,7 +39,7 @@ export function passes(gains, rows, limit = 3) {
   const all = [];
   for (const gain of gains) {
     const rank = (rows.find((row) => row.you && row.kind === gain.kind) || {}).rank;
-    for (const rival of passedBy(gain.before, gain.after)) all.push({ hero: gain.name, rival: rival.name, rank, big: rival.name === TOP, power: rival.power });
+    for (const rival of passedBy(gain.before, gain.after, rows.filter((row) => !row.you))) all.push({ hero: gain.name, rival: rival.name, rank, big: rival.name === TOP, power: rival.power });
   }
   all.sort((a, b) => b.power - a.power);
   return { list: all.slice(0, limit).map(({ power, ...pass }) => pass), more: Math.max(0, all.length - limit) };
