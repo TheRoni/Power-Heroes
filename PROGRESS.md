@@ -2,20 +2,22 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 7 (movement, the first fight, the story begins, the Newcomer and
-  Marlo, flute music and sound, the squad, Power and Rankings). All 381 automatic
-  checks pass on the normal page and on the Claude test link, which was
-  republished at the end of Stage 7.
+  Stages 1 to 8 (movement, the first fight, the story begins, the Newcomer and
+  Marlo, flute music and sound, the squad, Power and Rankings, the phone app). All
+  automatic checks pass on the normal page and on the Claude test link, which was
+  republished at the end of each stage.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
   hero who falls from the sky; **Keeper Marlo** is your mentor and teaches the
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 7 is done (built on Sonnet):** every hero and Gloomling has a Power
-  number that grows with XP (no limit, saved in the browser), the power-up moment
-  after a round, auras from Spark to Radiant, Overdrive, and a Power Rankings board
-  (Rook is number 1; "Sol passed Wren!"). **Next: Stage 8, the phone app.**
-- Stage 6 (Tide and Volt, the squad, types, Shock Chain) came before it.
+- **Stage 8 is done (built on Sonnet):** you can name your hero on the title screen,
+  the game has app icons and a manifest, and a service worker saves the game so it
+  opens with no internet. The only thing left is the director's one-time step: turn on
+  GitHub Pages (see the to-do below), so there is a real web address to install from.
+  **Next: Stage 9, Chapter 1 complete (Sunmeadow, General Bramble).**
+- Stage 7 (Power, XP, auras, Overdrive, Rankings) and Stage 6 (Tide and Volt, the
+  squad, types, Shock Chain) came before it.
 - Stage 5 (title, sound, flute music) was done before it. Nobody has *listened* to
   it yet (see "Known problems").
 
@@ -29,12 +31,17 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (362
-  checks in 19 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+- `tests/test-stage1.js` (19 checks: movement), `tests/test-stage8.js` (13 checks: the
+  manifest, the icons, the service worker, and playing with no internet, from a real
+  local web address) and `tests/test-stage2.js` (everything else, in 20 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
   screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
-  16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings).
+  16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings,
+  20 naming the hero).
   A full run takes 10 to 25 minutes in the test browser.
+- **After changing any game file, run `node tests/bump-sw.js`** (it rewrites the file
+  list and the version in `sw.js`; without it a phone could keep an old copy of the
+  game). `tests/test-stage8.js` fails if `sw.js` is out of date.
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
   `/home/user/power-heroes`. Playwright and Chromium come with the container.
@@ -54,6 +61,12 @@
   https://github.com/TheRoni/power-heroes/settings/pages
   and set Source = **Deploy from a branch**, Branch = **main**, folder
   **/ (root)**, then **Save**. If it says the repository must be public, tell Claude.
+  (The address will be `https://theroni.github.io/Power-Heroes/` after a minute or two.)
+- [ ] Then, on the phone, open that address once with internet (the game saves
+  itself), and add it to the home screen: **Android (Chrome):** menu (three dots) >
+  Install app (or Add to Home screen). **iPhone (Safari):** Share button > Add to
+  Home Screen. After that it opens like an app, with the golden-star icon, and
+  works with no internet. New versions arrive the next time it is opened online.
 
 ## Claude test link (private, for phone testing)
 - Published in Claude as "Power Heroes" (find it with the Artifact list). Only
@@ -549,7 +562,57 @@ install or work offline.)
 - **Chunk 4: Republish and notes.** The Claude link, a short "how to install" note,
   mismatches list.
 - New files (the director was told here): `src/offline.js`, `tests/test-stage8.js`,
-  `tests/make-icons.js`.
+  `tests/make-icons.js`, `tests/bump-sw.js`.
+- **Chunk 1 build notes (DONE):** a small "Hero name: Sol · change" button on the title
+  screen opens a text box (up to 10 letters, digits, spaces, apostrophes, hyphens, in any
+  language; symbols are dropped as you type; empty means Sol). Space, W A S D and Enter
+  type normally in the box; Enter or tapping anywhere else keeps the name. It is saved on its
+  own (`powerheroes.save.name`), so "Start over" keeps it. The name is used in the corner,
+  the end screen, the Rankings board and every conversation (`{name}` in `story-data.js`;
+  Marlo says "so I'll call you Pat"). Tests: group 20 (18 checks).
+- **Chunk 2 build notes (DONE):** `icons/` (a golden star with sparkles on a sky-blue square:
+  `icon.svg` and `icon-maskable.svg` are the sources; `tests/make-icons.js` draws the PNGs:
+  192, 512, a maskable 512, an Apple 180 and a favicon 32), `manifest.webmanifest`
+  (app opens like an app, any orientation) and the tags in `index.html`.
+- **Chunk 3 build notes (DONE):** `sw.js` saves every game file on the first visit
+  (44 files) and loads from the saved copy after that (ignoring `?debug` and the like);
+  when a game file changes `node tests/bump-sw.js` changes its version, and the new
+  copy (taken straight from the server, not the browser's short-term copy) replaces
+  the old one. `src/offline.js` registers it, only on a real web address (so not in the
+  tests' fake address or inside the Claude link). `tests/test-stage8.js` checks the files and runs
+  the game from a real local address: it goes offline, reloads, opens a new tab, and then
+  plays a new version. **Not tested:** a real phone, installing, and GitHub Pages itself.
+
+## Stage 9 plan: Chapter 1, Sunmeadow, complete
+**Goal:** the game stops being one round on repeat. Chapter 1 is five rounds with a
+story between them, ends with a boss, General Bramble, and then the campfire: Marlo plays
+his flute, tells about Lyra, and you get the first memory shard. (Plan written on Sonnet from
+`STORY.md`; the director can ask Opus to rework it.)
+- **The five rounds.** 1 The Meadow (as now, then Ember arrives), 2 The Long Grass, 3 The
+  Old Oak (4 waves), 4 Bramble's Shadow (4 waves, something big is seen in the distance), 5
+  General Bramble. Each round has a short line from Marlo, Pip or Ember before it starts,
+  a bit more Gloom Power than the last, and a "Round 2/5" note in the corner. The end screen says
+  "Round 2 won!" with a "Next round" button (the squad screen comes first). Progress is saved:
+  a returning player carries on from their round. After the chapter, "Keep playing" gives
+  ordinary rounds to level up in until Chapter 2 exists.
+- **General Bramble** (Nature, a tall hedge-knight of twisted vines, a leaf crown and thorn
+  shoulders). He walks slowly towards you and has two attacks: a **thorn fan** (six thorns, dodge
+  them) and a **root slam** (a red circle on the ground, one second of warning, then vines burst
+  out). Under half health he speeds up, **summons Gloomlings** and taunts ("More! Give me
+  more!"). Fire is super effective against him, Storm is weak (types matter). A wide boss health
+  bar at the top. When beaten he is himself again, a tired young hero, and says one line ("She
+  promised us more. We just wanted to matter.") before he fades into petals.
+- **The campfire.** Night falls, a fire burns, the squad and Marlo sit round it. Marlo plays the
+  flute (Lyra's Lullaby) and tells about her ("She used to fall asleep before the second verse.
+  Every time."). The **first memory shard** floats up from the flute: a short picture of little
+  Lyra on her father's shoulders. Then "Chapter 1 complete" and "Memory shard 1 of 5".
+- **Chunks:** 1 rounds, progress and between-round scenes; 2 General Bramble (look, bar, moves,
+  phases, defeat); 3 the boss round and its rewards; 4 the campfire, the shard and the chapter
+  screen; 5 polish, tests on both pages, republish.
+- **New files (the director is told here):** `src/chapters.js` (the five rounds as data),
+  `src/boss.js` (General Bramble), `src/campfire.js` (the night scene and the shard).
+- Tide and Volt still join after the first win for now (the story gates them in Stage 13);
+  Ember and Sol are the Chapter 1 pair in the words.
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on

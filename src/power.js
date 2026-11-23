@@ -4,6 +4,12 @@
 
 export const REFERENCE = 10;
 
+// The hero's name, as a player may type it: letters (any language), digits, spaces, apostrophes and hyphens, at most 10;
+// anything else is dropped, and nothing left means the default name. (Nothing that could break a page, either.)
+export const DEFAULT_NAME = 'Sol';
+export const NOT_NAME = /[^\p{L}\p{N} '’-]/gu;
+export const cleanName = (text, fallback = DEFAULT_NAME) => String(text ?? '').replace(NOT_NAME, '').replace(/\s+/g, ' ').trim().slice(0, 10).trim() || fallback;
+
 export const stepXp = (power) => 2 + 0.2 * power;                                  // XP to go from this Power to the next
 export const xpForPower = (power) => 2 * (power - 1) + 0.1 * power * (power - 1);  // total XP needed to reach a Power (Power 1 is 0 XP)
 
@@ -51,12 +57,15 @@ export const enemyPowerFor = (averagePower, wave) => Math.max(6, Math.round(aver
 export function createProgress(start, save = null, flat = null) {
   const fresh = () => ({ version: 1, xp: { sol: 0 }, roundsWon: 0, unlocked: ['sol'], seen: {} });
   let data = (save && save.load()) || fresh();
+  let name = cleanName(save && save.loadName ? save.loadName() : null);   // the hero's name (kept even when the progress is wiped)
   const xpOf = (kind) => data.xp[kind] ?? xpForPower(start(kind) || 1);
   const powerOf = (kind) => flat ?? powerFromXp(xpOf(kind));
   return {
     xpOf, powerOf,
     get flat() { return flat !== null; },
     get data() { return data; },
+    get name() { return name; },
+    setName(text) { name = cleanName(text); if (save && save.storeName) save.storeName(name); return name; },
     get roundsWon() { return data.roundsWon; },
     get unlocked() { return [...data.unlocked]; },
     averagePower(kinds) { return Math.round(kinds.reduce((sum, kind) => sum + powerOf(kind), 0) / Math.max(1, kinds.length)); },

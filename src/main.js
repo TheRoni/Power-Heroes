@@ -18,6 +18,7 @@ import { createOverdrive, BOOST } from './overdrive.js';
 import { createRounds } from './rounds.js';
 import { createProgress, shortNumber } from './power.js';
 import { createSave } from './save.js';
+import { registerOffline } from './offline.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
 const FLAGS = new URLSearchParams(location.search);
@@ -54,10 +55,13 @@ let waveHits = 0;                // how many Gloomlings the latest superpower hi
 let waveHitTimer = -1;           // counts down until we know how big that superpower was
 const save = createSave();
 const progress = createProgress((kind) => HEROES[kind].startPower, PERSIST ? save : null, DEBUG && !flag('power') ? 10 : null);   // XP, who has joined, what has been seen
+HEROES.sol.name = progress.name;   // what the player called the hero (Sol, unless they changed it on the title screen)
 const said = { first: false, hurt: false, low: false, super: progress.has('super'), swap: progress.has('swap'), combo: progress.has('combo') };   // Pip's one-time comments, so they are not repeated every round
 const soon = [];   // Pip's comments waiting for their moment: { key, left }
 
 const saySoon = (key, delay) => soon.push({ key, left: delay });   // Pip says something after a short delay (so a wave's comment does not land on its banner)
+
+const showHero = (kind) => ui.setHero({ name: HEROES[kind].name, type: HEROES[kind].type, power: progress.powerOf(kind), powerName: HEROES[kind].power.name, powerId: HEROES[kind].power.id });   // the corner box and the power button
 
 function shake(amount) {
   if (!calmMotion) fx.shake = Math.max(fx.shake, amount);
@@ -92,7 +96,7 @@ const squad = createSquad({
   },
   onDown: () => { shake(0.3); audio.play('down'); },
   powerOf: (kind) => progress.powerOf(kind),
-  onSwap: (kind) => ui.setHero({ name: HEROES[kind].name, type: HEROES[kind].type, power: progress.powerOf(kind), powerName: HEROES[kind].power.name, powerId: HEROES[kind].power.id }),   // the button, the name and the icon follow whoever is in play
+  onSwap: (kind) => showHero(kind),   // the button, the name and the icon follow whoever is in play
   events: {
     cast: () => { waveFreezePending = true; waveHits = 0; waveHitTimer = 0.5; shake(0.12); },
     hit: (gloom, amount, kind, label) => {
@@ -176,7 +180,8 @@ rounds.chooseSquad([PLAYER_KIND]);
 const prologue = createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, audio, music, reward: rounds.reward, onDone: rounds.afterPrologue });
 prologue.begin();   // the night scene is ready, with Sol off stage
 const begin = () => (progress.has('prologue') ? (music.play('sunmeadow', 1), prologue.skip()) : prologue.go());   // someone who has played before skips the prologue
-if (TITLE) ui.showTitle(begin, progress.saved ? () => { save.clear(); location.reload(); } : null);   // the first tap starts the sound and the story
+const naming = { name: () => progress.name, set: (text) => { HEROES.sol.name = progress.setName(text); showHero(player.kind); } };   // the title screen's name box
+if (TITLE) ui.showTitle(begin, progress.saved ? () => { save.clear(); location.reload(); } : null, naming);   // the first tap starts the sound and the story
 else prologue.go();
 
 // The small note in the corner, such as "Wave 2/3 · 5 left".
@@ -200,6 +205,7 @@ resize();
 world.follow(player.position, player.velocity, 0, true);   // start with the camera already on the player
 
 // --- Small extras ---
+registerOffline();   // on a real web address, the game saves itself on the phone so it works with no internet (offline.js)
 const hint = document.getElementById('hint');
 let hintHidden = false;
 

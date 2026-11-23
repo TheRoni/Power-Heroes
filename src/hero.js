@@ -144,7 +144,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
   }
 
   return {
-    kind, name: data.name, type: data.type,
+    kind, get name() { return data.name; }, type: data.type,
     group, position: group.position, velocity, update, takeHit, reset, face, setVisible,
     get health() { return health; },
     get maxHealth() { return maxHealth(); },

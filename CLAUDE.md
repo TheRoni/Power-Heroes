@@ -272,6 +272,7 @@ src/                  the game code, one job per file
   audio.js            synthesized sound effects and the Mute button
   music.js            the flute and the song player
   music-data.js       the songs, written as note lists
+  offline.js          asks the browser to save the game on the phone (starts sw.js)
   save.js             saving progress
 ```
 

@@ -138,6 +138,13 @@
     <h1 id="title-name">Power Heroes</h1>
     <p id="title-line">A star is about to fall.</p>
     <p id="title-tap"><span class="hint-touch">Tap to begin</span><span class="hint-keys">Click or press Space to begin</span></p>
+    <div id="title-name-row" hidden>
+      <button id="title-rename" type="button">Hero name: <b id="title-rename-name">Sol</b> &middot; change</button>
+      <form id="title-rename-form" hidden>
+        <input id="title-rename-input" type="text" maxlength="10" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Your hero's name">
+        <button id="title-rename-ok" type="submit">OK</button>
+      </form>
+    </div>
     <button id="title-reset" type="button" hidden>Start over</button>
   </div>
 

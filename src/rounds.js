@@ -118,8 +118,8 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     if (story.waiting === 'arrive' && ember.arrived) story.resume();   // Ember is here: the talk carries on
   }
 
-  // The words that story lines can use: "Power {power}" is Sol's Power now.
-  const vars = () => { const power = progress.powerOf('sol'); return { power, next: power + 1 }; };
+  // The words that story lines can use: "Power {power}" is Sol's Power now, and {name} is what the player called the hero.
+  const vars = () => { const power = progress.powerOf('sol'); return { power, next: power + 1, name: progress.name }; };
 
   return {
     update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings,

@@ -588,11 +588,11 @@ const storyUnit = async () => {
     const s = make(false);
     s.story.scene('lose'); s.story.update(0.05);
     tap(s);
-    out.tapTooSoon = letters(s) < SCENES.lose.find((step) => Array.isArray(step))[1].length && s.$('dialogue-name').textContent === 'Marlo';
+    out.tapTooSoon = letters(s) < SCENES.lose.find((step) => Array.isArray(step))[1].replace('{name}', 'Sol').length && s.$('dialogue-name').textContent === 'Marlo';
     s.story.update(0.3);
     const before = letters(s);
     tap(s);
-    out.tapFinishes = letters(s) > before && s.$('dialogue-text').textContent === SCENES.lose.find((step) => Array.isArray(step))[1];
+    out.tapFinishes = letters(s) > before && s.$('dialogue-text').textContent === SCENES.lose.find((step) => Array.isArray(step))[1].replace('{name}', 'Sol');
   }
   {   // bubbles: Pip's are plain, Marlo's are named, and each floats by its own speaker
     const s = make(false);
@@ -1811,6 +1811,7 @@ async function chunk13(browser) {
 
   // Swapping with the keys and the portraits.
   await page.keyboard.press('Digit2');
+  await until(page, () => document.querySelectorAll('#squad .portrait')[1].classList.contains('active'));   // (the portraits follow a frame later)
   const swapped = await page.evaluate(() => ({ kind: window.__game.player.kind, name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, flame: getComputedStyle(document.querySelector('#power-button .icon-flame')).display !== 'none', active: [...document.querySelectorAll('#squad .portrait')].map((b) => b.classList.contains('active') ? 'A' : '-').join(''), swaps: window.__game.audio.counts.swap }));
   check('pressing 2 swaps to Ember: the name, the Flame Wave button and its flame icon, the portraits, and a swap sound', swapped.kind === 'ember' && swapped.name === 'Ember' && swapped.label === 'Flame Wave' && swapped.flame && swapped.active === '-A-' && swapped.swaps === 1, JSON.stringify(swapped));
   await page.screenshot({ path: `${OUT}/squad-2-in-play.png` });
@@ -2762,10 +2763,142 @@ async function chunk19(browser) {
   }
 }
 
+// ---------- Naming the hero ----------
+const nameUnit = async () => {
+  const { cleanName, createProgress } = await import('/src/power.js');
+  const { createSave } = await import('/src/save.js');
+  const out = {};
+  out.clean = {
+    plain: cleanName('Rowan'), spaces: cleanName('  Mia   Rose  '), symbols: cleanName('<b>Ro&wan</b>"'), long: cleanName('Bartholomew the Great'),
+    cut: cleanName('Abcdefghi j'), empty: cleanName(''), blank: cleanName('   '), nothing: cleanName(null), emoji: cleanName('🔥🔥'),
+    accents: cleanName('Zoë-Ann'), other: cleanName('Дима'), apostrophe: cleanName("O'Neil"), custom: cleanName('', 'Ava'), digits: cleanName('R2 D2'), tab: cleanName('a\tb'),
+  };
+  {
+    const kept = {};
+    const fake = { load: () => null, store() {}, clear() {}, loadName: () => kept.name ?? null, storeName: (n) => { kept.name = n; } };
+    const progress = createProgress(() => 1, fake);
+    const start = progress.name;
+    const set = progress.setName('  Rowan  ');
+    const stored = kept.name;
+    progress.reset();
+    const afterReset = progress.name;
+    const empty = progress.setName('!!!');
+    out.progress = { start, set, stored, afterReset, empty, loaded: createProgress(() => 1, { ...fake, loadName: () => 'Mia' }).name, memory: createProgress(() => 1, null).setName('Zed') };
+  }
+  {
+    const save = createSave('test.key');
+    const before = save.loadName();
+    save.storeName('Rowan');
+    out.storage = { before, after: save.loadName(), raw: localStorage.getItem('test.key.name'), progressKey: localStorage.getItem('test.key') };
+    save.clear();
+    out.storage.afterClear = save.loadName();
+  }
+  return out;
+};
+
+async function chunk20(browser) {
+  let { page } = await openGame(browser, 'name-unit');
+  const u = await page.evaluate(nameUnit);
+  const c = u.clean;
+  check('names are cleaned: letters of any language, digits, spaces, \' and - stay; symbols, tags and emoji go; spaces are tidied; at most 10 letters', c.plain === 'Rowan' && c.spaces === 'Mia Rose' && c.symbols === 'bRowanb' && c.long === 'Bartholome' && c.cut === 'Abcdefghi' && c.accents === 'Zoë-Ann' && c.other === 'Дима' && c.apostrophe === "O'Neil" && c.digits === 'R2 D2' && c.tab === 'ab', JSON.stringify(c));
+  check('an empty name, only spaces, only symbols or nothing at all means Sol (or the fallback given)', c.empty === 'Sol' && c.blank === 'Sol' && c.nothing === 'Sol' && c.emoji === 'Sol' && c.custom === 'Ava', JSON.stringify(c));
+  check('the progress record starts as Sol, keeps the cleaned name, saves it, and does not forget it when the progress is wiped; with no storage it still works', u.progress.start === 'Sol' && u.progress.set === 'Rowan' && u.progress.stored === 'Rowan' && u.progress.afterReset === 'Rowan' && u.progress.empty === 'Sol' && u.progress.loaded === 'Mia' && u.progress.memory === 'Zed', JSON.stringify(u.progress));
+  check('the name is stored on its own (not inside the progress), and clearing the progress leaves it', u.storage.before === null && u.storage.after === 'Rowan' && u.storage.raw === 'Rowan' && u.storage.progressKey === null && u.storage.afterClear === 'Rowan', JSON.stringify(u.storage));
+
+  // Live: the title screen.
+  SHOW_TITLE = true;
+  ({ page } = await openGame(browser, 'name-title'));
+  SHOW_TITLE = false;
+  const text = (sel) => page.evaluate((s) => document.querySelector(s).textContent, sel);
+  const state = () => page.evaluate(() => ({ row: !document.getElementById('title-name-row').hidden, pill: !document.getElementById('title-rename').hidden, form: !document.getElementById('title-rename-form').hidden, pillText: document.getElementById('title-rename').textContent, value: document.getElementById('title-rename-input').value, focused: document.activeElement && document.activeElement.id, title: !document.getElementById('title').hidden, phase: window.__game.prologue.phase }));
+  const first = await state();
+  check('the title screen has a small name button that says "Hero name: Sol · change"', first.row && first.pill && !first.form && /^Hero name: Sol\W+change$/.test(first.pillText) && first.title, JSON.stringify(first));
+  await page.screenshot({ path: `${OUT}/name-1-title.png` });
+  await page.click('#title-rename');
+  const open = await state();
+  check('tapping it opens a text box with the name selected and ready to type, and the game does not start', !open.pill && open.form && open.value === 'Sol' && open.focused === 'title-rename-input' && open.title && open.phase === first.phase, JSON.stringify(open));
+  await page.screenshot({ path: `${OUT}/name-2-typing.png` });
+  await page.keyboard.type('Ro wan!<b>');
+  const typed = await state();
+  check('typing works as normal: a space is a space (it does not start the game), W A S D are letters, and symbols are dropped as you type', typed.value === 'Ro wanb' && typed.form && typed.title && typed.phase === first.phase, JSON.stringify(typed));
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('Rowan');
+  await page.keyboard.press('Enter');
+  const done = await state();
+  check('Enter keeps the name: the box closes, the button shows the new name, and the game still waits for a tap', done.pill && !done.form && /^Hero name: Rowan\W+change$/.test(done.pillText) && done.title && done.phase === first.phase, JSON.stringify(done));
+
+  // Starting the game while the box is open counts what was typed.
+  await page.click('#title-rename');
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('Pat');
+  await page.mouse.click(400, 100);
+  await until(page, () => document.getElementById('title').hidden);
+  const named = await page.evaluate(() => ({ name: window.__game.progress.name, hud: document.getElementById('hud-name').textContent, hero: window.__game.player.name, button: document.getElementById('power-button').textContent }));
+  check('tapping the rest of the title screen while the box is open starts the game with the name that was typed ("Pat"), in the corner and on the hero', named.name === 'Pat' && named.hud.includes('Pat') && named.hero === 'Pat', JSON.stringify(named));
+  const lines = [];
+  for (let guard = 0; guard < 120; guard++) {
+    const now = await page.evaluate(() => ({ active: window.__game.story.active, name: document.getElementById('dialogue-name').textContent, text: document.getElementById('dialogue-text').textContent }));
+    if (now.active) lines.push(`${now.name}: ${now.text}`);
+    if (lines.some((l) => l.includes('call you Pat.'))) break;
+    await page.waitForTimeout(350);
+    await page.keyboard.press('Space');
+  }
+  check('the story uses it: Pat\'s own lines show "Pat", and Marlo says "so I\'ll call you Pat."', lines.some((l) => l.startsWith('Pat: ')) && lines.some((l) => /^Marlo: .*so I'll call you Pat\.$/.test(l)) && !lines.some((l) => /\bSol\b/.test(l)), JSON.stringify(lines.slice(-4)));
+  await page.screenshot({ path: `${OUT}/name-3-story.png` });
+  await page.evaluate(() => { const G = window.__game; G.story.skip(); G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.rounds.showRankings(); });
+  const board = await page.evaluate(() => [...document.querySelectorAll('#rankings-list .rank-row.you .rank-name')].map((e) => e.textContent).join());
+  check('and so does the Rankings board', board.split(',').includes('Pat') && !board.includes('Sol'), board);
+
+  // Saving: with ?save the name is remembered, and "Start over" keeps it. Without it (debug mode) it is forgotten.
+  SHOW_TITLE = true; SAVE_ON = true;
+  ({ page } = await openGame(browser, 'name-save'));
+  SHOW_TITLE = false; SAVE_ON = false;
+  await page.click('#title-rename');
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('Zed');
+  await page.keyboard.press('Enter');
+  const stored = await page.evaluate(() => ({ name: localStorage.getItem('powerheroes.save.name'), save: localStorage.getItem('powerheroes.save') }));
+  check('with saving on, the name is written to the browser as soon as it is kept', stored.name === 'Zed', JSON.stringify(stored));
+  await page.evaluate(() => { const G = window.__game; G.progress.mark('prologue'); G.progress.store(); });
+  await reopen(page, ['power', 'save', 'title']);
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
+  const back = await page.evaluate(() => ({ name: window.__game.progress.name, pill: document.getElementById('title-rename').textContent, hud: document.getElementById('hud-name').textContent, reset: !document.getElementById('title-reset').hidden }));
+  check('after a reload the title and the game still say Zed', back.name === 'Zed' && /Zed/.test(back.pill) && /Zed/.test(back.hud) && back.reset, JSON.stringify(back));
+  await page.click('#title-reset');
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5 && document.getElementById('title-reset').hidden, null, { timeout: 90000 });
+  const wiped = await page.evaluate(() => ({ progress: localStorage.getItem('powerheroes.save'), name: localStorage.getItem('powerheroes.save.name'), pill: document.getElementById('title-rename').textContent }));
+  check('"Start over" wipes the progress but keeps the name', wiped.progress === null && wiped.name === 'Zed' && /Zed/.test(wiped.pill), JSON.stringify(wiped));
+
+  SHOW_TITLE = true;
+  ({ page } = await openGame(browser, 'name-debug'));
+  SHOW_TITLE = false;
+  await page.click('#title-rename');
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('Zed');
+  await page.keyboard.press('Enter');
+  const forgot = await page.evaluate(() => ({ name: window.__game.progress.name, stored: localStorage.getItem('powerheroes.save.name') }));
+  check('in debug mode (which forgets everything so the tests start fresh) the new name is used but not kept', forgot.name === 'Zed' && forgot.stored === null, JSON.stringify(forgot));
+
+  // The title screen with the name box must fit on a phone either way up.
+  for (const [w, h, tag] of [[390, 844, 'portrait'], [667, 375, 'sideways'], [568, 320, 'small']]) {
+    SHOW_TITLE = true;
+    ({ page } = await openGame(browser, `name-fit-${tag}`, { width: w, height: h }));
+    SHOW_TITLE = false;
+    await page.click('#title-rename');
+    const fit = await page.evaluate(() => {
+      const box = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; };
+      return { form: box('title-rename-form'), reset: box('title-name-row'), w: innerWidth, h: innerHeight };
+    });
+    const inside = (b) => b.top >= 0 && b.bottom <= fit.h && b.left >= 0 && b.right <= fit.w;
+    check(`on a ${w}x${h} screen (${tag}) the name box is fully on the screen`, inside(fit.form) && inside(fit.reset), JSON.stringify(fit));
+    if (w === 390) await page.screenshot({ path: `${OUT}/name-4-portrait.png` });
+  }
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

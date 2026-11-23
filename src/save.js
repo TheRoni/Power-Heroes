@@ -19,5 +19,12 @@ export function createSave(key = KEY) {
     clear() {
       try { localStorage.removeItem(key); } catch (error) { /* fine */ }
     },
+    // The hero's name is kept apart from the progress, so "Start over" does not forget it.
+    loadName() {
+      try { return localStorage.getItem(`${key}.name`); } catch (error) { return null; }
+    },
+    storeName(name) {
+      try { localStorage.setItem(`${key}.name`, name); } catch (error) { /* fine */ }
+    },
   };
 }

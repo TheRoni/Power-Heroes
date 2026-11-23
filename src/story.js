@@ -5,6 +5,8 @@ import * as THREE from '../lib/three.module.min.js';
 import { SPEAKERS, SCENES, BUBBLES } from './story-data.js';
 import { QUIET } from './audio.js';
 
+const DEFAULT_VARS = { name: 'Sol' };   // what {name} means if nobody says (the game says what the player chose)
+
 const TYPING_SPEED = 48;   // letters per second
 const BUBBLE_TIME = 3.2;   // how long a bubble stays (seconds)
 const TAP_LOCK = 0.25;     // when a scene starts, taps are ignored for this long, so a hurried tap cannot skip the first line
@@ -41,7 +43,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
   let lastBubble = '';
   let blipPitch = 1;     // the speaker's typing sound
 
-  const fill = (text) => text.replace(/\{(\w+)\}/g, (match, name) => String(vars()[name] ?? match));   // "Power {power}" becomes "Power 12"
+  const fill = (text) => text.replace(/\{(\w+)\}/g, (match, name) => String(vars()[name] ?? DEFAULT_VARS[name] ?? match));   // "Power {power}" becomes "Power 12"
   const resolve = (text) => fill(typeof text === 'string' ? text : phone ? text.touch : text.keys);
 
   function showLine([who, text, cue]) {
@@ -49,7 +51,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
     full = resolve(text);
     typed = 0;
     shown = 0;
-    nameBox.textContent = speaker.name;
+    nameBox.textContent = fill(speaker.name);
     blipPitch = speaker.pitch || 1;
     overlay.style.setProperty('--speaker', speaker.color);
     textBox.textContent = '';
@@ -146,7 +148,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
     do {
       choice = options[Math.floor(Math.random() * options.length)];
       text = resolve(choice.who ? choice.text : choice);
-      if (choice.who) text = `${SPEAKERS[choice.who].name}: ${text}`;
+      if (choice.who) text = `${fill(SPEAKERS[choice.who].name)}: ${text}`;
     } while (text === lastBubble && options.length > 1);
     lastBubble = text;
     bubble.textContent = text;
