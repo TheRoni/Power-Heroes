@@ -42,8 +42,8 @@ export function nightAt(clock) {
 
 // "world" is the 3D world (scene.js): the village is added to it, and its setMode hides the arena while you are in the village.
 // "clan" (optional) is the people who live here (clan.js): they appear when you come, and go when you leave. "music" (optional) plays
-// the village song by day and the lullaby at night.
-export function createVillage({ world, clan = null, music = null }) {
+// the village song by day and the lullaby at night. "residents" (optional) are your own heroes who are not in your squad (residents.js).
+export function createVillage({ world, clan = null, music = null, residents = null }) {
   const group = new THREE.Group();
   group.visible = false;
   world.scene.add(group);
@@ -96,6 +96,8 @@ export function createVillage({ world, clan = null, music = null }) {
   function actionAt(position) {
     const place = ACTIONS.find((a) => Math.hypot(position.x - a.x, position.z - a.z) < a.size);
     if (place) return place;
+    const hero = residents && residents.nearest(position, TALK_RANGE);
+    if (hero) return { id: 'talk', label: 'Talk', member: hero };
     const person = clan && clan.nearest(position, TALK_RANGE);
     return person ? { id: 'talk', label: 'Talk', member: person } : null;
   }
@@ -105,8 +107,9 @@ export function createVillage({ world, clan = null, music = null }) {
   let dark = false;       // the night song is playing
   const DARK_WINDOW = new THREE.Color(0x8a7a5a);
   const LIT_WINDOW = new THREE.Color(0xffd27a);
-  function enter() { world.setMode('village'); group.visible = true; dark = false; if (clan) clan.show(true); }
-  function leave() { group.visible = false; world.setMode('arena'); world.setNight(0, 0); if (clan) clan.show(false); }
+  // "benched" are the heroes who are not in the squad: they live here.
+  function enter(benched = []) { world.setMode('village'); group.visible = true; dark = false; if (clan) clan.show(true); if (residents) residents.show(benched); }
+  function leave() { group.visible = false; world.setMode('arena'); world.setNight(0, 0); if (clan) clan.show(false); if (residents) residents.hide(); }
   function update(dt, time, hero) {
     if (!group.visible) return;
     clock = (clock + dt / DAY) % 1;
@@ -117,12 +120,14 @@ export function createVillage({ world, clan = null, music = null }) {
     if (music && (night > 0.6) !== dark) { dark = night > 0.6; music.play(dark ? 'lullaby' : 'village', 3); }
     animateFire(fire, time, dt);
     if (clan) clan.update(dt, time, hero, night);
+    if (residents) residents.update(dt, time, night);
   }
 
   return {
     group, enter, leave, update, keepOut, actionAt,
     get active() { return group.visible; },
     get people() { return clan ? clan.members : []; },
+    residents,
     get night() { return night; },
     get clock() { return clock; },
     setClock(t) { clock = ((t % 1) + 1) % 1; },   // (the automatic tests set the time of day)

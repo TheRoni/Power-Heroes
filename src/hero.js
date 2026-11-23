@@ -172,10 +172,15 @@ export function createGuest({ scene, bound, kind }) {
   let goal = null;               // where it runs to
   let look = null;               // what it turns to face on arrival
   let cheer = 0;                 // seconds of hopping left
+  let cheers = true;             // hop for joy on arriving
+  let gait = 1;                  // how fast it moves (1 is a run; a stroll is about 0.3)
   hero.setVisible(false);
 
-  // Appears at (fromX, fromZ), runs to (toX, toZ), then turns toward (lookX, lookZ).
-  function runIn(fromX, fromZ, toX, toZ, lookX, lookZ) {
+  // Appears at (fromX, fromZ), runs to (toX, toZ), then turns toward (lookX, lookZ). "options": { cheers: false } for no hopping,
+  // { pace: 0.3 } for a stroll.
+  function runIn(fromX, fromZ, toX, toZ, lookX, lookZ, options = {}) {
+    cheers = options.cheers !== false;
+    gait = options.pace || 1;
     hero.position.set(fromX, 0, fromZ);
     hero.face(Math.atan2(toX - fromX, toZ - fromZ));
     goal = { x: toX, z: toZ };
@@ -204,9 +209,9 @@ export function createGuest({ scene, bound, kind }) {
         state = 'here';
         push.x = push.z = 0;
         hero.face(Math.atan2(look.x - p.x, look.z - p.z));
-        cheer = CHEER_TIME;
+        cheer = cheers ? CHEER_TIME : 0;
       } else {
-        const pace = Math.min(1, distance / 1.5);   // eases off near the end, so it does not overshoot
+        const pace = Math.min(gait, distance / 1.5);   // eases off near the end, so it does not overshoot
         push.x = (dx / distance) * pace;
         push.z = (dz / distance) * pace;
       }

@@ -17,7 +17,8 @@ import { createAura } from './aura.js';
 import { createOverdrive, BOOST } from './overdrive.js';
 import { createRounds } from './rounds.js';
 import { createCampfire } from './campfire.js';
-import { createVillage } from './village.js';
+import { createVillage, VILLAGE_WALK } from './village.js';
+import { createResidents } from './residents.js';
 import { createClan } from './clan.js';
 import { createProgress } from './power.js';
 import { createSave } from './save.js';
@@ -168,7 +169,7 @@ const aura = createAura({ scene: world.scene, position: player.position, sparks:
 const overdrive = createOverdrive({ squad, aura, ui, audio, shake });   // hits fill a meter; when it is full, Overdrive
 const campfire = createCampfire({ world, player, marlo, ember, story, audio, aura, progress, ui });   // the night after the boss (see campfire.js)
 const clan = createClan({ scene: world.scene, camera: world.camera, tags: document.getElementById('tags'), seed: DEBUG ? 7 : progress.clanSeed });   // the people of the village (clan.js)
-const village = createVillage({ world, clan, music });   // the Home Village, a place to walk about between battles (see village.js)
+const village = createVillage({ world, clan, music, residents: createResidents({ scene: world.scene, bound: VILLAGE_WALK + 0.4 }) });   // the Home Village, a place to walk about between battles (see village.js)
 const rounds = createRounds({
   progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, campfire, village, pick: PICK, chapter: CHAPTER,
   onNewRound: () => {   // the game's own small resets

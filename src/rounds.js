@@ -4,7 +4,7 @@ import { HEROES } from './heroes-data.js';
 import { WALK_RADIUS } from './scene.js';
 import { xpForKill, winBonus, enemyPowerFor, xpForPower, shortNumber } from './power.js';
 import { board, passes, windowed, MARLO, RIVALS } from './rankings.js';
-import { CLAN_LINES } from './story-data.js';
+import { CLAN_LINES, HERO_LINES } from './story-data.js';
 import { CHAPTERS, ROUNDS, SHARDS } from './chapters.js';
 import { DOOR, PLACES, VILLAGE_WALK } from './village.js';
 
@@ -120,7 +120,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     ending = null;
     ember.leave();
     player.setBound(VILLAGE_WALK);
-    village.enter();
+    village.enter(progress.unlocked.filter((kind) => kind !== 'sol' && !squad.roster.includes(kind)));   // (the heroes not in the squad live there)
     player.position.set(DOOR.x, 0, DOOR.z + 3.2);   // (a few steps from the door, so the big button has nothing to say yet)
     player.velocity.x = player.velocity.z = 0;
     player.face(0);
@@ -137,12 +137,13 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   }
   // Somebody of the village says a line (their kind of person has three; never the same one twice in a row).
   let lastLine = '';
-  function talk(member) {
-    const lines = CLAN_LINES[member.personality];
+  function talk(member) {   // (a person of the clan, or one of your own heroes who lives there)
+    const lines = member.kind ? HERO_LINES[member.kind] : CLAN_LINES[member.personality];
+    const power = member.kind ? progress.powerOf(member.kind) : member.power;
     let line;
     do line = lines[Math.floor(Math.random() * lines.length)]; while (line === lastLine && lines.length > 1);
     lastLine = line;
-    story.sayAt(`${member.name}: ${line.replace('{power}', shortNumber(member.power))}`, member.model.group);
+    story.sayAt(`${member.name}: ${line.replace('{power}', shortNumber(power))}`, member.kind ? member.group : member.model.group);
   }
 
   // The big button in the village: the Hall's door starts the next round, the notice board shows the Power Rankings, a person talks.

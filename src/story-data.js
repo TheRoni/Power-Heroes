@@ -140,6 +140,13 @@ export const CLAN_LINES = {
   grumpy: ['Hmph. Newcomers.', "Don't touch the dummies. They're mine.", 'Power {power}. I earned every number.'],
 };
 
+// What your own heroes say when they live in the village and you talk to them. {power} is their Power.
+export const HERO_LINES = {
+  ember: ["Power {power}. Rematch tomorrow. Or today. I'm free.", 'Training? Obviously. Come on.', 'My fire is hotter than your light. Fact.'],
+  tide: ['The pond is calmer than the sea. I miss the sea.', 'Slow is smooth. Smooth is strong.', "You're loud. In a good way."],
+  volt: ["I timed it: that's your fastest walk yet.", 'Records! I love records. Beat mine.', 'Faster. Faster. ...Not you. Me.'],
+};
+
 // Bubbles: quick lines that float by while the fight carries on. One is picked at random.
 // A plain line is Pip's. { who: 'marlo', text } is Marlo's.
 export const BUBBLES = {

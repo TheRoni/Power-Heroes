@@ -43,13 +43,14 @@
 ## Tests (in `tests/`, not part of the game)
 - `tests/test-stage1.js` (19 checks: movement), `tests/test-stage8.js` (13 checks: the
   manifest, the icons, the service worker, and playing with no internet, from a real
-  local web address) and `tests/test-stage2.js` (everything else, in 29 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  local web address) and `tests/test-stage2.js` (everything else, in 30 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
   screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
   16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings,
   20 naming the hero, 21 the five rounds of Chapter 1, 22 General Bramble, 23 his last
   words and trying again, 24 the campfire and the memory shard, 25 the village, 26 the clan,
-  27 talking and the Rankings board, 28 days and nights, 29 what the clan does)
+  27 talking and the Rankings board, 28 days and nights, 29 what the clan does,
+  30 your own heroes in the village)
   A full run takes 10 to 25 minutes in the test browser.
 - **After changing any game file, run `node tests/bump-sw.js`** (it rewrites the file
   list and the version in `sw.js`; without it a phone could keep an old copy of the
@@ -117,13 +118,14 @@
 - [x] **Stage 10: Home Village, first version.** A walkable village with the Hero Hall, the
   clan (auras, name tags, a line each) and the Rankings board on the notice board. (Plan below.)
 
+- [x] **Stage 11: Village life (chunks 1 to 3).** Day and night, what the clan does by day, your own heroes
+  live there. (The friendly spar and guest teammates are still to do: see the plan below.)
+
 ### Next
-- [ ] **Stage 11: Village life.** Daily activities, day and night, spar, guest
-  teammates, your heroes wander. (Plan below.)
+- [ ] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder,
+  Golden Gloom, mystery visitor, more combos. (Plan below.)
 
 ### The adventure
-- [ ] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder,
-  Golden Gloom, mystery visitor, more combos.
 - [ ] **Stage 13: Chapters 2 and 3.** Tidecove (Tide, Rook) and Stormspire
   (Volt, saving Rook), two Generals, two shards.
 - [ ] **Stage 14: Chapters 4 and 5.** Cinderpeak (Nyx appears, Marlo's death,
@@ -752,6 +754,41 @@ you can ask someone to fight beside you in a battle. (Plan written on Sonnet fro
   (a rod, a pull and a splash), one **cooks** (a spoon), one **chats** (turns to the nearest, nods, a speech
   mark), one **naps** (lies down, "Zzz"), one **looks** through the telescope, one **reads** the board and one
   **shows off** (a pose and a flare). Everyone stops at night. Tests: group 29 (5 checks).
+- **Chunk 3 build notes (DONE):** `residents.js`: your own heroes who are not in your squad (Ember, Tide, Volt)
+  live in the village as the real heroes: each has favourite places (Ember the yard and the ring, Tide the pond,
+  Volt the tower, the board and the road), strolls slowly between them, and goes to the fire at night. Walk up and
+  "Talk": they answer in their own voice (three lines each). Which of them are there depends on the squad you
+  took to your last battle. Tests: group 30 (8 checks).
+- **Not built yet from this plan (moved to a later "village polish" step):** chunk 4, a friendly spar with
+  someone, and chunk 5, inviting someone as a guest teammate for a battle. Both need a new kind of opponent or ally
+  (a clan member in a fight), which is bigger than the rest of the village; the village is fully playable without
+  them (and `CLAUDE.md` lists them under Home Village, so they stay on the to-do list).
+
+## Stage 12 plan: more enemies and surprises
+**Goal:** the fights stop being "the same blob": Brutes, Spitters, Shielders and a rare Golden Gloom, introduced
+one at a time in Chapter 1's rounds with a tip from Pip. (Plan written on Sonnet from `CLAUDE.md`'s
+"Villains and enemies".)
+- **Enemy kinds, in one place.** `gloom.js` stays the little Gloomling; a new `src/enemies.js` makes the other kinds
+  with the same shape (so darts, superpowers, combos and the waves treat them all alike). A wave's list can now say
+  "nature:brute" (a type and a kind); plain "nature" still means a Gloomling.
+- **Brute:** big, slow and tough (about 2x the size, 4x the health, half the speed); a bump hurts twice as much and
+  shoves you back. Tip: hit it from far, keep moving.
+- **Spitter:** small, fragile, keeps its distance and spits slow goo balls you can step out of. Tip: chase it or
+  duck round the goo.
+- **Shielder:** carries a glowing bubble that protects the Glooms near it (they take almost no damage) until it is
+  hit by the type that beats its own; then the bubble pops. This is where swapping to the right hero really
+  matters.
+- **Golden Gloom (rare surprise):** shiny and fast, runs away from you, gives lots of XP and a shower of
+  gold when caught; it escapes after 15 seconds. A banner and a word from Pip when it shows up.
+- **Where they come in (Chapter 1):** round 3 adds Brutes, round 4 adds Spitters and one Shielder, round 5 has
+  all of them with the boss; a Golden Gloom can appear in any round. The first time you meet each kind, Pip says
+  what it is.
+- **Not in this stage:** the mystery visitor (a hidden hero who helps mid-round) needs new heroes to recruit
+  (Cinder, Frost, Gale, Thorn...), so it waits for them; and the combos Wildfire, Vortex Blast and Shatter need
+  those heroes too.
+- **Chunks:** 1 the framework and the Brute; 2 the Spitter; 3 the Shielder; 4 the Golden Gloom; 5 using them in
+  the rounds, Pip's tips, tests on both pages, republish.
+- **New file:** `src/enemies.js` (the new kinds). `heroes-data.js` gets the numbers (`ENEMIES`).
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on

@@ -3898,10 +3898,71 @@ async function chunk29(browser) {
   check('(pictures taken of the ring, the yard and the pond)', true);
 }
 
+// ---------- Your own heroes in the village ----------
+const residentUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createResidents } = await import('/src/residents.js');
+  const out = {};
+  const scene = new THREE.Scene();
+  const r = createResidents({ scene, bound: 16.8 });
+  const at = (k) => r.people[k].guest.position;
+  out.none = Object.keys(r.people).length;
+  r.show(['ember', 'tide']);
+  out.shown = { kinds: Object.keys(r.people).join(), states: Object.values(r.people).map((p) => p.guest.state).join(), ember: [at('ember').x, at('ember').z].join(), tide: [at('tide').x, at('tide').z].join() };
+  for (let i = 0; i < 30; i++) r.update(1 / 30, i / 30, 0);
+  out.here = Object.values(r.people).map((p) => p.guest.state).join();
+  const visited = { ember: new Set(), tide: new Set() };
+  let farthest = 0;
+  for (let i = 0; i < 30 * 120; i++) {
+    r.update(1 / 30, 1 + i / 30, 0);
+    for (const k of ['ember', 'tide']) { visited[k].add(`${Math.round(at(k).x / 3)},${Math.round(at(k).z / 3)}`); farthest = Math.max(farthest, Math.hypot(at(k).x, at(k).z)); }
+  }
+  out.stroll = { ember: visited.ember.size, tide: visited.tide.size, farthest: +farthest.toFixed(1) };
+  out.talk = { near: (r.nearest({ x: at('ember').x + 1, z: at('ember').z }) || {}).kind, none: r.nearest({ x: 100, z: 100 }), name: (r.nearest(at('tide')) || {}).name };
+  for (let i = 0; i < 30 * 60; i++) r.update(1 / 30, 200 + i / 30, 0.8);
+  out.night = { ember: [+at('ember').x.toFixed(1), +at('ember').z.toFixed(1)].join(), tide: [+at('tide').x.toFixed(1), +at('tide').z.toFixed(1)].join() };
+  r.show(['tide']);
+  out.benched = { ember: r.people.ember.guest.state, tide: r.people.tide.guest.state, visible: r.people.ember.guest.group.visible };
+  r.hide();
+  out.hidden = Object.values(r.people).map((p) => p.guest.state).join();
+  return out;
+};
+
+async function chunk30(browser) {
+  let { page } = await openGame(browser, 'residents-unit');
+  const u = await page.evaluate(residentUnit);
+  check('nobody is made until they are needed; showing Ember and Tide makes them and puts each at a favourite place (Ember at the yard, Tide at the pond: the first, then the second of their places)', u.none === 0 && u.shown.kinds === 'ember,tide' && u.shown.ember === '-9.2,-1.4' && u.shown.tide === '-12.4,5.2' && /^(running|here),(running|here)$/.test(u.shown.states) && u.here === 'here,here', JSON.stringify([u.none, u.shown, u.here]));
+  check('they stroll between their favourite places (several different spots in two minutes) and stay on the isle', u.stroll.ember >= 3 && u.stroll.tide >= 3 && u.stroll.farthest < 16.8, JSON.stringify(u.stroll));
+  check('you can find who is near a spot (to talk to them), and nobody when none is near', u.talk.near === 'ember' && u.talk.none === null && u.talk.name === 'Tide', JSON.stringify(u.talk));
+  check('at night they go to the fire (Ember on one side, Tide on another)', Math.hypot(+u.night.ember.split(',')[0] - 3.4, +u.night.ember.split(',')[1] - 3.9) < 0.6 && Math.hypot(+u.night.tide.split(',')[0] + 0.5, +u.night.tide.split(',')[1] - 7.6) < 0.6, JSON.stringify(u.night));
+  check('showing a new list hides the ones who are not in it (Ember goes, Tide stays), and hide() sends everybody away', u.benched.ember === 'away' && u.benched.tide !== 'away' && !u.benched.visible && u.hidden === 'away,away', JSON.stringify([u.benched, u.hidden]));
+
+  // The live village: the hero who is not in your squad lives there, and you can talk to him.
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'residents-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.rounds.chooseSquad(['sol', 'ember', 'tide']); G.rounds.toVillage(); });
+  await until(page, () => window.__game.village.active);
+  await page.waitForTimeout(800);
+  const live = await page.evaluate(() => { const R = window.__game.village.residents; return { kinds: Object.keys(R.people).join(), volt: R.people.volt.guest.state, visible: R.people.volt.guest.group.visible, bench: R.people.volt.here }; });
+  check('with Sol, Ember and Tide in the squad, Volt lives in the village (and nobody else of your heroes does)', live.kinds === 'volt' && live.visible && live.bench, JSON.stringify(live));
+  await page.evaluate(() => { const G = window.__game; G.village.residents.people.volt.wait = 1e9; const v = G.village.residents.people.volt.guest.position; G.player.position.set(v.x - 1.2, 0, v.z); });   // (he stays where he is while we talk)
+  await until(page, () => document.getElementById('power-label').textContent === 'Talk');
+  await page.screenshot({ path: `${OUT}/residents-1-volt.png` });
+  const heard = [];
+  for (let i = 0; i < 8; i++) { await page.keyboard.press('Space'); await page.waitForTimeout(150); heard.push(await page.evaluate(() => document.getElementById('bubble').textContent)); }
+  const lines = [...new Set(heard)];
+  check('next to him the big button says "Talk", and he answers in his own voice (one of three lines about records and speed, with his name)', lines.length >= 2 && lines.every((l) => ['Volt: I timed it: that\'s your fastest walk yet.', 'Volt: Records! I love records. Beat mine.', 'Volt: Faster. Faster. ...Not you. Me.'].includes(l)), JSON.stringify(lines));
+  await page.evaluate(() => { const G = window.__game; G.village.leave(); G.rounds.chooseSquad(['sol', 'volt', 'tide']); G.rounds.toVillage(); });
+  await page.waitForTimeout(800);
+  const swapped = await page.evaluate(() => { const R = window.__game.village.residents; return { ember: R.people.ember.here, volt: R.people.volt.here }; });
+  check('with another squad the other hero lives there instead (Ember now, not Volt)', swapped.ember && !swapped.volt, JSON.stringify(swapped));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27, 28: chunk28, 29: chunk29 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27, 28: chunk28, 29: chunk29, 30: chunk30 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
