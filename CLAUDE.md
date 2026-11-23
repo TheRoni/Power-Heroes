@@ -249,7 +249,9 @@ src/                  the game code, one job per file
   superpowers.js      each hero's superpower (Flame Wave, Starburst, ...)
   combos.js           power reactions
   aura.js             aura visuals by tier
+  overdrive.js        the Overdrive meter and its few seconds of boosted power
   power.js            Power, XP, and growth maths
+  rounds.js           how a round starts and ends: squad choice, XP, unlocks, saving
   gloom.js            enemies
   waves.js            wave timing and round end
   types.js            type circle and damage rules
@@ -259,7 +261,8 @@ src/                  the game code, one job per file
   village.js          the Home Village world and places
   clan.js             clan member behaviour (daily activities)
   character-gen.js    random names, looks, types, Power
-  ui.js               health bars, buttons, pop-ups, menus
+  ui.js               health bars, buttons, pop-ups
+  menus.js            the full-screen menus: title, squad screen, end screen
   hero-models.js      the look of each hero (built from shapes)
   marlo.js            Keeper Marlo, the mentor
   sky.js              the sky: day and night colours, twinkling stars

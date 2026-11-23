@@ -496,6 +496,15 @@ how you rank. After a round the number counts up.
 - **Chunk 3: Overdrive.** Hits fill a meter; when it is full, tap the hero's
   name box (or press E): a few seconds of a boosted Power number, a flaring aura
   and a faster-recharging superpower.
+- **Chunk 3 build notes (DONE):** new `src/overdrive.js`. One meter for the whole squad:
+  a hit fills 3%, a superpower hit 6% (about 30 hits); it starts empty every round. When
+  full, a pulsing "OVERDRIVE ready! Press E" button appears under the name box (tap it,
+  press E, or tap the portrait of the hero in play). For 6 seconds the hero in play does
+  1.5x damage, the superpower recharges 3x as fast, the aura flares, and the Power number in
+  the corner jumps (Power 10 to 15) and turns gold, with an "OVERDRIVE!" banner, a rising
+  sound and a small shake. A swap during Overdrive carries it to the new hero. It cannot
+  start during a conversation, while it is already on, or when the hero in play is knocked
+  out. Tests: group 18 (16 checks).
 - **Chunk 4: Rankings, polish, republish.** A Power Rankings board (your heroes
   among Rook, Marlo's faded 9,999 and others), "You passed Rook!" moments, tests
   on both pages, republish.

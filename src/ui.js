@@ -33,7 +33,7 @@ export function createFloatingBar(width, color) {
 // "onCast" is called when the player taps the power button or presses Space.
 // "onAgain" is called when the player taps "Play again" / "Try again" on an end screen. "onSwap(index)" when a hero portrait
 // is tapped or 1, 2 or 3 is pressed. "audio" plays the click and ready sounds.
-export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = QUIET }) {
+export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdrive = () => {}, audio = QUIET }) {
   const healthFill = document.getElementById('hud-fill');
   const waveLabel = document.getElementById('hud-wave');
   const floaters = document.getElementById('floaters');
@@ -55,6 +55,7 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
   });
   window.addEventListener('keydown', (event) => {
     if (/^Digit[1-3]$/.test(event.code) && !event.repeat) { onSwap(Number(event.code.slice(5)) - 1); return; }
+    if (event.code === 'KeyE' && !event.repeat) { onOverdrive(); return; }
     if (event.code !== 'Space' && event.code !== 'Enter') return;
     if (menus.handleKey(event)) return;   // a menu that is showing takes Space and Enter
     if (event.code === 'Space') {
@@ -81,8 +82,33 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
   }
 
   // The hero's Power number in the corner ("Power 12", or 12.4K when large).
-  function setHeroPower(power) {
-    document.getElementById('hud-power').textContent = power === undefined ? '' : `Power ${shortNumber(power)}`;
+  function setHeroPower(power, boosted = false) {
+    const box = document.getElementById('hud-power');
+    const text = power === undefined ? '' : `Power ${shortNumber(power)}`;
+    if (box.textContent !== text) box.textContent = text;
+    box.classList.toggle('boosted', boosted);   // gold while Overdrive is on
+  }
+
+  // Overdrive: the meter under the name box, and the button that appears when it is full (or while it is on).
+  const meterBox = document.getElementById('hud-meter');
+  const READY_TEXT = 'OVERDRIVE ready!<span class="hint-touch"> Tap here</span><span class="hint-keys"> Press E</span>';
+  let lastOverdrive = 'ready';
+  const overdriveButton = document.getElementById('overdrive');
+  overdriveButton.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onOverdrive();
+  });
+  function setOverdrive({ meter, ready, active, timeLeft }) {
+    document.getElementById('hud-meter-fill').style.transform = `scaleX(${active ? timeLeft / 6 : meter})`;
+    meterBox.classList.toggle('full', ready);
+    overdriveButton.hidden = !ready && !active;
+    overdriveButton.classList.toggle('on', active);
+    const state = active ? `on ${Math.ceil(timeLeft)}` : 'ready';
+    if (state !== lastOverdrive) {   // only touch the words when they change
+      lastOverdrive = state;
+      overdriveButton.innerHTML = active ? `OVERDRIVE ${Math.ceil(timeLeft)}s` : READY_TEXT;
+    }
   }
 
   // The power button. "progress" goes from 0 (just used) to 1 (ready). The dark sweep shows how much is left.
@@ -194,5 +220,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, ...menus.api };
+  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
 }

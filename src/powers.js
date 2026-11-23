@@ -115,7 +115,7 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
   // Hurts a Gloomling: pop-up number, sparks, and if it falls, a burst of colour. Returns true if it was defeated.
   function damage(gloom, base, pushX, pushZ, kind) {
     const { multiplier, label } = effectiveness(data.type, gloom.type);   // SUPER! against a type you beat, weak against one that beats you
-    const amount = Math.max(1, Math.round(base * multiplier * strength(hero.power)));   // types, then Power
+    const amount = Math.max(1, Math.round(base * multiplier * strength((hero.power || 10) * (hero.boost || 1))));   // types, then Power (and Overdrive)
     const defeated = gloom.hit(amount, pushX, pushZ);
     const p = gloom.position;
     if (events.hit) events.hit(gloom, amount, kind, label);
@@ -188,7 +188,7 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
 
   // Called every frame. Fires automatically when a Gloomling is in range.
   function update(dt) {
-    powerLeft = Math.max(0, powerLeft - dt);
+    powerLeft = Math.max(0, powerLeft - dt * ((hero.boost || 1) > 1 ? 3 : 1));   // Overdrive: the superpower recharges three times as fast
     fireTimer -= dt;
     if (fireTimer <= 0) {
       const target = hero.down || !autoFire ? null : nearest(data.attack.range);

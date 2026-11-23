@@ -51,13 +51,13 @@ export function createAura({ scene, position, sparks }) {
     body.material.opacity = Math.min(1, (0.3 + Math.sin(time * 2.6) * 0.06) * boost);
     flame.visible = tier >= 2;
     flame.material.color.setHex(color);
-    flame.scale.setScalar(4 + Math.sin(time * 13) * 0.35 + Math.sin(time * 7.1) * 0.3 + flare * 1.5);   // it flickers
+    flame.scale.setScalar(4 + Math.sin(time * 13) * 0.35 + Math.sin(time * 7.1) * 0.3 + Math.min(1, flare) * 1.5);   // it flickers
     flame.material.opacity = Math.min(1, (0.2 + Math.sin(time * 11) * 0.05) * boost);
     ring.visible = tier >= 3;
     ring.material.color.setHex(color);
     ring.material.opacity = Math.min(1, 0.45 * boost);
     ring.rotation.z += dt;
-    ring.scale.setScalar(1 + Math.sin(time * 3) * 0.06 + flare * 0.4);
+    ring.scale.setScalar(1 + Math.sin(time * 3) * 0.06 + Math.min(1, flare) * 0.4);
     halo.visible = tier >= 4;
     halo.position.y = 2.2 + Math.sin(time * 2.2) * 0.06;
     halo.rotation.z += dt * 1.5;

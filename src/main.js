@@ -14,6 +14,7 @@ import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
 import { createAura } from './aura.js';
+import { createOverdrive, BOOST } from './overdrive.js';
 import { createRounds } from './rounds.js';
 import { createProgress, shortNumber } from './power.js';
 import { createSave } from './save.js';
@@ -73,7 +74,8 @@ const music = createMusic(audio);   // the flute and the songs (they start when 
 const ui = createUI({
   camera: world.camera, audio, onAgain: () => rounds.restart(),
   onCast: () => { if (!story.active && !frozen()) powers.castPower(); },
-  onSwap: (index) => { if (!story.active && !frozen()) squad.swapTo(index); },   // a portrait tapped, or 1, 2, 3
+  onSwap: (index) => { if (story.active || frozen()) return; if (index === squad.slot) overdrive.activate(); else squad.swapTo(index); },   // a portrait tapped, or 1, 2, 3 (the hero in play: Overdrive)
+  onOverdrive: () => { if (!story.active && !frozen()) overdrive.activate(); },   // the button, or E
 });
 const ember = createGuest({ scene: world.scene, bound: WALK_RADIUS, kind: 'ember' });   // she runs in at the end of Chapter 1
 const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
@@ -94,6 +96,7 @@ const squad = createSquad({
   events: {
     cast: () => { waveFreezePending = true; waveHits = 0; waveHitTimer = 0.5; shake(0.12); },
     hit: (gloom, amount, kind, label) => {
+      overdrive.hit(kind);
       ui.popNumber(gloom.position, amount, kind, 1.6);
       if (label !== 'normal') ui.popNumber(gloom.position, label === 'super' ? 'SUPER!' : 'weak', label, 2.5);   // the type pop-ups
       if (label === 'super' && !said.super) { said.super = true; progress.mark('super'); saySoon('super', 0.8); }
@@ -154,6 +157,7 @@ const waves = createWaves({
 
 // The rounds: the squad, XP and Power, the squad screen, saving, and how a round ends (see rounds.js).
 const aura = createAura({ scene: world.scene, position: player.position, sparks: powers.sparks });   // grows with Power (see aura.js)
+const overdrive = createOverdrive({ squad, aura, ui, audio, shake });   // hits fill a meter; when it is full, Overdrive
 const rounds = createRounds({
   progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick: PICK,
   onNewRound: () => {   // the game's own small resets
@@ -163,6 +167,7 @@ const rounds = createRounds({
     if (squad.roster.length > 1 && !said.swap) { said.swap = true; progress.mark('swap'); saySoon('swapTip', 3); }
     waveHitTimer = -1;
     soon.length = 0;
+    overdrive.reset();
   },
 });
 rounds.chooseSquad([PLAYER_KIND]);
@@ -200,7 +205,7 @@ let hintHidden = false;
 
 if (DEBUG) {
   ui.showFps();
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad, progress, rounds, aura, overdrive };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -225,6 +230,9 @@ function frame(now) {
   world.follow(player.position, player.velocity, dt, false);
   aura.update(dt, gameTime, { power: progress.powerOf(player.kind), type: player.type, visible: player.group.visible, speed: Math.hypot(player.velocity.x, player.velocity.z) });
   player.setGlow(aura.glow);
+  overdrive.update(dt);
+  ui.setOverdrive(overdrive);
+  ui.setHeroPower(Math.round(progress.powerOf(player.kind) * (overdrive.active ? BOOST : 1)), overdrive.active);
   world.update(dt, gameTime);
   prologue.update(realDt, now / 1000);
   story.update(realDt);

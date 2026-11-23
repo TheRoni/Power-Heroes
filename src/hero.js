@@ -39,6 +39,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
   let invulnerable = 0;              // seconds of protection left after a hit
   let flash = 0;                     // white flash when hit
   let glow = 0;                      // a steady glow on the hero's edges (from the aura tiers Surge and Radiant)
+  let boost = 1;                     // 1.5 during Overdrive: the hero hits as if their Power were 1.5 times higher
   let down = false;                  // knocked out
   let fall = 0;                      // 0 = standing, 1 = lying down
 
@@ -150,6 +151,8 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
     get power() { return power; },
     // A new Power changes the health the hero can have; the share of health they have left stays the same.
     setGlow(amount) { glow = amount; },
+    get boost() { return boost; },
+    setBoost(amount) { boost = amount; },
     setPower(next) { const share = health / maxHealth(); power = next; health = Math.round(maxHealth() * share); },
     get down() { return down; },
     get yaw() { return yaw; },

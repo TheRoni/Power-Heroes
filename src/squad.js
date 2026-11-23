@@ -125,6 +125,7 @@ export function createSquad({ scene, bound, kinds = Object.keys(HEROES), gloomli
     face: (angle) => current().hero.face(angle),
     setVisible(on) { visible = on; current().hero.setVisible(on); },
     setGlow(amount) { for (const m of all) m.hero.setGlow(m === current() ? amount : 0); },
+    setBoost(amount) { for (const m of all) m.hero.setBoost(m === current() ? amount : 1); },
     reset,
   };
 

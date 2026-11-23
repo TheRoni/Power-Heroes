@@ -2391,10 +2391,158 @@ async function chunk17(browser) {
   check('a new tier also sets off a burst of confetti', sparks > 60, `most sparks at once=${sparks}`);
 }
 
+// ---------- Overdrive ----------
+const overdriveUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createOverdrive, BOOST } = await import('/src/overdrive.js');
+  const { createSquad } = await import('/src/squad.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const out = {};
+  const make = () => {
+    const log = { boosts: [], flares: [], sounds: [], banners: [], shakes: 0 };
+    const squad = { player: { down: false, setBoost: (b) => log.boosts.push(b) } };
+    const od = createOverdrive({ squad, aura: { flare: (s) => log.flares.push(s) }, ui: { showBanner: (t, u) => log.banners.push(`${t}|${u}`) }, audio: { play: (n) => log.sounds.push(n) }, shake: () => { log.shakes++; } });
+    return { od, squad, log };
+  };
+  {   // the meter
+    const { od, log } = make();
+    const start = { meter: od.meter, ready: od.ready, active: od.active };
+    od.hit('hit');
+    const one = +od.meter.toFixed(2);
+    od.hit('big');
+    const two = +od.meter.toFixed(2);
+    let hits = 2;
+    while (!od.ready && hits < 100) { od.hit('hit'); hits++; }
+    const full = { meter: od.meter, hits, ready: od.ready, sounds: log.sounds.join() };
+    od.hit('big'); od.hit('hit');
+    out.meter = { start, one, two, full, still: od.meter, sounds: log.sounds.join() };
+  }
+  {   // using it
+    const { od, squad, log } = make();
+    const early = od.activate();
+    for (let i = 0; i < 40; i++) od.hit('hit');
+    const started = od.activate();
+    out.use = { early, started, meter: od.meter, active: od.active, left: od.timeLeft, boosts: log.boosts.join(), flares: log.flares.join(), sounds: log.sounds.join(), banners: log.banners.join(), shakes: log.shakes, boost: BOOST };
+    od.hit('hit'); od.hit('big');
+    const whileOn = od.meter;
+    od.update(2);
+    const mid = { active: od.active, left: od.timeLeft };
+    const again = od.activate();
+    od.update(3.9);
+    const nearEnd = { active: od.active, boosts: log.boosts.length };
+    od.update(0.2);
+    out.end = { whileOn, mid, again, nearEnd, active: od.active, left: od.timeLeft, last: log.boosts[log.boosts.length - 1], ready: od.ready };
+    for (let i = 0; i < 40; i++) od.hit('hit');
+    squad.player.down = true;
+    const knockedOut = od.activate();
+    squad.player.down = false;
+    const second = od.activate();
+    od.reset();
+    out.more = { knockedOut, second, afterReset: { meter: od.meter, active: od.active, last: log.boosts[log.boosts.length - 1] } };
+  }
+  {   // the boost really changes the hit and the recharge
+    const run = (boost) => {
+      const scene = new THREE.Scene();
+      const g = createGloomling({ scene, x: 5, z: 0, power: 1000 });
+      const log = [];
+      const hero = { kind: 'sol', power: 10, boost, position: new THREE.Vector3(0, 0, 0), yaw: 0, down: false, face() {} };
+      const powers = createPowers({ scene, hero, gloomlings: [g], events: { hit: (gl, a, k) => log.push(`${k}:${a}`) } });
+      for (let i = 0; i < 25; i++) powers.update(1 / 30, i / 30);
+      powers.castPower();
+      const readyAt = () => { let t = 0; while (!powers.powerReady && t < 8) { powers.update(0.1, 0); t += 0.1; } return +t.toFixed(1); };
+      const recharge = readyAt();   // (this also lets the ring spread out and hit)
+      return { first: log[0], burst: log.find((l) => l.startsWith('big')), recharge };
+    };
+    out.boosted = { plain: run(1), boosted: run(1.5), none: run(undefined) };
+  }
+  {   // with a real squad: the hero in play is boosted, and the boost follows a swap
+    const scene = new THREE.Scene();
+    const squad = createSquad({ scene, bound: 10, gloomlings: [] });
+    squad.set(['sol', 'ember', 'tide']);
+    const log = { flares: 0 };
+    const od = createOverdrive({ squad, aura: { flare: () => { log.flares++; } }, ui: { showBanner() {} }, audio: { play() {} }, shake() {} });
+    for (let i = 0; i < 40; i++) od.hit('hit');
+    od.activate();
+    const sol = squad.members.sol.hero.boost;
+    squad.swapTo(1, true);
+    od.update(0.1);
+    out.squad = { sol, solAfter: squad.members.sol.hero.boost, ember: squad.members.ember.hero.boost, tide: squad.members.tide.hero.boost };
+    od.update(7);
+    out.squad.ended = [squad.members.sol.hero.boost, squad.members.ember.hero.boost].join();
+  }
+  return out;
+};
+
+async function chunk18(browser) {
+  let { page } = await openGame(browser, 'overdrive-unit');
+  const u = await page.evaluate(overdriveUnit);
+  check('the meter starts empty; a hit fills 3%, a superpower hit 6%; it stops at full, says "ready" once, and more hits change nothing', u.meter.start.meter === 0 && !u.meter.start.ready && u.meter.one === 0.03 && u.meter.two === 0.09 && u.meter.full.meter === 1 && u.meter.full.hits <= 36 && u.meter.full.ready && u.meter.full.sounds === 'ready' && u.meter.still === 1 && u.meter.sounds === 'ready', JSON.stringify(u.meter));
+  check('it cannot start before the meter is full; then it starts: the meter empties, 6 seconds, the hero is boosted 1.5x, the aura flares, a sound, a banner and a shake', !u.use.early && u.use.started && u.use.meter === 0 && u.use.active && u.use.left === 6 && u.use.boosts === '1.5' && u.use.flares === '6' && u.use.sounds === 'ready,overdrive' && u.use.banners === 'OVERDRIVE!|Power up!' && u.use.shakes === 1 && u.use.boost === 1.5, JSON.stringify(u.use));
+  check('while it is on the meter does not fill and it cannot start again; at the end the boost goes back to normal and the meter is empty', u.end.whileOn === 0 && u.end.mid.active && u.end.mid.left === 4 && !u.end.again && u.end.nearEnd.active && !u.end.active && u.end.left === 0 && u.end.last === 1 && !u.end.ready, JSON.stringify(u.end));
+  check('a knocked-out hero cannot use it; a new round (reset) ends it and empties the meter', !u.more.knockedOut && u.more.second && u.more.afterReset.meter === 0 && !u.more.afterReset.active && u.more.afterReset.last === 1, JSON.stringify(u.more));
+  check('the boost makes every hit 1.5x (dart 9 becomes 14, Starburst 40 becomes 60) and the superpower recharge 3 times as fast (5 s becomes about 1.7 s)', u.boosted.plain.first === 'hit:9' && u.boosted.boosted.first === 'hit:14' && u.boosted.boosted.burst === 'big:60' && u.boosted.plain.burst === 'big:40' && u.boosted.none.first === 'hit:9' && u.boosted.plain.recharge >= 4.9 && u.boosted.plain.recharge <= 5.1 && u.boosted.boosted.recharge >= 1.6 && u.boosted.boosted.recharge <= 1.8, JSON.stringify(u.boosted));
+  check('with a real squad only the hero in play is boosted, the boost follows a swap, and it ends for everybody', u.squad.sol === 1.5 && u.squad.solAfter === 1 && u.squad.ember === 1.5 && u.squad.tide === 1 && u.squad.ended === '1,1', JSON.stringify(u.squad));
+
+  // Live game.
+  ({ page } = await openGame(browser, 'overdrive-live'));
+  const idle = await page.evaluate(() => ({ hidden: document.getElementById('overdrive').hidden, fill: document.getElementById('hud-meter-fill').style.transform, power: document.getElementById('hud-power').textContent }));
+  check('at first the meter is empty and there is no Overdrive button', idle.hidden && (idle.fill === 'scaleX(0)' || idle.fill === '') && idle.power === 'Power 10', JSON.stringify(idle));
+  await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.gloomlings.splice(0).forEach((g) => g.remove()); });
+  await until(page, () => window.__game.overdrive.meter > 0.05 || true);
+  await page.evaluate(async () => {
+    const G = window.__game;
+    const { createGloomling } = await import('/src/gloom.js');
+    G.gloomlings.push(createGloomling({ scene: G.world.scene, x: 3, z: 0, power: 10 }), createGloomling({ scene: G.world.scene, x: 4, z: 1, power: 10 }));
+  });
+  await until(page, () => window.__game.overdrive.meter > 0);
+  const filled = await page.evaluate(() => ({ meter: window.__game.overdrive.meter, fill: document.getElementById('hud-meter-fill').style.transform }));
+  check('real hits fill the meter and the bar under the name box shows it', filled.meter > 0 && filled.meter < 1 && /scaleX\(0\.\d+\)/.test(filled.fill), JSON.stringify(filled));
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 40; i++) G.overdrive.hit('hit'); });
+  await until(page, () => !document.getElementById('overdrive').hidden);
+  const ready = await page.evaluate(() => ({ text: document.getElementById('overdrive').textContent, full: document.getElementById('hud-meter').classList.contains('full'), keyText: [...document.querySelectorAll('#overdrive span')].map((s) => getComputedStyle(s).display !== 'none').join() }));
+  check('when the meter is full a pulsing "OVERDRIVE ready!" button appears (Press E on a computer)', /OVERDRIVE ready!/.test(ready.text) && ready.full && /Press E/.test(ready.text), JSON.stringify(ready));
+  await page.screenshot({ path: `${OUT}/overdrive-1-ready.png` });
+  await page.keyboard.press('KeyE');
+  const on = await page.evaluate(() => ({ active: window.__game.overdrive.active, text: document.getElementById('overdrive').textContent, power: document.getElementById('hud-power').textContent, boosted: document.getElementById('hud-power').classList.contains('boosted'), banner: document.getElementById('banner-title').textContent, boost: window.__game.player.group && window.__game.squad.members.sol.hero.boost, flaring: window.__game.aura.flaring, sound: window.__game.audio.counts.overdrive }));
+  check('pressing E starts Overdrive: the button counts down, the Power number jumps to 15 in gold, "OVERDRIVE!" sweeps across, the hero is boosted, the aura flares, and it makes its sound', on.active && /^OVERDRIVE [1-6]s$/.test(on.text) && on.power === 'Power 15' && on.boosted && on.banner === 'OVERDRIVE!' && on.boost === 1.5 && on.flaring > 3 && on.sound === 1, JSON.stringify(on));
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/overdrive-2-on.png` });
+  await page.evaluate(() => window.__game.overdrive.update(7));
+  await until(page, () => document.getElementById('overdrive').hidden);
+  const off = await page.evaluate(() => ({ power: document.getElementById('hud-power').textContent, boosted: document.getElementById('hud-power').classList.contains('boosted'), boost: window.__game.squad.members.sol.hero.boost, fill: document.getElementById('hud-meter-fill').style.transform }));
+  check('when it ends the number, the colour and the strength go back to normal and the meter is empty', off.power === 'Power 10' && !off.boosted && off.boost === 1 && /scaleX\(0(\.\d+)?\)/.test(off.fill), JSON.stringify(off));
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 40; i++) G.overdrive.hit('hit'); });
+  const button = await page.evaluate(() => { const r = document.getElementById('overdrive').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await until(page, () => !document.getElementById('overdrive').hidden);
+  const rect = await page.evaluate(() => { const r = document.getElementById('overdrive').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.click(rect.x, rect.y);
+  check('tapping the button starts Overdrive too', await page.evaluate(() => window.__game.overdrive.active));
+  await page.evaluate(() => { const G = window.__game; G.overdrive.update(7); for (let i = 0; i < 40; i++) G.overdrive.hit('hit'); G.story.scene('lose'); });
+  await page.keyboard.press('KeyE');
+  check('Overdrive cannot start during a conversation', !(await page.evaluate(() => window.__game.overdrive.active)));
+  await page.evaluate(() => window.__game.story.skip());
+  await page.evaluate(() => { const G = window.__game; G.rounds.restart(); });
+  check('a new round starts with an empty meter', await page.evaluate(() => window.__game.overdrive.meter === 0 && !window.__game.overdrive.active));
+
+  // With a squad, tapping the portrait of the hero in play is Overdrive; the other portraits swap.
+  ({ page } = await openGame(browser, 'overdrive-squad'));
+  await page.evaluate(() => { const G = window.__game; G.rounds.chooseSquad(['sol', 'ember', 'tide']); for (let i = 0; i < 40; i++) G.overdrive.hit('hit'); });
+  const portrait = (i) => page.evaluate((n) => { const r = document.querySelectorAll('#squad .portrait')[n].getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }, i);
+  const second = await portrait(1);
+  await page.mouse.click(second.x, second.y);
+  const swapped = await page.evaluate(() => ({ kind: window.__game.player.kind, active: window.__game.overdrive.active }));
+  check('tapping another hero\'s portrait swaps (it does not start Overdrive)', swapped.kind === 'ember' && !swapped.active, JSON.stringify(swapped));
+  await until(page, () => window.__game.squad.swapReady);
+  const mine = await portrait(1);
+  await page.mouse.click(mine.x, mine.y);
+  check('tapping the portrait of the hero in play starts Overdrive, and the boost is on that hero', await page.evaluate(() => window.__game.overdrive.active && window.__game.squad.members.ember.hero.boost === 1.5));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

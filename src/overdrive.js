@@ -29,7 +29,7 @@ export function createOverdrive({ squad, aura, ui, audio, shake }) {
     meter = 0;
     announced = false;
     timeLeft = DURATION;
-    squad.setBoost(BOOST);
+    squad.player.setBoost(BOOST);
     aura.flare(DURATION);
     audio.play('overdrive');
     shake(0.2);
@@ -41,15 +41,15 @@ export function createOverdrive({ squad, aura, ui, audio, shake }) {
   function update(dt) {
     if (timeLeft <= 0) return;
     timeLeft = Math.max(0, timeLeft - dt);
-    squad.setBoost(BOOST);   // whoever is in play (after a swap) has it too
-    if (timeLeft === 0) squad.setBoost(1);
+    squad.player.setBoost(BOOST);   // whoever is in play (after a swap) has it too
+    if (timeLeft === 0) squad.player.setBoost(1);
   }
 
   function reset() {
     meter = 0;
     timeLeft = 0;
     announced = false;
-    squad.setBoost(1);
+    squad.player.setBoost(1);
   }
 
   return {
