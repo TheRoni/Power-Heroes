@@ -41,6 +41,10 @@ const SOUNDS = {
   shock: (k) => { k.noise({ filter: 'highpass', from: 2500, time: 0.25, volume: 0.07, attack: 0.002 }); [1800, 1400, 2200].forEach((f, i) => k.tone({ type: 'sawtooth', from: f, to: f * 0.5, time: 0.12, volume: 0.03, delay: i * 0.07 })); },
   swap: (k) => { k.noise({ filter: 'bandpass', from: 600, to: 2400, q: 2, time: 0.18, volume: 0.07, attack: 0.02 }); k.tone({ from: 660, to: 990, time: 0.15, volume: 0.05 }); k.tone({ from: 1320, time: 0.2, volume: 0.04, delay: 0.08 }); },
   ready: (k) => { k.tone({ from: 1760, time: 0.1, volume: 0.03, attack: 0.003 }); },
+  thorns: (k) => { k.noise({ filter: 'highpass', from: 3500, time: 0.22, volume: 0.07, attack: 0.01 }); [880, 740, 988].forEach((f, i) => k.tone({ type: 'triangle', from: f, to: f * 0.6, time: 0.14, volume: 0.04, delay: i * 0.04 })); },
+  slam: (k) => { k.tone({ from: 85, to: 40, time: 0.45, volume: 0.2, attack: 0.004 }); k.noise({ from: 1200, to: 150, time: 0.4, volume: 0.14, attack: 0.004 }); k.tone({ type: 'triangle', from: 220, to: 110, time: 0.3, volume: 0.05, delay: 0.05 }); },
+  roar: (k) => { k.tone({ type: 'sawtooth', from: 90, to: 140, time: 0.9, volume: 0.07, attack: 0.08 }); k.tone({ type: 'sawtooth', from: 135, to: 70, time: 0.7, volume: 0.05, delay: 0.5 }); k.noise({ from: 600, to: 200, time: 1, volume: 0.08, attack: 0.15 }); },
+  bossdown: (k) => { [392, 330, 262, 196].forEach((f, i) => k.tone({ type: 'triangle', from: f, to: f * 0.97, time: 0.9, volume: 0.07, delay: i * 0.22, attack: 0.03 })); k.noise({ from: 2000, to: 300, time: 1.4, volume: 0.05, attack: 0.1 }); },
 };
 
 export const SOUND_NAMES = Object.keys(SOUNDS);

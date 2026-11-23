@@ -50,6 +50,17 @@ export const GLOOMLING = {
   reach: 1.1,      // how close it must get to bump
 };
 
+// The bosses (boss.js). "health" is how many Gloomlings' worth he has (at the same Power); damage is at Power 10, like the heroes' numbers.
+export const BOSSES = {
+  bramble: {
+    name: 'General Bramble', type: 'nature', radius: 1.6, health: 40, speed: 1.6, speed2: 2.4, stopAt: 2.6, growIn: 0.9, phaseAt: 0.5, roar: 1.2,
+    thorns: { count: 7, spread: 70, speed: 7, damage: 10, life: 2.4, windup: 0.7, every: 4.5, every2: 3.2, minRange: 3.5 },   // a fan of thorns (the spread is in degrees)
+    slam: { radius: 2.4, warning: 1.1, damage: 18, every: 7, every2: 5, range: 9 },   // a red circle on the ground, then vines burst out
+    summon: { count: 3, every: 12, max: 6, windup: 0.9 },   // under half health: Gloomlings come
+    contact: { reach: 0.9, windup: 0.5, damage: 12, pause: 1.4 },   // if you stand right next to him
+  },
+};
+
 export const WAVES = {
   sizes: [4, 6, 8],   // how many Gloomlings in each wave
   types: [['nature', 'fire'], ['fire', 'storm', 'nature'], ['fire', 'water', 'storm', 'nature']],   // the types they come in (each wave cycles through its list)

@@ -21,6 +21,7 @@ let HERO_PARAM = '';      // play as another hero in the live game (?debug&hero=
 let SHOW_SQUAD = false;   // the squad tests want the squad screen (debug mode normally skips it)
 let POWER_ON = false;     // real Power (debug mode normally keeps everyone at Power 10)
 let SAVE_ON = false;      // saving to the browser (debug mode normally forgets)
+let CHAPTER_ON = false;   // the five rounds of Chapter 1 (debug mode normally keeps the one round that repeats)
 // The address of the game with some debug switches: ?debug&title... normally, #debug-title... for the Claude test link.
 const gameUrl = (flags) => (ARTIFACT ? 'http://game.local/#debug' + flags.map((f) => `-${f}`).join('') : 'http://game.local/?debug' + flags.map((f) => `&${f}`).join(''));
 let SHOW_TITLE = false;   // the title-screen tests want the title screen (debug mode normally skips it)
@@ -49,8 +50,8 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
-  await page.goto(gameUrl([...(SHOW_TITLE ? ['title'] : []), ...(SHOW_SQUAD ? ['squad'] : []), ...(HERO_PARAM ? [`hero=${HERO_PARAM}`] : []), ...(POWER_ON ? ['power'] : []), ...(SAVE_ON ? ['power', 'save'] : [])]));
-  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
+  await page.goto(gameUrl([...(SHOW_TITLE ? ['title'] : []), ...(SHOW_SQUAD ? ['squad'] : []), ...(HERO_PARAM ? [`hero=${HERO_PARAM}`] : []), ...(POWER_ON ? ['power'] : []), ...(SAVE_ON ? ['power', 'save'] : []), ...(CHAPTER_ON ? ['chapter'] : [])]));
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 180000 });   // (the test browser is slow, and sometimes slower)
   if (!KEEP_INTRO && !SHOW_TITLE) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
 }
@@ -2199,7 +2200,7 @@ async function chunk16(browser) {
   check('health and damage are multiplied by Power / 10', u.strength === '1,2,0.1,1,100', u.strength);
   check('the aura tiers start at 0, 100, 300, 1,000 and 3,000', u.tiers === '0,0,1,1,2,2,3,3,4,4 Spark,Glow,Blaze,Surge,Radiant', u.tiers);
   check('big numbers are short: 1,234 then 12.4K and 3.1M', u.short === '0 7 999 1,234 9,999 10K 12.4K 99.9K 999.9K 1M 3.1M 2.5B', u.short);
-  check('a kill pays 30% of the Gloomling\'s Power (at least 1), a win adds 2x the last wave\'s Power, and the Gloomlings are 0.8, 1 and 1.2 times your Power (never below 6)', u.pay.kill === '1,3,30' && u.pay.bonus === 24 && u.pay.enemy === '8,10,12,12,6,120', JSON.stringify(u.pay));
+  check('a kill pays 30% of the Gloomling\'s Power (at least 1), a win adds 2x the last wave\'s Power, and the Gloomlings are 0.8, 1 and 1.2 times your Power (1.4 in a fourth wave, and never below 6)', u.pay.kill === '1,3,30' && u.pay.bonus === 24 && u.pay.enemy === '8,10,12,14,6,120', JSON.stringify(u.pay));
   check('the progress record: starts fresh, XP raises Power, joiners start at their own Power (Ember 120), wins and "seen" are kept', u.progress.first.power === 1 && u.progress.first.xp === 0 && u.progress.first.unlocked === 'sol' && !u.progress.first.saved && !u.progress.first.flat && JSON.parse(u.progress.gain)[0].before === 1 && JSON.parse(u.progress.gain)[0].after === 11 && u.progress.ember === 120 && u.progress.unlocked === 'sol,ember,tide' && u.progress.average === 66 && u.progress.saved && u.progress.has === 'true,false', JSON.stringify(u.progress));
   check('what was saved comes back after a restart, and "Start over" wipes it', u.reload.power === 11 && u.reload.ember === 120 && u.reload.unlocked === 'sol,ember,tide' && u.reload.wins === 1 && u.reload.has && u.reset.power === 1 && u.reset.unlocked === 'sol' && u.reset.wins === 0 && u.reset.stored === 0, JSON.stringify([u.reload, u.reset]));
   check('flat mode (debug) keeps every hero at Power 10 whatever the XP', u.flat.power === 10 && u.flat.ember === 10 && u.flat.flat, JSON.stringify(u.flat));
@@ -2895,14 +2896,475 @@ async function chunk20(browser) {
   }
 }
 
+// ---------- Chapter 1: the five rounds ----------
+const chapterUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { CHAPTERS, ROUNDS } = await import('/src/chapters.js');
+  const { SCENES, BUBBLES } = await import('/src/story-data.js');
+  const { createWaves } = await import('/src/waves.js');
+  const { createProgress, enemyPowerFor } = await import('/src/power.js');
+  const out = {};
+  const rounds = CHAPTERS[1].rounds;
+  out.data = {
+    count: rounds.length, ROUNDS, names: rounds.map((r) => r.name).join('|'), waves: rounds.map((r) => r.sizes.length).join(), powers: rounds.map((r) => r.power).join(), boss: rounds.map((r) => r.boss || '-').join(),
+    typesOk: rounds.every((r) => r.types.length === r.sizes.length && r.types.every((t) => t.length > 0)),
+    introsOk: rounds.every((r, i) => (i === 0 ? r.intro === null : BUBBLES[r.intro] && BUBBLES[r.intro].length >= 2)),
+    scenesOk: [2, 3, 4, 5].every((n) => Array.isArray(SCENES[`win${n}`]) && SCENES[`win${n}`].some(Array.isArray)),
+    wonOk: rounds.every((r) => r.won.title && r.won.text && r.won.button), totals: rounds.map((r) => r.sizes.reduce((a, b) => a + b, 0)).join(),
+    first: rounds[0].sizes.join() === '4,6,8',
+  };
+  const run = (round) => {   // plays a round's waves on an empty island, beating every Gloomling at once
+    const gl = [];
+    const waves = createWaves({ scene: new THREE.Scene(), hero: { position: { x: 0, z: 0 }, down: false }, gloomlings: gl, events: {}, enemyPower: (w) => 10 + w });
+    waves.start(round);
+    const r = { total: waves.total, sizes: [], types: [], powers: [] };
+    for (let w = 0; w < r.total; w++) {
+      for (let guard = 0; waves.state !== 'fighting' && guard < 3000; guard++) waves.update(0.1);
+      r.sizes.push(gl.length); r.types.push(gl.map((g) => g.type[0]).join('')); r.powers.push(gl[0].power);
+      gl.splice(0).forEach((g) => g.remove());
+      waves.update(0.1);
+    }
+    r.state = waves.state;
+    return r;
+  };
+  out.oak = run(rounds[2]);
+  out.usual = run(null);
+  out.back = run(rounds[1]);
+  {   // the round you are on
+    const progress = createProgress(() => 1, null);
+    const start = progress.round;
+    progress.advance(6); progress.advance(6);
+    const two = progress.round;
+    for (let i = 0; i < 10; i++) progress.advance(6);
+    out.round = { start, two, capped: progress.round, wave4: enemyPowerFor(100, 3), wave3: enemyPowerFor(100, 2), wave9: enemyPowerFor(100, 9) };
+    progress.reset();
+    out.round.reset = progress.round;
+    const kept = { data: null };
+    const old = createProgress(() => 1, { load: () => ({ version: 1, xp: { sol: 0 }, unlocked: ['sol'], roundsWon: 0, seen: {} }), store() {}, clear() {} });
+    out.round.oldSave = old.round;   // a save from before the chapter
+  }
+  return out;
+};
+
+const nextRound = async (page) => {   // from the end screen: "Next round", the squad screen, Go!, until the first wave is on its way
+  await until(page, () => !document.getElementById('end').hidden);
+  await page.waitForTimeout(900);
+  await page.click('#end-button');
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const title = await page.evaluate(() => document.getElementById('squad-title').textContent);
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
+  return title;
+};
+const winRound = async (page) => {   // beat everything at once, then let Marlo's closing conversation run to the end screen
+  await page.evaluate(() => {
+    const G = window.__game;
+    G.rounds.defeat({ power: 10 }); G.rounds.defeat({ power: 10 });
+    for (let i = 0; i < 30 * 200 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); }
+  });
+  await waitForClosing(page);
+};
+
+async function chunk21(browser) {
+  let { page } = await openGame(browser, 'chapter-unit');
+  const u = await page.evaluate(chapterUnit);
+  const d = u.data;
+  check('Chapter 1 has five rounds: The Meadow, The Long Grass, The Old Oak, Bramble\'s Shadow and General Bramble (the boss), with more Gloom Power each time', d.count === 5 && d.ROUNDS === 5 && d.names === "The Meadow|The Long Grass|The Old Oak|Bramble's Shadow|General Bramble" && d.powers === '1,1.1,1.2,1.3,1.4' && d.boss === '-,-,-,-,bramble', JSON.stringify(d));
+  check('every round has types for each wave, a line that floats by as it starts (not round 1), the words for its end screen, and a closing conversation (rounds 2 to 5); round 1 is the fight the game has always had', d.typesOk && d.introsOk && d.scenesOk && d.wonOk && d.first && d.waves === '3,3,4,4,2', JSON.stringify(d));
+  check('rounds get longer: 18, 21, 28 and 36 Gloomlings, and then 18 and the boss', d.totals === '18,21,28,36,18', d.totals);
+  check('a round plays its own waves: The Old Oak has four waves of 4, 6, 8 and 10 in its own mix of types (nature, storm, water, fire), each wave stronger, and then it is won', u.oak.total === 4 && u.oak.sizes.join() === '4,6,8,10' && u.oak.types.join() === 'nnnn,nsnsns,nnwnnwnn,nfsnnfsnnf' && u.oak.powers.join() === '10,11,12,13' && u.oak.state === 'won', JSON.stringify(u.oak));
+  check('with no round given the usual three waves come (4, 6 and 8), and the next round after a four-wave one is back to its own', u.usual.total === 3 && u.usual.sizes.join() === '4,6,8' && u.back.total === 3 && u.back.sizes.join() === '5,7,9' && u.back.types.join() === 'nnnnn,nnsnnsn,nfnwnfnwn', JSON.stringify([u.usual, u.back]));
+  check('the round you are on starts at 1, goes up by one, stops one past the last round (the chapter is done), and starts again with "Start over"; an old save without it is round 1', u.round.start === 1 && u.round.two === 3 && u.round.capped === 6 && u.round.reset === 1 && u.round.oldSave === 1, JSON.stringify(u.round));
+  check('a fourth wave is 1.4 times your Power (the waves before it are 0.8, 1 and 1.2)', u.round.wave4 === 140 && u.round.wave3 === 120 && u.round.wave9 === 140, JSON.stringify(u.round));
+
+  // The live game, round by round (?debug&chapter&power&squad).
+  CHAPTER_ON = true; POWER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'chapter-live'));
+  CHAPTER_ON = false; POWER_ON = false; SHOW_SQUAD = false;
+  await until(page, () => document.getElementById('banner-title').textContent === 'Round 1');
+  const r1 = await page.evaluate(() => ({ title: document.getElementById('banner-title').textContent, sub: document.getElementById('banner-sub').textContent, label: window.__game.rounds.label(), total: window.__game.waves.total, note: document.getElementById('hud-wave').textContent }));
+  check('the first wave of round 1 announces it: "Round 1" over "The Meadow", and the corner note says "Round 1/5 · ..."', r1.title === 'Round 1' && r1.sub === 'The Meadow' && r1.label === 'Round 1/5' && r1.total === 3 && r1.note.startsWith('Round 1/5 · '), JSON.stringify(r1));
+  await page.screenshot({ path: `${OUT}/chapter-1-round1.png` });
+  await winRound(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const e1 = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, text: document.getElementById('end-text').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round, unlocked: window.__game.progress.unlocked.length }));
+  check('winning round 1 says "Round 1 won!" with a "Next round" button, brings Ember (and the others) in, and moves you on to round 2', e1.title === 'Round 1 won!' && e1.text === 'The Meadow is green again.' && e1.button === 'Next round' && e1.round === 2 && e1.unlocked === 4, JSON.stringify(e1));
+  await page.screenshot({ path: `${OUT}/chapter-2-end1.png` });
+  const squadTitle = await nextRound(page);
+  check('"Next round" opens the squad screen headed "Round 2/5 · The Long Grass"', squadTitle === 'Round 2/5 · The Long Grass', squadTitle);
+  await until(page, () => document.getElementById('banner-title').textContent === 'Round 2');
+  const r2 = await page.evaluate(async () => {
+    const G = window.__game;
+    const { enemyPowerFor } = await import('/src/power.js');
+    return { sub: document.getElementById('banner-sub').textContent, total: G.waves.total, enemy: G.rounds.enemyPower(0), expected: Math.max(6, Math.round(enemyPowerFor(G.progress.averagePower(G.squad.roster), 0) * 1.1)), note: document.getElementById('hud-wave').textContent };
+  });
+  check('round 2 is The Long Grass: its banner, three waves, and Gloomlings 1.1 times as strong as the usual', r2.sub === 'The Long Grass' && r2.total === 3 && r2.enemy === r2.expected && r2.note.startsWith('Round 2/5 · '), JSON.stringify(r2));
+  await until(page, () => /^Round two!|^Marlo: Ember fights beside you now/.test(document.getElementById('bubble').textContent) && document.getElementById('bubble').classList.contains('show'));
+  const bubble = await page.evaluate(() => document.getElementById('bubble').textContent);
+  check('a line about the round floats by as it starts (instead of the usual first-wave line)', /^Round two!|^Marlo: Ember fights beside you now/.test(bubble), bubble);
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 3 && G.waves.state !== 'spawning'; i++) G.waves.update(1 / 30); });
+  const first2 = await page.evaluate(() => window.__game.waves.remaining);
+  check('round 2\'s first wave has 5 Gloomlings', first2 === 5, `${first2}`);
+  await winRound(page);
+  const talk2 = await page.evaluate(() => ({ name: document.getElementById('dialogue-name').textContent, text: document.getElementById('dialogue-text').textContent }));
+  check('after round 2 comes its own conversation (Pip, "Another patch of green!"), not the first-win one', talk2.name === 'Pip', JSON.stringify(talk2));
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const e2 = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, round: window.__game.progress.round }));
+  check('and the end screen says "Round 2 won!" and moves on to round 3', e2.title === 'Round 2 won!' && e2.round === 3, JSON.stringify(e2));
+  check('"Next round" again: round 3 is The Old Oak', (await nextRound(page)) === 'Round 3/5 · The Old Oak');
+  await until(page, () => document.getElementById('banner-title').textContent === 'Round 3');
+  const r3 = await page.evaluate(() => ({ total: window.__game.waves.total, sub: document.getElementById('banner-sub').textContent }));
+  check('round 3 has four waves', r3.total === 4 && r3.sub === 'The Old Oak', JSON.stringify(r3));
+  await winRound(page);
+  const talk3 = await page.evaluate(() => document.getElementById('dialogue-name').textContent);
+  await page.evaluate(() => window.__game.story.skip());
+  check('round 3 ends with Marlo, the oak and the hedge', talk3 === 'Marlo', talk3);
+  check('round 4 is Bramble\'s Shadow, four waves', (await nextRound(page)) === "Round 4/5 · Bramble's Shadow" && (await page.evaluate(() => window.__game.waves.total)) === 4);
+  await winRound(page);
+  const talk4 = await page.evaluate(() => ({ name: document.getElementById('dialogue-name').textContent, text: document.getElementById('dialogue-text').textContent }));
+  await page.evaluate(() => window.__game.story.skip());
+  check('round 4 ends with the warning that something big is coming', talk4.name === 'Marlo', JSON.stringify(talk4));
+  const squad5 = await nextRound(page);
+  await until(page, () => document.getElementById('banner-title').textContent === 'Round 5');
+  const r5 = await page.evaluate(() => ({ sub: document.getElementById('banner-sub').textContent, boss: window.__game.rounds.round.boss, total: window.__game.waves.total }));
+  check('round 5 is General Bramble: its banner and the boss marked (the boss itself comes next)', squad5 === 'Round 5/5 · General Bramble' && r5.sub === 'General Bramble' && r5.boss === 'bramble' && r5.total === 3, JSON.stringify([squad5, r5]));
+  await winRound(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const e5 = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round, label: window.__game.rounds.label(), now: window.__game.rounds.round }));
+  check('winning round 5 says "Isle saved!" with a "Keep playing" button; the chapter is done (no round to play now)', e5.title === 'Isle saved!' && e5.button === 'Keep playing' && e5.round === 6 && e5.label === '' && e5.now === null, JSON.stringify(e5));
+  await page.screenshot({ path: `${OUT}/chapter-3-done.png` });
+  const free = await nextRound(page);
+  const f = await page.evaluate(() => ({ note: document.getElementById('hud-wave').textContent, total: window.__game.waves.total, banner: document.getElementById('banner-title').textContent }));
+  check('after the chapter the rounds are ordinary again: "Choose your squad", three waves, no "Round" in the corner', free === 'Choose your squad' && f.total === 3 && !/Round \d\/5/.test(f.note) && f.banner !== 'Round 6', JSON.stringify([free, f]));
+  await winRound(page);
+  const talkFree = await page.evaluate(() => document.getElementById('dialogue-name').textContent);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const eFree = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round }));
+  check('an ordinary round after the chapter ends with the usual words and "Play again"; the chapter stays done', talkFree === 'Pip' && eFree.title === 'Isle saved!' && eFree.button === 'Play again' && eFree.round === 6, JSON.stringify([talkFree, eFree]));
+
+  // A round that is lost is tried again (the same round).
+  CHAPTER_ON = true; POWER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'chapter-lost'));
+  CHAPTER_ON = false; POWER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.data.round = 3; G.rounds.restart(); });
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  await page.click('#squad-go');
+  await until(page, () => window.__game.waves.state === 'break' || window.__game.waves.state === 'spawning');
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(100000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const lost = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round }));
+  check('losing round 3 says "Knocked out" with "Try again", and you stay on round 3', lost.title === 'Knocked out' && lost.button === 'Try again' && lost.round === 3, JSON.stringify(lost));
+  check('"Try again" brings the squad screen for round 3 again', (await nextRound(page)) === 'Round 3/5 · The Old Oak');
+
+  // Saving: the round you are on is remembered, and "Start over" goes back to round 1.
+  SAVE_ON = true; CHAPTER_ON = true; SHOW_TITLE = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'chapter-save'));
+  SAVE_ON = false; CHAPTER_ON = false; SHOW_TITLE = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.data.round = 4; G.progress.mark('prologue'); G.progress.store(); });
+  await reopen(page, ['power', 'save', 'chapter', 'title', 'squad']);
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
+  await page.mouse.click(400, 100);
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const saved = await page.evaluate(() => ({ title: document.getElementById('squad-title').textContent, round: window.__game.progress.round }));
+  check('after a reload a returning player carries on at their round: the squad screen says "Round 4/5 · Bramble\'s Shadow"', saved.title === "Round 4/5 · Bramble's Shadow" && saved.round === 4, JSON.stringify(saved));
+  await reopen(page, ['power', 'save', 'chapter', 'title']);
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
+  await page.click('#title-reset');
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5 && document.getElementById('title-reset').hidden, null, { timeout: 90000 });
+  check('"Start over" goes back to round 1', (await page.evaluate(() => window.__game.progress.round)) === 1);
+}
+
+// ---------- General Bramble ----------
+const bossUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createBoss } = await import('/src/boss.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const out = {};
+  const target = (x, z) => { const t = { position: { x, z }, down: false, hits: [], takeHit(amount) { t.hits.push(amount); return true; } }; return t; };
+  const make = (scene, power = 10, x = 9, z = 0) => {
+    const l = { shake: [], taunt: [], sound: [], summon: [], down: 0, fallen: 0, gone: 0, sparks: 0 };
+    const boss = createBoss({ scene, x, z, power, emit: () => { l.sparks++; }, events: { shake: (a) => l.shake.push(a), taunt: (k) => l.taunt.push(k), sound: (n) => l.sound.push(n), summon: (c) => { l.summon.push(c); return c; }, down: () => { l.down++; }, fallen: () => { l.fallen++; }, gone: () => { l.gone++; } } });
+    return { boss, l };
+  };
+  const clock = { t: 0 };
+  const step = (boss, t, others = []) => { clock.t += 1 / 30; boss.update(1 / 30, t, clock.t, [boss, ...others]); };
+  const run = (boss, t, seconds, others = []) => { for (let i = 0; i < Math.round(seconds * 30); i++) step(boss, t, others); };
+  const until = (boss, t, fn, limit = 30) => { let s = 0; while (!fn() && s < limit) { step(boss, t); s += 1 / 30; } return +s.toFixed(2); };
+
+  {   // what he is, as the rest of the game sees him: a very big Gloomling
+    const { boss, l } = make(new THREE.Scene());
+    const t = target(0, 0);
+    const props = ['group', 'position', 'radius', 'type', 'power', 'maxHealth', 'update', 'hit', 'remove', 'soak', 'soaked', 'alive', 'health', 'mode'].every((k) => k in boss);
+    boss.soak(5);
+    out.shape = { boss: boss.boss, name: boss.name, type: boss.type, radius: boss.radius, power: boss.power, max: boss.maxHealth, health: boss.health, alive: boss.alive, soaked: boss.soaked, props, big: make(new THREE.Scene(), 20).boss.maxHealth };
+    out.grow = { state: boss.state, hit: boss.hit(500), health: boss.health, taunt0: l.taunt.join() };   // he cannot be hurt while he rises
+    run(boss, t, 0.5);
+    out.grow.mid = boss.state;
+    out.grow.took = until(boss, t, () => boss.state !== 'grow', 3);
+    out.grow.after = boss.state; out.grow.taunt = l.taunt.join();
+  }
+  {   // a hit hurts, a shove hardly moves him, and nothing stuns him
+    const { boss } = make(new THREE.Scene());
+    const t = target(0, 0); t.down = true;   // (nobody to chase)
+    run(boss, t, 1.2);
+    const before = boss.position.x;
+    const r = boss.hit(50, 10, 0);
+    run(boss, t, 1);
+    out.shove = { returned: r, health: boss.health, moved: +(boss.position.x - before).toFixed(2), state: boss.state, flash: true };
+  }
+  {   // a hero who stands still: a thorn, then the root slam
+    const { boss, l } = make(new THREE.Scene(), 10, 9, 0);
+    const t = target(0, 0);
+    run(boss, t, 2.4);
+    out.walk = { x: +boss.position.x.toFixed(1), state: boss.state };
+    run(boss, t, 4);
+    out.stand = { hits: t.hits.slice(0, 3).join(), sounds: l.sound.join(), shake: l.shake.join() };
+  }
+  {   // ...and one who keeps moving is not hit by either
+    const { boss, l } = make(new THREE.Scene(), 10, 9, 0);
+    const t = target(0, 0);
+    until(boss, t, () => l.sound.includes('thorns'), 6);
+    t.position.z = 8;   // sidestep the thorns
+    until(boss, t, () => boss.state === 'slam', 6);
+    t.position.x = 6; t.position.z = -7;   // and the circle (and keeps out of the path of the thorns)
+    run(boss, t, 1.6);
+    out.dodge = { hits: t.hits.join(), sounds: l.sound.join() };
+  }
+  {   // stronger bosses hit harder
+    const { boss } = make(new THREE.Scene(), 20, 9, 0);
+    const t = target(0, 0);
+    run(boss, t, 6.2);
+    out.strong = { max: boss.maxHealth, hits: t.hits.slice(0, 2).join() };
+  }
+  {   // under half health: a roar, then faster, and he calls Gloomlings (three at a time, never more than six in all)
+    const { boss, l } = make(new THREE.Scene(), 10, 9, 0);
+    const t = target(0, 0); t.takeHit = () => true;
+    run(boss, t, 1.2);
+    boss.hit(boss.maxHealth * 0.45);
+    out.beforeRoar = { enraged: boss.enraged, taunt: l.taunt.join() };
+    boss.hit(boss.maxHealth * 0.06);
+    step(boss, t);
+    out.roar = { enraged: boss.enraged, state: boss.state, taunt: l.taunt.join(), shake: l.shake.join(), sound: l.sound.join() };
+    run(boss, t, 6);
+    out.summonEarly = l.summon.join();
+    run(boss, t, 40);
+    out.summon = l.summon.join();
+  }
+  {   // right next to him: a bump after a warning, and not again at once
+    const { boss } = make(new THREE.Scene(), 10, 2.2, 0);
+    const t = target(0, 0);
+    run(boss, t, 1.2);
+    const early = t.hits.length;
+    run(boss, t, 0.5);
+    out.bump = { early, first: t.hits.join() };
+    run(boss, t, 0.7);
+    out.bump.pause = t.hits.length;
+    run(boss, t, 1.5);
+    out.bump.again = t.hits.length;
+  }
+  {   // a hero who is out is left alone
+    const { boss } = make(new THREE.Scene(), 10, 9, 0);
+    const t = target(0, 0); t.down = true;
+    run(boss, t, 15);
+    out.leftAlone = { hits: t.hits.length, x: +boss.position.x.toFixed(2), state: boss.state };
+  }
+  {   // he is solid (little ones are pushed out of his body) and stays on the island
+    const scene = new THREE.Scene();
+    const { boss } = make(scene, 10, 0, 0);
+    const t = target(9, 0); t.down = true;
+    const little = createGloomling({ scene, x: 1, z: 0 });
+    step(boss, t, [little]);
+    const far = createBoss({ scene, x: 30, z: 0, emit: () => {} });
+    far.update(1 / 30, t, 0, [far]);
+    out.solid = { gap: +Math.hypot(little.position.x - boss.position.x, little.position.z - boss.position.z).toFixed(2), edge: +Math.hypot(far.position.x, far.position.z).toFixed(2) };
+  }
+  {   // beaten: he shakes and shrinks into the young gardener, waits for his last words, then fades away
+    const scene = new THREE.Scene();
+    const { boss, l } = make(scene, 10, 9, 0);
+    const t = target(0, 0); t.down = true;
+    run(boss, t, 1.2);
+    const returned = boss.hit(boss.health + 5, 5, 0);
+    out.defeat = { returned, alive: boss.alive, health: boss.health, down: l.down, shake: l.shake.join(), state: boss.state, hitAfter: boss.hit(10) };
+    run(boss, t, 1);
+    out.defeat.mid = boss.state;
+    run(boss, t, 0.8);
+    out.defeat.young = { state: boss.state, fallen: l.fallen, bigShown: boss.group.children[0].visible, youngShown: boss.group.children[1].visible };
+    run(boss, t, 0.7);
+    out.defeat.told = l.fallen;
+    run(boss, t, 3);
+    out.defeat.waits = { state: boss.state, gone: l.gone };
+    boss.finish();
+    run(boss, t, 0.7);
+    out.defeat.fading = { state: boss.state, gone: boss.gone };
+    run(boss, t, 1);
+    out.defeat.after = { gone: boss.gone, told: l.gone, left: scene.children.length };
+  }
+  {
+    const scene = new THREE.Scene();
+    const { boss } = make(scene);
+    const t = target(0, 0);
+    run(boss, t, 3.5);
+    boss.remove();
+    out.removed = scene.children.length;
+  }
+  return out;
+};
+
+async function chunk22(browser) {
+  let { page } = await openGame(browser, 'boss-unit');
+  const u = await page.evaluate(bossUnit);
+  check('he looks like any other enemy to the rest of the game (position, radius, type, health, hit, soak...) but a very big one: Nature, 1.6 wide, health of 40 Gloomlings (1,200 at Power 10, twice that at Power 20)', u.shape.boss && u.shape.name === 'General Bramble' && u.shape.type === 'nature' && u.shape.radius === 1.6 && u.shape.power === 10 && u.shape.max === 1200 && u.shape.health === 1200 && u.shape.alive && u.shape.soaked === 0 && u.shape.props && u.shape.big === 2400, JSON.stringify(u.shape));
+  check('he rises from the ground first (nothing hurts him, no attacks), then his first taunt and he starts to walk', u.grow.state === 'grow' && u.grow.hit === false && u.grow.health === 1200 && u.grow.taunt0 === '' && u.grow.mid === 'grow' && u.grow.after === 'walk' && u.grow.took < 0.6 && u.grow.taunt === 'spawn', JSON.stringify(u.grow));
+  check('a hit hurts him, but a shove of 10 moves him about one step and nothing stuns him; the hit never says "defeated" (he is taken off the island only after his last words)', u.shove.returned === false && u.shove.health === 1150 && u.shove.moved > 0.5 && u.shove.moved < 1.5, JSON.stringify(u.shove));
+  check('a hero who stands still is hit by the thorn that flies straight at them (10) and then the root slam (18); each has its sound, and the slam shakes the screen', u.walk.x > 6 && u.walk.x < 7.5 && u.stand.hits === '10,18' && /thorns/.test(u.stand.sounds) && /slam/.test(u.stand.sounds) && u.stand.shake === '0.3', JSON.stringify([u.walk, u.stand]));
+  check('a hero who sidesteps the thorns and leaves the red circle is hit by neither', !/10|18/.test(u.dodge.hits) && /thorns/.test(u.dodge.sounds) && /slam/.test(u.dodge.sounds), JSON.stringify(u.dodge));
+  check('his moves hurt more as he gets stronger: at Power 20 the thorn is 20 and the slam 36, and he has 2,400 health', u.strong.max === 2400 && u.strong.hits === '20,36', JSON.stringify(u.strong));
+  check('at half health he roars once (a taunt, a shake, a sound), and then calls three Gloomlings at a time, never more than six', u.beforeRoar.enraged === false && u.beforeRoar.taunt === 'spawn' && u.roar.enraged && u.roar.state === 'roar' && u.roar.taunt === 'spawn,enrage' && u.roar.shake === '0.4' && /roar/.test(u.roar.sound) && u.summonEarly === '3' && u.summon === '3,3', JSON.stringify([u.beforeRoar, u.roar, u.summonEarly, u.summon]));
+  check('a hero right next to him is bumped after a warning (12), and not again straight away', u.bump.early === 0 && u.bump.first === '12' && u.bump.pause === 1 && u.bump.again === 2, JSON.stringify(u.bump));
+  check('a hero who is out is left alone: he neither attacks nor walks', u.leftAlone.hits === 0 && u.leftAlone.x === 9 && u.leftAlone.state === 'walk', JSON.stringify(u.leftAlone));
+  check('he is solid: a Gloomling inside his body is pushed out (to at least 2 units), and he is held on the island', u.solid.gap >= 2 && u.solid.edge <= 10.5, JSON.stringify(u.solid));
+  check('when his health runs out he falls: the adds are told, the screen shakes, he shrinks, and a young gardener is left (the big body is hidden), a moment of quiet, and then he WAITS for his last words', u.defeat.returned === false && !u.defeat.alive && u.defeat.health === 0 && u.defeat.down === 1 && u.defeat.shake === '0.5' && u.defeat.state === 'fall' && u.defeat.hitAfter === false && u.defeat.mid === 'fall' && u.defeat.young.state === 'young' && u.defeat.young.fallen === 0 && u.defeat.told === 1 && !u.defeat.young.bigShown && u.defeat.young.youngShown && u.defeat.waits.state === 'young' && u.defeat.waits.gone === 0, JSON.stringify(u.defeat));
+  check('after his words he fades into leaves and is gone (told once, and nothing of him is left on the island)', u.defeat.fading.state === 'fade' && !u.defeat.fading.gone && u.defeat.after.gone && u.defeat.after.told === 1 && u.defeat.after.left === 0, JSON.stringify([u.defeat.fading, u.defeat.after]));
+  check('taking him away leaves nothing behind (thorns, vines, circles)', u.removed === 0, `${u.removed}`);
+
+  // The live boss round: two waves, then the boss alone (?debug&chapter&squad: every Power is 10, so the fight is gentle).
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'boss-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.data.round = 5; G.rounds.restart(); });
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
+  await page.evaluate(() => {   // beat the two waves of Gloomlings (but not the boss when he comes)
+    const G = window.__game;
+    for (let i = 0; i < 30 * 200 && !G.waves.boss; i++) { G.gloomlings.filter((g) => !g.boss).forEach((g) => { g.remove(); G.gloomlings.splice(G.gloomlings.indexOf(g), 1); }); G.waves.update(1 / 30); }
+  });
+  const arrive = await page.evaluate(() => ({ wave: window.__game.waves.wave, total: window.__game.waves.total, title: document.getElementById('banner-title').textContent, sub: document.getElementById('banner-sub').textContent, bar: !document.getElementById('boss').hidden, name: document.getElementById('boss-name').textContent, fill: document.getElementById('boss-fill').style.transform, enemies: window.__game.gloomlings.length }));
+  await until(page, () => !document.getElementById('boss').hidden);
+  check('after the two waves the boss comes alone: the third wave, a banner "General Bramble · Boss!", and his health bar at the top with his name and Power', arrive.wave === 3 && arrive.total === 3 && arrive.title === 'General Bramble' && arrive.sub === 'Boss!' && arrive.enemies === 1, JSON.stringify(arrive));
+  const bar = await page.evaluate(() => ({ shown: !document.getElementById('boss').hidden, name: document.getElementById('boss-name').textContent, fill: document.getElementById('boss-fill').style.transform }));
+  check('the bar names him ("General Bramble · Power 10") and is full', bar.shown && bar.name === 'General Bramble · Power 10' && /scaleX\(1\)/.test(bar.fill), JSON.stringify(bar));
+  await until(page, () => window.__game.waves.boss.state !== 'grow');
+  await until(page, () => /General Bramble: (Little light|Every seed)/.test(document.getElementById('bubble').textContent));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/boss-1-arrives.png` });
+  await page.evaluate(() => { const b = window.__game.waves.boss; b.hit(b.maxHealth * 0.2); });
+  await page.waitForTimeout(300);
+  const hurt = await page.evaluate(() => ({ fill: document.getElementById('boss-fill').style.transform, angry: document.getElementById('boss').classList.contains('angry') }));
+  check('as he is hurt the bar shrinks (about 80% left, a few darts have hit him too) and stays green', /scaleX\(0\.[6-8]/.test(hurt.fill) && !hurt.angry, JSON.stringify(hurt));
+  await until(page, () => window.__game.waves.boss.state === 'slam');
+  await page.screenshot({ path: `${OUT}/boss-2-slam.png` });
+  await page.evaluate(() => { const b = window.__game.waves.boss; b.hit(b.maxHealth * 0.35); });
+  await until(page, () => /General Bramble: (More|She promised)/.test(document.getElementById('bubble').textContent));
+  const angry = await page.evaluate(() => ({ angry: document.getElementById('boss').classList.contains('angry'), enraged: window.__game.waves.boss.enraged, fill: document.getElementById('boss-fill').style.transform }));
+  check('under half health the bar turns red-hot and he taunts ("More! Give me MORE!")', angry.angry && angry.enraged && /scaleX\(0\.[3-5]/.test(angry.fill), JSON.stringify(angry));
+  await until(page, () => window.__game.gloomlings.filter((g) => !g.boss).length >= 3);
+  check('and he calls Gloomlings to help him', await page.evaluate(() => window.__game.gloomlings.filter((g) => !g.boss).length) >= 3);
+  await page.screenshot({ path: `${OUT}/boss-3-angry.png` });
+  await page.evaluate(() => { const b = window.__game.waves.boss; b.hit(b.health + 1); });
+  await until(page, () => window.__game.waves.boss && window.__game.waves.boss.state === 'young' && window.__game.story.active);
+  await page.waitForTimeout(300);
+  const fell = await page.evaluate(() => ({ adds: window.__game.gloomlings.filter((g) => !g.boss).length, bossStill: window.__game.gloomlings.filter((g) => g.boss).length, bar: !document.getElementById('boss').hidden, sound: window.__game.audio.counts.bossdown, state: window.__game.waves.state, talking: window.__game.story.active, who: document.getElementById('dialogue-name').textContent }));
+  check('when he falls the Gloomlings he called vanish, he stays (as the young gardener) while the round waits, the fall has its own sound, and his last words begin', fell.adds === 0 && fell.bossStill === 1 && fell.sound === 1 && fell.state === 'fighting' && fell.talking && fell.who === 'Bramble', JSON.stringify(fell));
+  await page.screenshot({ path: `${OUT}/boss-4-himself.png` });
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => window.__game.rounds.ending !== null || window.__game.story.active);
+  const won = await page.evaluate(() => ({ boss: window.__game.waves.boss, left: window.__game.gloomlings.length, ending: window.__game.rounds.ending, talking: window.__game.story.active, round: window.__game.progress.round, bar: !document.getElementById('boss').hidden }));
+  check('after his last moment the round is won: nothing of him is left, the bar is gone, Marlo comes over for the closing conversation, and the chapter is done', won.boss === null && won.left === 0 && (won.ending === 'again' || won.talking) && !won.bar && won.round === 6, JSON.stringify(won));
+}
+
+// ---------- The boss round: his last words, the reward, trying again ----------
+async function chunk23(browser) {
+  let { page } = await openGame(browser, 'bossstory-unit');
+  const d = await page.evaluate(async () => {
+    const { SCENES, SPEAKERS, BUBBLES } = await import('/src/story-data.js');
+    const lines = (name) => SCENES[name].filter(Array.isArray);
+    return {
+      down: lines('bossDown').map((l) => `${l[0]}: ${l[1]}`), downMusic: SCENES.bossDown.filter((s) => !Array.isArray(s)).map((s) => s.music).join(),
+      win5: lines('win5').map((l) => l[0]).join(), win5Last: lines('win5').slice(-1)[0][1],
+      names: [SPEAKERS.bramble.name, SPEAKERS.gardener.name], taunts: [BUBBLES.bramble_spawn.length, BUBBLES.bramble_enrage.length], tidecove: JSON.stringify(SCENES.win5).includes('Tidecove'),
+    };
+  });
+  check('his last words: as himself ("Bramble") he remembers the meadow and says "She promised us more. We just wanted to matter."; Marlo answers; sad flute plays', d.down.join(' | ') === "gardener: ...The hedge. The meadow. I used to water these roots. | gardener: She promised us more. We just wanted to matter. | marlo: ...Matter. Yes. So did we all." && d.downMusic === 'lullaby-sorrow' && d.names.join() === 'General Bramble,Bramble', JSON.stringify(d));
+  check('after the fight Pip and Marlo talk about him, and Marlo promises the story "tonight, by the fire"; he taunts in the fight with more than one line each time', d.win5 === 'pip,marlo,sol,marlo' && /fire/.test(d.win5Last) && d.taunts.every((n) => n >= 2) && !d.tidecove, JSON.stringify(d));
+
+  // The boss round, start to end (flat Power 10).
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'bossstory-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.data.round = 5; G.rounds.restart(); });
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
+  await page.evaluate(() => {
+    const G = window.__game;
+    for (let i = 0; i < 30 * 200 && !G.waves.boss; i++) { G.gloomlings.filter((g) => !g.boss).forEach((g) => { g.remove(); G.gloomlings.splice(G.gloomlings.indexOf(g), 1); }); G.waves.update(1 / 30); }
+  });
+  await until(page, () => window.__game.waves.boss.state !== 'grow');
+  await page.evaluate(() => { const b = window.__game.waves.boss; b.hit(b.health + 1); });
+  await until(page, () => window.__game.story.active);
+  const lines = [];
+  for (let guard = 0; guard < 60 && (await page.evaluate(() => window.__game.story.active)); guard++) {
+    const now = await page.evaluate(() => ({ name: document.getElementById('dialogue-name').textContent, text: document.getElementById('dialogue-text').textContent, state: window.__game.waves.boss && window.__game.waves.boss.state }));
+    lines.push(`${now.name}: ${now.text}|${now.state}`);
+    await page.waitForTimeout(350);
+    await page.keyboard.press('Space');
+  }
+  const said = lines.map((l) => l.split('|')[0]);
+  check('his last words are told in a conversation while he stands there as the young gardener (the game waits), word for word, with Marlo answering', said.includes('Bramble: She promised us more. We just wanted to matter.') && said.includes('Marlo: ...Matter. Yes. So did we all.') && lines.every((l) => l.endsWith('|young')), JSON.stringify(lines.slice(-3)));
+  await until(page, () => window.__game.waves.boss === null);
+  check('and when it is over he fades away (it was waiting for his words: nothing is left of him), and the round is won', (await page.evaluate(() => window.__game.gloomlings.length)) === 0);
+  let spoke = false;
+  for (let i = 0; i < 100 && !spoke; i++) {
+    spoke = await page.evaluate(() => window.__game.story.active && document.getElementById('dialogue-name').textContent === 'Pip' && /PERSON/.test(document.getElementById('dialogue-text').textContent));
+    if (!spoke) await page.waitForTimeout(300);
+  }
+  check('Pip speaks first in the closing conversation ("He turned back into a PERSON")', spoke);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const end = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round, xp: window.__game.rounds.gains[0].xp }));
+  check('then "Isle saved!" with "Keep playing", the chapter done, and the XP includes the boss (worth ten Gloomlings: 30) and the win bonus (20)', end.title === 'Isle saved!' && end.button === 'Keep playing' && end.round === 6 && end.xp === 50, JSON.stringify(end));
+
+  // Lost to the boss: "Try again" goes straight back to him (not the two waves before).
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'bossstory-retry'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.data.round = 5; G.rounds.restart(); });
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  await page.click('#squad-go');
+  await until(page, () => ['break', 'spawning', 'fighting'].includes(window.__game.waves.state));
+  const first = await page.evaluate(() => ({ wave: window.__game.waves.wave, atBoss: window.__game.waves.atBoss }));
+  await page.evaluate(() => {
+    const G = window.__game;
+    for (let i = 0; i < 30 * 200 && !G.waves.boss; i++) { G.gloomlings.filter((g) => !g.boss).forEach((g) => { g.remove(); G.gloomlings.splice(G.gloomlings.indexOf(g), 1); }); G.waves.update(1 / 30); }
+    for (const kind of G.squad.roster) G.squad.members[kind].hero.takeHit(1e6, 0, 0);
+    for (let i = 0; i < 90; i++) G.waves.update(1 / 30);
+  });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const lost = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent, round: window.__game.progress.round }));
+  check('the first try starts with the waves (wave 1, not at the boss); losing to the boss says "Knocked out" with "Try again" and you stay on round 5', first.wave === 1 && !first.atBoss && lost.title === 'Knocked out' && lost.button === 'Try again' && lost.round === 5, JSON.stringify([first, lost]));
+  check('"Try again" brings back the squad screen for round 5', (await nextRound(page)) === 'Round 5/5 · General Bramble');
+  await until(page, () => window.__game.waves.boss);
+  const again = await page.evaluate(() => ({ wave: window.__game.waves.wave, total: window.__game.waves.total, enemies: window.__game.gloomlings.length, title: document.getElementById('banner-title').textContent, note: document.getElementById('hud-wave').textContent }));
+  check('and he is right there: wave 3 of 3, only him on the island, "General Bramble" on the banner (no warm-up waves again)', again.wave === 3 && again.total === 3 && again.enemies === 1 && again.title === 'General Bramble' && again.note.startsWith('Round 5/5 · Wave 3/3'), JSON.stringify(again));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
   await browser.close();
   console.log(results.join('\n'));
   console.log(problems.length ? '\nPROBLEMS:\n' + problems.join('\n') : '\nNo console errors, warnings, or missing files.');
-})().catch((e) => { console.log(results.join('\n')); console.error('TEST SCRIPT FAILED:', e.message); process.exit(1); });
+})().catch((e) => { console.log(results.join('\n')); console.error('TEST SCRIPT FAILED:', e.message, (e.stack || '').split('\n').filter((l) => l.includes('test-stage2')).slice(0, 2).join(' | ')); process.exit(1); });

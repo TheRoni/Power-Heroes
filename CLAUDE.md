@@ -251,6 +251,10 @@ src/                  the game code, one job per file
   combos.js           power reactions
   aura.js             aura visuals by tier
   overdrive.js        the Overdrive meter and its few seconds of boosted power
+  chapters.js         the chapters as data: the five rounds of Chapter 1, their waves and words
+  boss.js             General Bramble: his moves, phases, and how he falls
+  boss-model.js       what General Bramble (and the young gardener he was) look like
+  flags.js            the switches in the web address (?debug and friends)
   power.js            Power, XP, and growth maths
   rankings.js         the Power Rankings: the other heroes of the isle, sorting, "passed" lines
   rounds.js           how a round starts and ends: squad choice, XP, unlocks, saving

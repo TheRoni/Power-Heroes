@@ -109,7 +109,7 @@ export function createMenus({ audio = QUIET, onAgain }) {
 
   // kind: 'won' or 'lost'. "gains" is what the round did to each hero: [{ name, xp, before, after }].
   function showEnd(kind, gains = [], events = {}) {
-    const ending = ENDINGS[kind];
+    const ending = { ...ENDINGS[kind], ...(events.text || {}) };   // (a round of the chapter says its own words)
     gainsBox.innerHTML = gains.map((g) => `<div class="gain"><span class="gain-name">${g.name}</span><span class="gain-label">Power</span><span class="gain-power">${shortNumber(g.before)}</span><span class="gain-xp">+${shortNumber(g.xp)} XP</span></div>`).join('');
     const passes = events.passes || { list: [], more: 0 };
     passesBox.innerHTML = passes.list.map((p) => `<div class="pass${p.big ? ' big' : ''}">${p.big ? '★ ' : ''}${p.hero} passed ${p.rival}! <span class="pass-rank">Now #${p.rank}</span></div>`).join('') + (passes.more ? `<div class="pass">...and ${passes.more} more</div>` : '');
@@ -199,7 +199,8 @@ export function createMenus({ audio = QUIET, onAgain }) {
 
   // The squad screen: tap heroes to choose who comes (the first one always does), then Go!
   // heroes is [{ kind, name, type, power }] and chosen the kinds picked so far; onGo(kinds) gets the final squad.
-  function showSquad({ heroes, chosen, onGo, onRankings = null }) {
+  function showSquad({ heroes, chosen, onGo, onRankings = null, title = 'Choose your squad' }) {
+    document.getElementById('squad-title').textContent = title;
     const holder = document.getElementById('squad-heroes');
     const size = Math.min(3, heroes.length);
     const picked = new Set([heroes[0].kind, ...chosen]);

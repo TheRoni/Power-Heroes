@@ -33,11 +33,12 @@
 ## Tests (in `tests/`, not part of the game)
 - `tests/test-stage1.js` (19 checks: movement), `tests/test-stage8.js` (13 checks: the
   manifest, the icons, the service worker, and playing with no internet, from a real
-  local web address) and `tests/test-stage2.js` (everything else, in 20 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  local web address) and `tests/test-stage2.js` (everything else, in 23 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
   screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
   16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings,
-  20 naming the hero).
+  20 naming the hero, 21 the five rounds of Chapter 1, 22 General Bramble, 23 his last
+  words and trying again)
   A full run takes 10 to 25 minutes in the test browser.
 - **After changing any game file, run `node tests/bump-sw.js`** (it rewrites the file
   list and the version in `sw.js`; without it a phone could keep an old copy of the
@@ -610,7 +611,33 @@ his flute, tells about Lyra, and you get the first memory shard. (Plan written o
   phases, defeat); 3 the boss round and its rewards; 4 the campfire, the shard and the chapter
   screen; 5 polish, tests on both pages, republish.
 - **New files (the director is told here):** `src/chapters.js` (the five rounds as data),
-  `src/boss.js` (General Bramble), `src/campfire.js` (the night scene and the shard).
+  `src/boss.js` and `src/boss-model.js` (General Bramble), `src/flags.js` (the switches in
+  the web address, moved out of `main.js` to keep it under 300 lines), `src/campfire.js`
+  (the night scene and the shard).
+- **Chunk 1 build notes (DONE):** `chapters.js` holds the five rounds (waves, types, Gloom
+  Power 1.0 to 1.4 times, a line as the round starts, the end-screen words); round 1 is
+  unchanged and later rounds are longer (18, 21, 28, 36 Gloomlings). The corner says
+  "Round 2/5 · Wave 1/3 ..."; the first wave announces "Round 2 / The Long Grass"; Pip or Marlo
+  say a line about the round; each round has its own closing conversation; the squad screen is
+  headed "Round 3/5 · The Old Oak"; losing keeps you on the same round ("Try again"); after
+  round 5 the rounds are ordinary again ("Keep playing"). The round is saved. Debug mode keeps
+  the one repeating round unless `&chapter` is added. Tests: group 21 (28 checks).
+- **Chunk 2 build notes (DONE):** `boss.js` + `boss-model.js`: General Bramble is a very big
+  Nature enemy (40 Gloomlings' health, radius 1.6) that the rest of the game treats like any
+  other. He rises from the ground, walks at you, and uses a fan of 7 thorns, a root slam (a red
+  circle fills for 1.1 s, then vines burst: step out of it), and a bump if you stand next to him.
+  Under half health he roars, moves faster, attacks more often and calls three Gloomlings at a
+  time (up to six). Fire is super effective against him, Storm is weak. His health bar is in the
+  top-left column (red-hot under half). When his health runs out he shakes, shrinks into the
+  tired young gardener he was and stays there until his last words are done, then fades into
+  leaves. New sounds: thorns, slam, roar, boss-down. Tests: group 22 (20 checks).
+- **Chunk 3 build notes (DONE):** round 5 is two waves of Gloomlings and then the boss alone
+  (banner "General Bramble / Boss!"). When he falls the Gloomlings he called vanish, he gives
+  his last words ("She promised us more. We just wanted to matter."; Marlo: "...Matter. Yes. So did
+  we all.") with sad flute, and the round is won. He is worth ten Gloomlings of XP. After the
+  fight Pip and Marlo talk about him and Marlo promises the story "tonight, by the fire". If the
+  hero's squad loses to him, "Try again" starts at the boss (not the two waves before).
+  Tests: group 23 (9 checks).
 - Tide and Volt still join after the first win for now (the story gates them in Stage 13);
   Ember and Sol are the Chapter 1 pair in the words.
 

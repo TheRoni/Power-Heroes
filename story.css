@@ -285,3 +285,11 @@ body.prologue #hint { display: none; }
 #hud-power.boosted { color: #ffe14a; font-size: 14px; text-shadow: 0 0 8px #ff9a1f; }
 @keyframes meter-glow { 50% { filter: brightness(1.35); } }
 @media (prefers-reduced-motion: reduce) { #overdrive, #hud-meter.full #hud-meter-fill { animation: none; } }
+
+/* The boss's health bar: in the top-left column, under the wave note. It turns red-hot under half health. */
+#boss { width: min(300px, calc(100vw - 32px)); margin: 8px 0 0 4px; }
+#boss[hidden] { display: none; }
+#boss-name { margin-bottom: 4px; color: #fff; font: 900 15px system-ui, sans-serif; letter-spacing: 0.04em; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5), 0 0 8px rgba(0, 0, 0, 0.6); }
+#boss-bar { height: 14px; padding: 2px; border-radius: 999px; background: rgba(20, 10, 30, 0.75); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5); }
+#boss-fill { width: 100%; height: 100%; border-radius: 999px; background: linear-gradient(#9be05a, #3f9a3a); transform-origin: left center; transition: transform 0.15s linear; }
+#boss.angry #boss-fill { background: linear-gradient(#ffb04a, #e8452c); }

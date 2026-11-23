@@ -4,18 +4,30 @@ import { HEROES } from './heroes-data.js';
 import { WALK_RADIUS } from './scene.js';
 import { xpForKill, winBonus, enemyPowerFor, xpForPower } from './power.js';
 import { board, passes, windowed, MARLO } from './rankings.js';
+import { CHAPTERS, ROUNDS } from './chapters.js';
 
+const BOSS_XP = 10;   // a boss is worth this many Gloomlings
 const LESSON_XP = { climb: 12, move: 3, strike: 5, power: 7 };   // the prologue: Sol's Power climbs as Marlo teaches (to Power 10), so the numbers in the story are real
 
-// pick: show the squad screen (the tests switch it off). onNewRound(): the game's own small resets (the hint, Pip's words).
-export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick, onNewRound }) {
+// pick: show the squad screen (the tests switch it off). chapter: play the five rounds of Chapter 1 one after another (the
+// tests keep the one round that repeats). onNewRound(): the game's own small resets (the hint, Pip's words).
+export function createRounds({ progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick, chapter = false, onNewRound }) {
   let ending = null;   // 'won', 'again' (a win after the first), or 'lost' while Marlo walks over before the closing conversation
   let endWait = 0;
   let roundXp = 0;     // XP from the Gloomlings beaten in this round so far
   let gains = [];      // what the last round did to each hero's Power: [{ kind, name, xp, before, after }]
   let passed = { list: [], more: 0 };   // who the last round passed on the Rankings board
+  let closing = null;   // the closing conversation, when it is not the usual one for the ending (a round of the chapter)
+  let wonText = null;   // what the end screen says after a round of the chapter
+  let retryAtBoss = false;   // a round lost to the boss is tried again at the boss (not the waves before him)
 
-  const enemyPower = (wave) => (progress.flat ? 10 : enemyPowerFor(progress.averagePower(squad.roster), wave));
+  // The round of Chapter 1 to play now (null: ordinary rounds, after the chapter is done or when it is switched off).
+  const current = () => (chapter && progress.round <= ROUNDS ? CHAPTERS[1].rounds[progress.round - 1] : null);
+  const enemyPower = (wave) => {
+    if (progress.flat) return 10;
+    const round = current();
+    return Math.max(6, Math.round(enemyPowerFor(progress.averagePower(squad.roster), wave) * (round ? round.power : 1)));
+  };
 
   // The Power Rankings: the heroes who have joined you, among the other heroes of the isle.
   const rows = () => board(progress.unlocked.map((kind) => ({ kind, name: HEROES[kind].name, type: HEROES[kind].type, power: progress.powerOf(kind) })));
@@ -35,7 +47,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   }
 
   // A Gloomling was beaten: its XP waits until the round is over.
-  const defeat = (gloom) => { roundXp += xpForKill(gloom.power); };
+  const defeat = (gloom) => { roundXp += xpForKill(gloom.power) * (gloom.boss ? BOSS_XP : 1); };
 
   // The prologue: Sol's Power climbs. 'skip' gives whatever the lessons would have (so skipping them is no loss).
   function reward(kind) {
@@ -49,16 +61,22 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   function end(kind) {
     const won = kind === 'won';
     const first = progress.unlocked.length < 2;
+    const round = current();   // (the round that was just played)
+    const number = round ? progress.round : 0;
     gains = progress.addXp(squad.roster, roundXp + (won ? winBonus(enemyPower(waves.total - 1)) : 0)).map((g) => ({ ...g, name: HEROES[g.kind].name }));
     roundXp = 0;
     if (won) {
       progress.winRound();
       progress.unlock(Object.keys(HEROES));
+      if (round) progress.advance(ROUNDS + 1);
     }
     progress.store();
     refresh();
     passed = passes(gains, rows());
     ending = won ? (first ? 'won' : 'again') : 'lost';
+    closing = won && number > 1 ? `win${number}` : null;   // round 1 has the first-win conversation (Ember arrives); the others have their own
+    wonText = won && round ? round.won : null;
+    retryAtBoss = !won && waves.atBoss;
     endWait = 0;
     audio.play(won ? 'win' : 'lose');
     music.play('sunmeadow', 2.5);
@@ -74,7 +92,8 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     roundXp = 0;
     ember.leave();
     marlo.goHome();
-    waves.start();
+    waves.start(current(), retryAtBoss);
+    retryAtBoss = false;
   }
 
   // "Play again" and "Try again": a fresh round (without the long introduction). Once more than one hero has joined,
@@ -84,7 +103,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     const unlocked = progress.unlocked;
     if (unlocked.length < 2 || !pick) { startRound(); return; }
     const heroes = unlocked.map((kind) => ({ kind, name: HEROES[kind].name, type: HEROES[kind].type, power: HEROES[kind].power.name }));
-    ui.showSquad({ heroes, chosen: squad.roster.length > 1 ? squad.roster : ['ember', 'tide'], onGo: (kinds) => { chooseSquad(kinds); startRound(); }, onRankings: showRankings });
+    ui.showSquad({ heroes, chosen: squad.roster.length > 1 ? squad.roster : ['ember', 'tide'], onGo: (kinds) => { chooseSquad(kinds); startRound(); }, onRankings: showRankings, title: label() ? `${label()} · ${current().name}` : undefined });
   }
 
   // The prologue is over: the first wave (or, for someone who has played before, the squad screen).
@@ -92,7 +111,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     progress.mark('prologue');
     progress.store();
     if (progress.unlocked.length > 1 && pick) restart();
-    else waves.start();
+    else waves.start(current());
   }
 
   // Ember runs in from the left edge and stops beside Sol (the win conversation waits for her).
@@ -107,7 +126,8 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     if (ending && (marlo.arrived || (endWait += dt) > 8)) {   // Marlo has come over: the closing conversation begins
       const kind = ending;
       ending = null;
-      story.scene({ won: 'win', again: 'winAgain', lost: 'lose' }[kind], () => ui.showEnd(kind === 'lost' ? 'lost' : 'won', gains, {
+      story.scene(closing || { won: 'win', again: 'winAgain', lost: 'lose' }[kind], () => ui.showEnd(kind === 'lost' ? 'lost' : 'won', gains, {
+        text: wonText,   // "Round 2 won!" and the like (nothing: the usual words)
         onFlare: () => aura.flare(1.2),   // the power-up moment: the aura flares as each number arrives
         onTier: () => { aura.flare(3); powers.sparks.confetti(90); },   // and a new tier is a bigger celebration
         passes: passed,   // "Sol passed Wren!" (and passing Rook, number 1, is a bigger celebration too)
@@ -118,11 +138,14 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     if (story.waiting === 'arrive' && ember.arrived) story.resume();   // Ember is here: the talk carries on
   }
 
+  const label = () => (current() ? `Round ${progress.round}/${ROUNDS}` : '');   // "Round 2/5" (nothing in an ordinary round)
+
   // The words that story lines can use: "Power {power}" is Sol's Power now, and {name} is what the player called the hero.
   const vars = () => { const power = progress.powerOf('sol'); return { power, next: power + 1, name: progress.name }; };
 
   return {
-    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings,
+    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label,
+    get round() { return current(); },   // the round of the chapter being played: { name, sizes, types, power, intro, won }, or null
     get ending() { return ending; },
     get gains() { return gains; },
   };

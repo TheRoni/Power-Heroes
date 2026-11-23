@@ -15,6 +15,8 @@ export const SPEAKERS = {
   sol: { name: '{name}', color: '#fff3c8', pitch: 1 },
   pip: { name: 'Pip', color: '#ffd24a', pitch: 1.9 },
   ember: { name: 'Ember', color: '#ff7a3c', pitch: 1.3 },
+  bramble: { name: 'General Bramble', color: '#8fd45a', pitch: 0.45 },
+  gardener: { name: 'Bramble', color: '#c9e8a0', pitch: 0.95 },   // himself again, after the fight
 };
 
 // Scenes: conversations you tap through. The game waits while they play (except during a lesson).
@@ -59,9 +61,41 @@ export const SCENES = {
     { music: 'lullaby', fade: 3 },   // the first time we hear the song that runs through the whole game
     ['marlo', 'Everyone here wants more. So did I. So did she.'],
     ['sol', 'Who is she?'],
-    ['marlo', '...Another night, {name}. Tidecove is next.'],
+    ['marlo', "...Not yet, {name}. When this isle is safe, I'll tell you."],
   ],
-  // Later rounds (Ember has already joined): no new introductions.
+  // The closing conversations after rounds 2 to 5 of Chapter 1 (Ember has already joined: no new introductions).
+  win2: [
+    { music: 'sunmeadow', fade: 2 },
+    ['pip', 'Another patch of green! Marlo, are we winning?'],
+    ['marlo', 'We are not losing. At my age, that counts.'],
+  ],
+  win3: [
+    { music: 'sunmeadow', fade: 2 },
+    ['marlo', 'The oak is breathing again. Look at the leaves.'],
+    ['pip', "I'm going to hug the tree."],
+    ['marlo', 'Not now, Pip. Something is watching from the hedge.'],
+  ],
+  win4: [
+    { music: 'marlo', fade: 2 },
+    ['marlo', 'Did you feel that? The ground. Something big is walking this isle.'],
+    ['pip', 'Big? How big? Marlo-sized? Please say Marlo-sized.'],
+    ['marlo', 'Bigger. Rest, {name}. Tomorrow we meet him.'],
+  ],
+  // General Bramble, beaten and himself again: he says his last words and fades away (boss.js). The fight waits for them.
+  bossDown: [
+    { music: 'lullaby-sorrow', fade: 2.5 },
+    ['gardener', '...The hedge. The meadow. I used to water these roots.'],
+    ['gardener', 'She promised us more. We just wanted to matter.'],
+    ['marlo', '...Matter. Yes. So did we all.'],
+  ],
+  win5: [
+    { music: 'sunmeadow', fade: 3 },
+    ['pip', 'He turned back into a PERSON. A gardener! With a LEAF in his hair!'],
+    ['marlo', 'Bramble. He tended these hedges, once. Before the Rift.'],
+    ['sol', 'The Rift?'],
+    ['marlo', "Tonight, {name}. By the fire. I promised you a story."],
+  ],
+  // Ordinary rounds, after the chapter (and in the tests): no new introductions.
   winAgain: [
     { music: 'sunmeadow', fade: 2 },
     ['pip', 'Green again! I stopped worrying. Almost.'],
@@ -80,7 +114,14 @@ export const SCENES = {
 export const BUBBLES = {
   wave1: ['Here they come! Try not to get bumped.', 'Incoming! Stay bouncy!', { who: 'marlo', text: 'Keep moving. A hero who stands still is a statue.' }],
   wave2: ['More of them! Your Power is climbing. I can feel it.', "Round two! Don't they have homes?", { who: 'marlo', text: "Good. Don't let the number go to your head." }],
+  wave4: ['Wave four! Is that even allowed?', { who: 'marlo', text: 'The last ones are the stubborn ones.' }],
   wave3: ['Final wave! Give it everything!', 'Last lot! Make it a big one!', { who: 'marlo', text: 'Everything, {name}. Then a little more.' }],
+  round2: ['Round two! The grass is taller here. Things hide in it. Probably bugs. Possibly worse.', { who: 'marlo', text: 'Ember fights beside you now. A squad is stronger than a star.' }],
+  round3: ['That old oak is looking grey. Poor tree. Defend the tree!', { who: 'marlo', text: 'The Glooms drink the colour from the oldest things first.' }],
+  round4: ['Is it just me, or is the grass getting... pointy?', { who: 'marlo', text: 'Thorns. Something old is waking in the hedge.' }],
+  round5: [{ who: 'marlo', text: 'Stay close, {name}. This one has a name.' }, 'A NAME? Names are worse than numbers!'],
+  bramble_spawn: [{ who: 'bramble', text: 'Little light. You are in MY meadow.' }, { who: 'bramble', text: 'Every seed in this isle answers to me.' }],
+  bramble_enrage: [{ who: 'bramble', text: 'More! Give me MORE!' }, { who: 'bramble', text: 'She promised me more than this!' }],
   cleared: ['Nice! Catch your breath.', 'See the colour creeping back? Keep going!', { who: 'marlo', text: 'Colour follows courage.' }],
   first: ["Look! A pop of colour! That's what you're fighting for."],
   hurt: ['Ouch! They pause after each bump. Use it!', 'Careful! Keep moving!', { who: 'marlo', text: 'Every hero gets hit. Heroes get up.' }],

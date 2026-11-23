@@ -19,17 +19,8 @@ import { createRounds } from './rounds.js';
 import { createProgress, shortNumber } from './power.js';
 import { createSave } from './save.js';
 import { registerOffline } from './offline.js';
+import { flag, DEBUG, TITLE, PICK, CHAPTER, PERSIST, PLAYER_KIND } from './flags.js';
 
-// Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
-const FLAGS = new URLSearchParams(location.search);
-const HASH = location.hash.slice(1).split(/[,&-]/);   // "#debug", "#debug-title" and "#debug-squad" work too (in the Claude test link)
-const flag = (name) => FLAGS.has(name) || HASH.includes(name);
-const DEBUG = flag('debug');
-const TITLE = !DEBUG || flag('title');   // debug mode skips the title screen and the squad screen (so the tests are quick), unless asked
-const PICK = !DEBUG || flag('squad');
-const PERSIST = !DEBUG || flag('save');   // progress is saved in the browser (debug mode forgets, so the tests start fresh, unless asked)
-const PREVIEW = FLAGS.get('hero') || (HASH.find((h) => h.startsWith('hero=')) || '').slice(5);   // ?debug&hero=tide (or #debug-hero=tide) previews another hero
-const PLAYER_KIND = DEBUG && HEROES[PREVIEW] ? PREVIEW : 'sol';   // which hero the player controls (a key in heroes-data.js)
 
 // --- Set up the screen ---
 const canvas = document.getElementById('game');
@@ -142,12 +133,22 @@ const waves = createWaves({
   hero: player,
   gloomlings,
   enemyPower: (wave) => rounds.enemyPower(wave),
+  emit: (...spark) => powers.sparks.emit(...spark),
+  bossEvents: {   // General Bramble's own news: his shake, his words and his sounds
+    shake: (amount) => shake(amount),
+    taunt: (key) => story.say(`bramble_${key}`),
+    sound: (name) => audio.play(name),
+    down: (boss) => { rounds.defeat(boss); audio.play('bossdown'); fx.freeze = 0.15; },   // (XP for him, and a moment of stillness)
+    fallen: (boss) => story.scene('bossDown', () => boss.finish()),   // his last words, and then he fades away
+  },
   events: {
-    wave: (number, total) => {
-      ui.showBanner(`Wave ${number}`, number === total ? 'Final wave!' : `of ${total}`);
+    wave: (number, total, info) => {
+      const round = number === 1 && rounds.round;   // the first wave of a round of the chapter announces the round
+      if (info && info.boss) ui.showBanner(info.boss.name, 'Boss!');
+      else ui.showBanner(round ? `Round ${progress.round}` : `Wave ${number}`, round ? round.name : number === total ? 'Final wave!' : `of ${total}`);
       audio.play('wave');
       music.play('battle', 1);
-      saySoon(`wave${number}`, 1.2);
+      saySoon(round && round.intro ? round.intro : `wave${number}`, 1.2);
     },
     spawn: (gloom) => { powers.sparks.puff(gloom.position); audio.play('spawn'); },
     cleared: (number) => {
@@ -163,7 +164,7 @@ const waves = createWaves({
 const aura = createAura({ scene: world.scene, position: player.position, sparks: powers.sparks });   // grows with Power (see aura.js)
 const overdrive = createOverdrive({ squad, aura, ui, audio, shake });   // hits fill a meter; when it is full, Overdrive
 const rounds = createRounds({
-  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick: PICK,
+  progress, squad, waves, ui, story, marlo, ember, music, audio, player, powers, aura, pick: PICK, chapter: CHAPTER,
   onNewRound: () => {   // the game's own small resets
     hintHidden = true;   // the how-to-play hint is for the first round only (it would sit on the portraits)
     hint.classList.add('gone');
@@ -186,8 +187,9 @@ else prologue.go();
 
 // The small note in the corner, such as "Wave 2/3 · 5 left".
 function waveText() {
-  if (waves.state === 'break') return waves.wave === 1 ? 'Get ready…' : `Wave ${waves.wave} coming…`;
-  if (waves.state === 'spawning' || waves.state === 'fighting') return `Wave ${waves.wave}/${waves.total} · ${waves.remaining} left · Gloom Power ${shortNumber(waves.enemyPower)}`;
+  const round = rounds.label() ? `${rounds.label()} · ` : '';   // "Round 2/5 · " in the chapter
+  if (waves.state === 'break') return round + (waves.wave === 1 ? 'Get ready…' : `Wave ${waves.wave} coming…`);
+  if (waves.state === 'spawning' || waves.state === 'fighting') return `${round}Wave ${waves.wave}/${waves.total} · ${waves.remaining} left · Gloom Power ${shortNumber(waves.enemyPower)}`;
   return '';
 }
 
@@ -238,6 +240,7 @@ function frame(now) {
   player.setGlow(aura.glow);
   overdrive.update(dt);
   ui.setOverdrive(overdrive);
+  ui.setBoss(waves.boss);   // the boss's health bar, while he is on the island
   ui.setHeroPower(Math.round(progress.powerOf(player.kind) * (overdrive.active ? BOOST : 1)), overdrive.active);
   world.update(dt, gameTime);
   prologue.update(realDt, now / 1000);

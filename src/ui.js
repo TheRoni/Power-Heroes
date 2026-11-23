@@ -191,6 +191,20 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
 
   // The small "Wave 1/3 · 4 left" note under Ember's health bar.
   let lastText = null;
+  // The boss's health bar (the boss from waves.boss, or null to hide it).
+  const bossBox = document.getElementById('boss');
+  const bossName = document.getElementById('boss-name');
+  const bossFill = document.getElementById('boss-fill');
+  let lastBoss = '';
+  function setBoss(boss) {
+    bossBox.hidden = !boss;
+    if (!boss) return;
+    const text = `${boss.name} · Power ${shortNumber(boss.power)}`;
+    if (text !== lastBoss) { lastBoss = text; bossName.textContent = text; }
+    bossFill.style.transform = `scaleX(${Math.max(0, boss.health / boss.maxHealth)})`;
+    bossBox.classList.toggle('angry', boss.enraged);
+  }
+
   function setWaveText(text) {
     if (text === lastText) return;
     lastText = text;
@@ -220,5 +234,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, onOverdri
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
+  return { setHealth, setPower, setHero, setBoss, setWaveText, setVeil, showBanner, popNumber, setSquad, setPortraits, showFps, fps, setHeroPower, setOverdrive, ...menus.api };
 }
