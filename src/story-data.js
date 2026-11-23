@@ -60,6 +60,12 @@ export const SCENES = {
     ['sol', 'Who is she?'],
     ['marlo', '...Another night, Sol. Tidecove is next.'],
   ],
+  // Later rounds (Ember has already joined): no new introductions.
+  winAgain: [
+    { music: 'sunmeadow', fade: 2 },
+    ['pip', 'Green again! I stopped worrying. Almost.'],
+    ['marlo', 'Good. Rest your legs. The Glooms always come back.'],
+  ],
   lose: [
     { music: 'marlo', fade: 2 },
     ['marlo', 'Up, Sol. Slowly. Heroes fall. Falling is the easy part.'],

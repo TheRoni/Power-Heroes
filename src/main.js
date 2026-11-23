@@ -84,11 +84,12 @@ const squad = createSquad({
     if (!said.hurt) { said.hurt = true; story.say('hurt'); }
   },
   onDown: () => { shake(0.3); audio.play('down'); },
-  onSwap: (kind) => ui.setHero({ name: HEROES[kind].name, powerName: HEROES[kind].power.name, powerId: HEROES[kind].power.id }),   // the button, the name and the icon follow whoever is in play
+  onSwap: (kind) => ui.setHero({ name: HEROES[kind].name, type: HEROES[kind].type, powerName: HEROES[kind].power.name, powerId: HEROES[kind].power.id }),   // the button, the name and the icon follow whoever is in play
   events: {
     cast: () => { waveFreezePending = true; waveHits = 0; waveHitTimer = 0.5; shake(0.12); },
-    hit: (gloom, amount, kind) => {
+    hit: (gloom, amount, kind, label) => {
       ui.popNumber(gloom.position, amount, kind, 1.6);
+      if (label !== 'normal') ui.popNumber(gloom.position, label === 'super' ? 'SUPER!' : 'weak', label, 2.5);   // the type pop-ups
       if (kind !== 'big') return;
       prologue.noteHit(kind);
       waveHits++;
@@ -134,7 +135,7 @@ const waves = createWaves({
       audio.play('cleared');
       if (number < waves.total) story.say('cleared');
     },
-    end: (kind) => { ending = kind; endWait = 0; if (kind === 'won') unlocked = Object.keys(HEROES); audio.play(kind === 'won' ? 'win' : 'lose'); music.play('sunmeadow', 2.5); marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
+    end: (kind) => { ending = kind === 'won' && unlocked.length > 1 ? 'again' : kind; endWait = 0; if (kind === 'won') unlocked = Object.keys(HEROES); audio.play(kind === 'won' ? 'win' : 'lose'); music.play('sunmeadow', 2.5); marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
   },
 });
 
@@ -204,13 +205,8 @@ world.follow(player.position, player.velocity, 0, true);   // start with the cam
 const hint = document.getElementById('hint');
 let hintHidden = false;
 
-let fpsBox = null;
-let fpsFrames = 0;
-let fpsStart = 0;
 if (DEBUG) {
-  fpsBox = document.createElement('div');
-  fpsBox.id = 'fps';
-  document.body.appendChild(fpsBox);
+  ui.showFps();
   window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music, squad };   // lets the automatic tests look inside the game
 }
 
@@ -243,7 +239,7 @@ function frame(now) {
   if (ending && (marlo.arrived || (endWait += realDt) > 8)) {   // Marlo has come over: the closing conversation begins
     const kind = ending;
     ending = null;
-    story.scene(kind === 'won' ? 'win' : 'lose', () => ui.showEnd(kind));
+    story.scene({ won: 'win', again: 'winAgain', lost: 'lose' }[kind], () => ui.showEnd(kind === 'lost' ? 'lost' : 'won'));
   }
   if (story.waiting === 'arrive' && ember.arrived) story.resume();   // Ember is here: the talk carries on
   // Pip stays by the hero, but in a conversation Pip hovers by Marlo if he has come over to talk.
@@ -287,14 +283,7 @@ function frame(now) {
     hintHidden = true;
     hint.classList.add('gone');
   }
-  if (fpsBox) {
-    fpsFrames++;
-    if (now / 1000 - fpsStart >= 0.5) {
-      fpsBox.textContent = `${Math.round(fpsFrames / (now / 1000 - fpsStart))} fps · ${renderer.info.render.calls} draws`;
-      fpsFrames = 0;
-      fpsStart = now / 1000;
-    }
-  }
+  ui.fps(now, renderer);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

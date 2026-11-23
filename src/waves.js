@@ -31,7 +31,8 @@ export function createWaves({ scene, hero, gloomlings, events = {} }) {
       if (!best || away > best.away) best = { x, z, away };
       if (away > 7) break;
     }
-    const gloom = createGloomling({ scene, x: best.x, z: best.z });
+    const kinds = WAVES.types[wave];   // this wave's types, taken in turn
+    const gloom = createGloomling({ scene, x: best.x, z: best.z, type: kinds[(WAVES.sizes[wave] - toSpawn) % kinds.length] });
     gloomlings.push(gloom);
     spawned++;
     if (events.spawn) events.spawn(gloom);

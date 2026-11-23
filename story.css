@@ -251,3 +251,8 @@ body.prologue #hint { display: none; }
 .card-type { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; color: var(--c); filter: brightness(0.8); }
 #squad-go { min-width: 150px; padding: 12px 26px; border: 0; border-radius: 999px; background: linear-gradient(#ff9a3c, #f0561f); color: #fff; font: 900 20px system-ui, sans-serif; box-shadow: 0 5px 0 #b13a12; cursor: pointer; touch-action: none; }
 #squad-go:disabled { background: #cdbfa8; box-shadow: 0 5px 0 #a89880; cursor: default; }
+
+/* Type pop-ups: a big SUPER! against a type you beat, a small grey "weak" against one that beats you. */
+.floater.super { color: #ff4a2a; font-size: 34px; font-weight: 900; letter-spacing: 0.04em; text-shadow: 0 0 10px #ffd24a, 0 3px 0 rgba(0, 0, 0, 0.4); }
+.floater.weak { color: #c4c4d0; font-size: 15px; font-weight: 700; }
+#hud-name::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: var(--c, #fff); box-shadow: 0 0 5px var(--c, #fff); }

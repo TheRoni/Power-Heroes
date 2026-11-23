@@ -4,6 +4,7 @@ import * as THREE from '../lib/three.module.min.js';
 import { HEROES } from './heroes-data.js';
 import { createSuperpower, distanceToSegment } from './superpowers.js';
 import { QUIET } from './audio.js';
+import { effectiveness } from './types.js';
 
 const FLAME_COLORS = [0xff4b1f, 0xff8a1f, 0xffc933];                     // red, orange, yellow
 const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
@@ -110,11 +111,14 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
   }
 
   // Hurts a Gloomling: pop-up number, sparks, and if it falls, a burst of colour. Returns true if it was defeated.
-  function damage(gloom, amount, pushX, pushZ, kind) {
+  function damage(gloom, base, pushX, pushZ, kind) {
+    const { multiplier, label } = effectiveness(data.type, gloom.type);   // SUPER! against a type you beat, weak against one that beats you
+    const amount = Math.round(base * multiplier);
     const defeated = gloom.hit(amount, pushX, pushZ);
     const p = gloom.position;
-    if (events.hit) events.hit(gloom, amount, kind);
-    audio.play(kind === 'big' ? 'bell' : 'tick', { pitch: random(0.92, 1.08) });
+    if (events.hit) events.hit(gloom, amount, kind, label);
+    audio.play(label === 'weak' ? 'weak' : kind === 'big' ? 'bell' : 'tick', { pitch: random(0.92, 1.08) });
+    if (label === 'super') audio.play('super');
     if (defeated) audio.play('pop', { pitch: random(0.9, 1.1) });
     for (let i = 0; i < 5; i++) sparks.emit(p.x, 0.8, p.z, random(-3, 3), random(1, 4), random(-3, 3), 0.3, 0.12, 0xffe9a0, -9);
     if (defeated) {

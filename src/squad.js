@@ -6,7 +6,8 @@
 import * as THREE from '../lib/three.module.min.js';
 import { createHero } from './hero.js';
 import { createPowers } from './powers.js';
-import { HEROES, TYPE_COLORS } from './heroes-data.js';
+import { HEROES } from './heroes-data.js';
+import { TYPE_COLORS } from './types.js';
 import { QUIET } from './audio.js';
 
 const SWAP_COOLDOWN = 1.5;   // seconds before the next swap is allowed

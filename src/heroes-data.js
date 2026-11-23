@@ -37,15 +37,6 @@ export const HEROES = {
   },
 };
 
-// The colour of each type: hex for sparks, css for the buttons and portraits.
-export const TYPE_COLORS = {
-  light: { hex: 0xffe27a, css: '#ffd24a' },
-  fire: { hex: 0xff7a3c, css: '#ff6a2c' },
-  water: { hex: 0x4fb4ff, css: '#3f9cf0' },
-  storm: { hex: 0xffe14a, css: '#f2c200' },
-  nature: { hex: 0x7dff52, css: '#4ecb2a' },
-};
-
 export const GLOOMLING = {
   health: 30,
   speed: 3,        // Ember runs at 7, so she can always get away
@@ -57,6 +48,7 @@ export const GLOOMLING = {
 
 export const WAVES = {
   sizes: [4, 6, 8],   // how many Gloomlings in each wave
+  types: [['nature', 'fire'], ['fire', 'storm', 'nature'], ['fire', 'water', 'storm', 'nature']],   // the types they come in (each wave cycles through its list)
   spawnGap: 1,        // seconds between Gloomlings appearing
   breakTime: 1.5,     // seconds between waves
 };

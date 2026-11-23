@@ -1,6 +1,7 @@
 // gloom.js: the Gloomling, a small shadow creature that runs at Ember and bumps her.
 import * as THREE from '../lib/three.module.min.js';
 import { GLOOMLING } from './heroes-data.js';
+import { TYPE_COLORS } from './types.js';
 import { createFloatingBar } from './ui.js';
 
 const EDGE = 11.2;         // Gloomlings cannot be shoved past the edge of the island
@@ -18,12 +19,12 @@ const eyeAngry = new THREE.MeshBasicMaterial({ color: 0xff4a3a });   // eyes tur
 const browMaterial = new THREE.MeshLambertMaterial({ color: 0x1d1233 });
 
 // "scene" is where it is added. x and z are where it appears. A "passive" Gloomling is a training dummy:
-// pale blue, and it just stands there and never bumps anyone.
-export function createGloomling({ scene, x, z, passive = false }) {
+// pale blue, and it just stands there and never bumps anyone. A "type" (fire, water, storm, nature) tints its body.
+export function createGloomling({ scene, x, z, passive = false, type = null }) {
   const group = new THREE.Group();
   const body = new THREE.Group();   // hops, squashes and swells inside the group
   group.add(body);
-  const skin = new THREE.MeshLambertMaterial({ color: passive ? 0x6f86b8 : 0x4a2f7a });   // its own copy, so only this Gloomling flashes when hit
+  const skin = new THREE.MeshLambertMaterial({ color: passive ? 0x6f86b8 : new THREE.Color(0x3a2670).lerp(new THREE.Color(type ? TYPE_COLORS[type].hex : 0x6a45b0), type ? 0.7 : 0.3) });   // its own copy, so only this Gloomling flashes when hit
 
   const blob = new THREE.Mesh(blobShape, skin);
   blob.scale.set(1, 0.85, 1);
@@ -156,7 +157,7 @@ export function createGloomling({ scene, x, z, passive = false }) {
   }
 
   const gloomling = {
-    group, position: p, radius: 0.5, update, hit, remove,
+    group, position: p, radius: 0.5, type, update, hit, remove,
     soak(seconds) { soaked = Math.max(soaked, seconds); },
     get soaked() { return soaked; },
     get alive() { return alive; },

@@ -405,6 +405,24 @@ This changes how the game plays, so each chunk ends playable and is reported.
   pop-up and a small grey "weak". Gloomlings get a type (tinted in the type's
   colour); the waves mix types so choosing the right hero matters.
 
+**Chunk 3 build notes (DONE):**
+- New `src/types.js`: `effectiveness(attackerType, defenderType)` gives 1.5x
+  ("super"), 0.67x ("weak") or 1x ("normal") from the circle (Fire > Nature >
+  Storm > Water > Fire) and Light <-> Shadow; and `TYPE_COLORS` (moved here).
+- Every hit goes through `powers.damage()`, so darts and superpowers are
+  all multiplied (rounded). The hit event also says super/weak: a big red "SUPER!"
+  (with a bright two-note sound) or a small grey "weak" (a dull thud) pops up.
+- Gloomlings have a type (`createGloomling({ type })`), shown by body colour: Fire
+  red, Water blue, Storm yellow, Nature green (plain ones stay purple; training
+  dummies stay pale blue). Waves mix types (`WAVES.types`): wave 1 Nature and
+  Fire, wave 2 adds Storm, wave 3 has all four. Sol (Light) never gets a bonus,
+  so round one stays simple.
+- The corner name has a dot in the hero's type colour.
+- Later rounds (Ember has joined) use a short win scene (`winAgain`) instead of
+  the introduction; the frame-rate box moved to `ui.js` (`showFps`, `fps`).
+- Tests: group 14 (8 checks): the whole type table, the numbers, darts and superpowers,
+  Gloomling colours, wave mixes, and the pop-ups live.
+
 **Chunk 4: the first combo, polish, republish.**
 - New `src/combos.js`: **Soaked + lightning = Shock Chain** (Big Splash soaks;
   a Storm hit on a soaked Gloomling jumps to the wet ones nearby). A name pop-up

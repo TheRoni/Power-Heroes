@@ -3,7 +3,7 @@
 import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
 import { QUIET } from './audio.js';
-import { TYPE_COLORS } from './heroes-data.js';
+import { TYPE_COLORS } from './types.js';
 
 const ENDINGS = {
   won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Play again' },
@@ -124,8 +124,9 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
   }
 
   // Shows which hero you are: the name in the corner, and the power button's label and icon.
-  function setHero({ name, powerName, powerId }) {
+  function setHero({ name, type, powerName, powerId }) {
     document.getElementById('hud-name').textContent = name;
+    if (TYPE_COLORS[type]) document.getElementById('hud-hero').style.setProperty('--c', TYPE_COLORS[type].css);   // a dot of the hero's type colour
     document.getElementById('power-label').textContent = powerName;
     powerButton.dataset.power = powerId;
     powerButton.setAttribute('aria-label', powerName);
@@ -229,6 +230,23 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
   goButton.addEventListener('go', () => { if (pickDone) pickDone(); });
   pickScreen.addEventListener('pointerdown', (event) => event.stopPropagation());   // nothing behind the squad screen reacts to touches
 
+  // The frame-rate box (debug mode only): showFps() once, then fps(now, renderer) every frame.
+  let fpsBox = null, fpsFrames = 0, fpsStart = 0;
+  function showFps() {
+    fpsBox = document.createElement('div');
+    fpsBox.id = 'fps';
+    document.body.appendChild(fpsBox);
+  }
+  function fps(now, renderer) {
+    if (!fpsBox) return;
+    fpsFrames++;
+    if (now / 1000 - fpsStart >= 0.5) {
+      fpsBox.textContent = `${Math.round(fpsFrames / (now / 1000 - fpsStart))} fps · ${renderer.info.render.calls} draws`;
+      fpsFrames = 0;
+      fpsStart = now / 1000;
+    }
+  }
+
   // The grey veil over the picture (0 = none, 1 = solid grey).
   function setVeil(amount) {
     const text = amount.toFixed(3);
@@ -283,5 +301,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, showEnd, hideEnd, popNumber, showTitle, hideTitle, setSquad, setPortraits, showSquad };
+  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, showEnd, hideEnd, popNumber, showTitle, hideTitle, setSquad, setPortraits, showSquad, showFps, fps };
 }

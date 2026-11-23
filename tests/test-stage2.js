@@ -1067,7 +1067,7 @@ async function chunk6(browser) {
   ({ page } = await openGame(browser, 'heroes-ui'));
   const swapped = await page.evaluate(() => {
     const b = document.getElementById('power-button');
-    window.__game.ui.setHero({ name: 'Ember', powerName: 'Flame Wave', powerId: 'flamewave' });
+    window.__game.ui.setHero({ name: 'Ember', type: 'fire', powerName: 'Flame Wave', powerId: 'flamewave' });
     const shown = (sel) => getComputedStyle(b.querySelector(sel)).display !== 'none';
     return { name: document.getElementById('hud-name').textContent, label: document.getElementById('power-label').textContent, flame: shown('.icon-flame'), star: shown('.icon-star') };
   });
@@ -1851,10 +1851,106 @@ async function chunk13(browser) {
   check('the squad screen fits a phone', fits.left >= 0 && fits.right <= 390 && fits.top >= 0 && fits.bottom <= 844, JSON.stringify(fits));
 }
 
+// ---------- Types: the circle, SUPER! and weak, typed Gloomlings ----------
+const typesUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { effectiveness, TYPE_COLORS, STRONG, WEAK } = await import('/src/types.js');
+  const { WAVES, GLOOMLING } = await import('/src/heroes-data.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const { createWaves } = await import('/src/waves.js');
+  const out = {};
+  const all = ['fire', 'nature', 'storm', 'water', 'light', 'shadow', null];
+  out.table = Object.fromEntries(all.map((a) => [a, all.map((d) => effectiveness(a, d).label[0]).join('')]));   // s = super, w = weak, n = normal
+  out.numbers = { strong: STRONG, weak: WEAK, fireNature: effectiveness('fire', 'nature').multiplier, natureFire: effectiveness('nature', 'fire').multiplier, lightShadow: effectiveness('light', 'shadow').multiplier, shadowLight: effectiveness('shadow', 'light').multiplier };
+  out.colors = Object.keys(TYPE_COLORS).join();
+  const fakeHero = (kind) => ({ kind, position: new THREE.Vector3(0, 0, 0), yaw: 0, down: false, face() {}, takeHit() { return false; } });
+  const hitOnce = (kind, type) => {   // the first dart of a hero against a Gloomling of a type
+    const scene = new THREE.Scene();
+    const g = createGloomling({ scene, x: 5, z: 0, type });
+    const log = [];
+    const powers = createPowers({ scene, hero: fakeHero(kind), gloomlings: [g], events: { hit: (gl, amount, k, label) => log.push([amount, label]) } });
+    for (let i = 0; i < 40 && log.length === 0; i++) powers.update(1 / 30, i / 30);
+    return log[0].join(':');
+  };
+  out.darts = { emberNature: hitOnce('ember', 'nature'), emberWater: hitOnce('ember', 'water'), emberStorm: hitOnce('ember', 'storm'), emberNone: hitOnce('ember', null), tideFire: hitOnce('tide', 'fire'), voltWater: hitOnce('volt', 'water'), voltNature: hitOnce('volt', 'nature'), solFire: hitOnce('sol', 'fire') };
+  {   // a superpower is multiplied too: Flame Wave on a nature Gloomling, Big Splash on a fire one
+    const scene = new THREE.Scene();
+    const a = createGloomling({ scene, x: 3, z: 0, type: 'nature' });
+    const log = [];
+    const powers = createPowers({ scene, hero: fakeHero('ember'), gloomlings: [a], events: { hit: (g, amount, k, label) => log.push(`${amount}:${k}:${label}`) } });
+    powers.autoFire = false;
+    powers.castPower();
+    for (let i = 0; i < 30; i++) powers.update(1 / 30, i / 30);
+    const b = createGloomling({ scene, x: 3, z: 0, type: 'fire' });
+    const log2 = [];
+    const powers2 = createPowers({ scene, hero: fakeHero('tide'), gloomlings: [b], events: { hit: (g, amount, k, label) => log2.push(`${amount}:${k}:${label}`) } });
+    powers2.autoFire = false;
+    powers2.castPower();
+    for (let i = 0; i < 30; i++) powers2.update(1 / 30, i / 30);
+    out.powers = { flame: log.join(), splash: log2.join(), natureHealth: a.alive ? a.health : 'dead', fireHealth: b.health, soaked: b.soaked > 4 };
+  }
+  {   // Gloomlings: each type has its own body colour; a training dummy stays pale blue
+    const bodyColour = (type, passive = false) => { const g = createGloomling({ scene: new THREE.Scene(), x: 0, z: 0, type, passive }); let hex = null; g.group.traverse((o) => { if (hex === null && o.isMesh && o.material.isMeshLambertMaterial) hex = o.material.color.getHex(); }); return hex; };
+    const colours = ['fire', 'water', 'storm', 'nature'].map((t) => bodyColour(t));
+    out.look = { colours, distinct: new Set([...colours, bodyColour(null)]).size, dummy: bodyColour(null, true), typed: createGloomling({ scene: new THREE.Scene(), x: 0, z: 0, type: 'storm' }).type, plain: createGloomling({ scene: new THREE.Scene(), x: 0, z: 0 }).type };
+  }
+  {   // waves: each wave comes in its own mix of types
+    const scene = new THREE.Scene();
+    const gloomlings = [];
+    const seen = [[], [], []];
+    let wave = 0;
+    const waves = createWaves({ scene, hero: { position: new THREE.Vector3(0, 0, 0), down: false }, gloomlings, events: { wave: (n) => { wave = n - 1; }, spawn: (g) => { seen[wave].push(g.type); } } });
+    waves.start();
+    for (let i = 0; i < 30 * 60 && waves.state !== 'won' && waves.state !== 'over'; i++) { gloomlings.splice(0).forEach((g) => g.remove()); waves.update(1 / 30); }
+    out.waves = { counts: seen.map((s) => s.length).join(), sets: seen.map((s) => [...new Set(s)].sort().join('+')), first: seen.map((s) => s.slice(0, 4).join()), configured: JSON.stringify(WAVES.types) };
+  }
+  return out;
+};
+
+async function chunk14(browser) {
+  let { page } = await openGame(browser, 'types-unit');
+  const u = await page.evaluate(typesUnit);
+  const order = ['fire', 'nature', 'storm', 'water', 'light', 'shadow', 'null'];
+  check('the type circle: Fire beats Nature, Nature beats Storm, Storm beats Water, Water beats Fire (and each is weak to the one that beats it); Light and Shadow beat each other; nothing else matters', JSON.stringify(u.table) === JSON.stringify({ fire: 'nsnwnnn', nature: 'wnsnnnn', storm: 'nwnsnnn', water: 'snwnnnn', light: 'nnnnnsn', shadow: 'nnnnsnn', null: 'nnnnnnn' }), JSON.stringify(u.table));
+  check('super is 1.5 times, weak is 0.67 times, and Light/Shadow work both ways', u.numbers.strong === 1.5 && u.numbers.weak === 0.67 && u.numbers.fireNature === 1.5 && u.numbers.natureFire === 0.67 && u.numbers.lightShadow === 1.5 && u.numbers.shadowLight === 1.5 && u.colors === 'light,fire,water,storm,nature,shadow', JSON.stringify([u.numbers, u.colors]));
+  check('a dart does 1.5x against a type you beat (10 becomes 15), 0.67x against one that beats you (10 becomes 7), the normal amount otherwise; Sol (Light) always does the normal 9', u.darts.emberNature === '15:super' && u.darts.emberWater === '7:weak' && u.darts.emberStorm === '10:normal' && u.darts.emberNone === '10:normal' && u.darts.tideFire === '14:super' && u.darts.voltWater === '12:super' && u.darts.voltNature === '5:weak' && u.darts.solFire === '9:normal', JSON.stringify(u.darts));
+  check('superpowers are multiplied too (Flame Wave 45 becomes 68 on Nature, Big Splash 12 becomes 18 on Fire and still soaks)', u.powers.flame === '68:big:super' && u.powers.splash === '18:big:super' && u.powers.fireHealth === 12 && u.powers.soaked, JSON.stringify(u.powers));
+  check('each type has its own body colour, all different from the plain one, and the training dummy stays pale blue', u.look.distinct === 5 && u.look.dummy === 0x6f86b8 && u.look.typed === 'storm' && u.look.plain === null, JSON.stringify(u.look));
+  check('waves come in their own mix of types (wave 1: Nature and Fire; wave 2 adds Storm; wave 3 has all four), still 4, 6 and 8 Gloomlings', u.waves.counts === '4,6,8' && u.waves.sets.join(' | ') === 'fire+nature | fire+nature+storm | fire+nature+storm+water' && u.waves.first[0] === 'nature,fire,nature,fire', JSON.stringify(u.waves));
+
+  // Live game: playing as Ember against a Nature and a Water Gloomling (?debug&hero=ember).
+  HERO_PARAM = 'ember';
+  ({ page } = await openGame(browser, 'types-live'));
+  HERO_PARAM = '';
+  const dot = await page.evaluate(() => getComputedStyle(document.getElementById('hud-hero')).getPropertyValue('--c'));
+  check('the corner name has a dot in the hero\'s type colour (Ember is Fire)', dot.trim() === '#ff6a2c', dot);
+  const shown = await page.evaluate(async () => {
+    const G = window.__game;
+    const { createGloomling } = await import('/src/gloom.js');
+    G.waves.reset();
+    G.gloomlings.splice(0).forEach((g) => g.remove());
+    const supers = new Set(), weaks = new Set();
+    const timer = setInterval(() => {   // the pop-ups only live for a second, so look often
+      document.querySelectorAll('.floater.super').forEach((e) => supers.add(e.textContent));
+      document.querySelectorAll('.floater.weak').forEach((e) => weaks.add(e.textContent));
+    }, 40);
+    G.gloomlings.push(createGloomling({ scene: G.world.scene, x: 4, z: 0, type: 'nature' }));
+    await new Promise((r) => setTimeout(r, 3000));
+    G.gloomlings.splice(0).forEach((g) => g.remove());
+    G.gloomlings.push(createGloomling({ scene: G.world.scene, x: 4, z: 0, type: 'water' }));
+    await new Promise((r) => setTimeout(r, 3000));
+    clearInterval(timer);
+    return { supers: [...supers], weaks: [...weaks], counts: { super: G.audio.counts.super, weak: G.audio.counts.weak } };
+  });
+  check('hitting a Nature Gloomling as Ember pops a big "SUPER!" (with a sound), and hitting a Water one pops a small "weak"', shown.supers.join() === 'SUPER!' && shown.weaks.join() === 'weak' && shown.counts.super >= 1 && shown.counts.weak >= 1, JSON.stringify(shown));
+  await page.screenshot({ path: `${OUT}/types-1-weak.png` });
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
