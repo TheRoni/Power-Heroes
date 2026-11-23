@@ -17,7 +17,8 @@ const MAX_SQUAD = 3;
 // "kinds" are the heroes to make (keys of heroes-data.js). "events" and "audio" are handed to every hero's powers.
 // onHurt(amount, kind) and onDown(kind) say when the hero in play is bumped or knocked out. onSwap(kind, slot) says
 // who is in play now. "gloomlings" is the list of living Gloomlings.
-export function createSquad({ scene, bound, kinds = Object.keys(HEROES), gloomlings, events = {}, audio = QUIET, onHurt, onDown, onSwap }) {
+// powerOf(kind) says each hero's Power (progress.js).
+export function createSquad({ scene, bound, kinds = Object.keys(HEROES), gloomlings, events = {}, audio = QUIET, onHurt, onDown, onSwap, powerOf = () => 10 }) {
   const shared = { position: new THREE.Vector3(), velocity: { x: 0, z: 0 } };   // one place and one speed for the whole squad
   const members = {};    // kind -> { kind, hero, powers }
   let roster = [];       // the kinds in the squad, in order
@@ -86,9 +87,13 @@ export function createSquad({ scene, bound, kinds = Object.keys(HEROES), gloomli
     show();
   }
 
+  // Everybody takes their current Power (after some XP was earned).
+  function refreshPowers() { for (const m of all) m.hero.setPower(powerOf(m.kind)); }
+
   // Chooses the squad: up to three kinds, the first one is in play.
   function set(list) {
     roster = list.filter((kind) => members[kind]).slice(0, MAX_SQUAD);
+    refreshPowers();
     reset();
   }
 
@@ -98,6 +103,7 @@ export function createSquad({ scene, bound, kinds = Object.keys(HEROES), gloomli
     get velocity() { return shared.velocity; },
     get group() { return current().hero.group; },
     get kind() { return current().kind; },
+    get power() { return current().hero.power; },
     get name() { return current().hero.name; },
     get type() { return current().hero.type; },
     get health() { return current().hero.health; },
@@ -135,7 +141,7 @@ export function createSquad({ scene, bound, kinds = Object.keys(HEROES), gloomli
   };
 
   return {
-    player, powers, set, swapTo, members,
+    player, powers, set, swapTo, members, refreshPowers,
     get roster() { return [...roster]; },
     get slot() { return slot; },
     get swapReady() { return cooldown <= 0; },

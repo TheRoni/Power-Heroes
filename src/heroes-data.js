@@ -6,6 +6,7 @@ export const HEROES = {
   sol: {
     name: 'Sol',
     type: 'light',
+    startPower: 1,   // the Power they have when they join (Sol starts at 1 and climbs faster than anyone)
     health: 100,
     invulnerable: 0.4,   // how long a hero is protected after a hit, so several bumps cannot land at once
     attack: { look: 'dart', damage: 9, range: 7, cooldown: 0.6, speed: 18 },   // quick darts of light
@@ -14,6 +15,7 @@ export const HEROES = {
   ember: {
     name: 'Ember',
     type: 'fire',
+    startPower: 120,   // "Power 120. You?"
     health: 100,
     invulnerable: 0.4,
     attack: { look: 'fireball', damage: 10, range: 7, cooldown: 0.7, speed: 16 },
@@ -22,6 +24,7 @@ export const HEROES = {
   tide: {
     name: 'Tide',
     type: 'water',
+    startPower: 90,
     health: 100,
     invulnerable: 0.4,
     attack: { look: 'bubble', damage: 9, range: 7, cooldown: 0.65, speed: 15 },   // bubbles of water
@@ -30,6 +33,7 @@ export const HEROES = {
   volt: {
     name: 'Volt',
     type: 'storm',
+    startPower: 100,
     health: 100,
     invulnerable: 0.4,
     attack: { look: 'zap', damage: 8, range: 6.5, cooldown: 0.5, speed: 26 },   // fast little bolts

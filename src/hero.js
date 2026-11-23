@@ -4,6 +4,7 @@ import * as THREE from '../lib/three.module.min.js';
 import { HEROES } from './heroes-data.js';
 import { buildHeroModel } from './hero-models.js';
 import { createFloatingBar } from './ui.js';
+import { strength } from './power.js';
 
 // Feel settings: change these numbers to change how heroes move.
 const MAX_SPEED = 7;       // top running speed, in game units per second
@@ -32,7 +33,9 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
   const velocity = shared ? shared.velocity : { x: 0, z: 0 };   // how fast the hero is moving right now (the camera reads this too)
   let yaw = 0;                       // which way the hero faces
   let stride = 0;                    // where the hero is in the running step
-  let health = data.health;
+  let power = 10;                    // the hero's Power (see power.js): health and damage are multiplied by Power / 10
+  const maxHealth = () => Math.round(data.health * strength(power));
+  let health = maxHealth();
   let invulnerable = 0;              // seconds of protection left after a hit
   let flash = 0;                     // white flash when hit
   let down = false;                  // knocked out
@@ -92,7 +95,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
 
     for (const material of model.materials) material.emissive.setScalar(flash * 0.8);
     bar.group.position.set(p.x, 2.6, p.z);
-    bar.set(health / data.health);
+    bar.set(health / maxHealth());
   }
 
   // Gloomlings call this when they bump the hero. "fromX, fromZ" is where the hit came from.
@@ -128,7 +131,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
 
   // Starts over: full health, standing up, back in the middle.
   function reset() {
-    health = data.health;
+    health = maxHealth();
     down = false;
     fall = 0;
     invulnerable = 0;
@@ -142,7 +145,10 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar
     kind, name: data.name, type: data.type,
     group, position: group.position, velocity, update, takeHit, reset, face, setVisible,
     get health() { return health; },
-    get maxHealth() { return data.health; },
+    get maxHealth() { return maxHealth(); },
+    get power() { return power; },
+    // A new Power changes the health the hero can have; the share of health they have left stays the same.
+    setPower(next) { const share = health / maxHealth(); power = next; health = Math.round(maxHealth() * share); },
     get down() { return down; },
     get yaw() { return yaw; },
   };

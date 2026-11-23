@@ -258,3 +258,11 @@ body.prologue #hint { display: none; }
 #hud-name::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: var(--c, #fff); box-shadow: 0 0 5px var(--c, #fff); }
 .floater.combo { color: #9fe0ff; font-size: 30px; font-weight: 900; letter-spacing: 0.03em; text-shadow: 0 0 10px #fff59a, 0 3px 0 rgba(0, 0, 0, 0.4); }
 .floater.chain { color: #bfe8ff; font-size: 22px; }
+
+/* Power numbers: in the corner, and on the end screen after a round. */
+#hud-power { color: #ffd86a; font-size: 12px; font-weight: 800; }
+#end-gains { margin: 10px 0 4px; font-size: 15px; font-weight: 700; color: #4a3820; }
+#end-gains div { padding: 2px 0; }
+#end-gains b { color: #d0701a; }
+#title-reset { margin-top: 26px; padding: 6px 14px; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 999px; background: transparent; color: #cfe0ff; font: 700 13px system-ui, sans-serif; cursor: pointer; }
+#title-reset[hidden] { display: none; }

@@ -446,6 +446,50 @@ This changes how the game plays, so each chunk ends playable and is reported.
   a Storm hit on a soaked Gloomling jumps to the wet ones nearby). A name pop-up
   the first time it is found. Tests, full run on both pages, republish, docs.
 
+## Stage 7 plan: Power, auras and Rankings (the progression)
+**Goal:** every hero and every Gloomling has a Power number; Power comes from XP,
+has no limit, makes heroes stronger, shows as an aura, is saved, and you can see
+how you rank. After a round the number counts up.
+- **The numbers.** XP to go from Power k to k+1 is `2 + 0.2k` (each step costs a bit
+  more than the last), so Power 12 needs 35 XP, 100 needs about 1,200, 300 about
+  9,600 and 1,000 about 100,000. Stats in `heroes-data.js` are for Power 10: a
+  hero's health and damage are multiplied by Power / 10. Gloomlings have Power too
+  (the round's enemy Power is about 0.8, 1.0 and 1.2 times your squad's average
+  in waves 1, 2 and 3, so fights stay fair) and give XP in proportion.
+- **Chunk 1: Power and saving.** New `src/power.js` (the maths, tiers, big
+  numbers like 12.4K, and the progress record) and `src/save.js` (the browser's
+  storage, safe if it is missing). Stats scale with Power; Gloomlings get Power;
+  XP for every Gloomling, a win bonus, and some for a lost round; the lessons give
+  XP too (so the Power numbers in the story are real); the corner shows
+  "Sol · Power 12" and the wave note shows the Gloom Power. Progress (XP, unlocked
+  heroes, rounds won, what Pip has already said) is saved; `?debug` ignores saves
+  (`&save` turns them on); "Start over" on the title screen.
+- **Chunk 1 build notes (DONE):** `src/power.js` (XP and Power maths, tiers, short
+  numbers, pay for kills and wins, the progress record), `src/save.js` (browser
+  storage that may be missing), and `src/rounds.js` (new: how a round starts and
+  ends, moved out of `main.js`: the squad screen, XP, unlocking, saving, the walk-over).
+  Health and damage follow Power; Gloomlings have Power and give XP (30% of their
+  Power, at least 1; a win adds 2x the last wave's Power; a lost round still pays for
+  what was beaten). The prologue's lessons raise Sol's Power to 10 (1, 5, 6, 8, 10), so
+  Pip and Ember say real numbers (`{power}` in story lines). Ember joins at Power
+  120, Tide 90, Volt 100. The corner says "Sol  Power 10"; the wave note says
+  "Gloom Power 8"; the end screen says "Sol: Power 10 → 17 (+36 XP)". Progress is
+  saved (XP, who has joined, wins, what Pip has said); a returning player skips the
+  prologue; "Start over" is on the title screen. Debug mode keeps everyone at Power 10
+  and forgets (`&power` and `&save` turn them on), so the older tests are unchanged.
+  Tests: group 16 (25 checks).
+- **Chunk 2: the power-up moment and auras.** The end screen counts each squad
+  member's Power up with a ticking sound; crossing a tier ("Glow!") is a bigger
+  celebration. New `src/aura.js`: Spark (faint glow at the feet), Glow (soft light),
+  Blaze (flickering aura in the type colour, rising sparks), Surge (a glowing ring
+  on the ground, brighter edges), Radiant (a halo and a light trail).
+- **Chunk 3: Overdrive.** Hits fill a meter; when it is full, tap the hero's
+  name box (or press E): a few seconds of a boosted Power number, a flaring aura
+  and a faster-recharging superpower.
+- **Chunk 4: Rankings, polish, republish.** A Power Rankings board (your heroes
+  among Rook, Marlo's faded 9,999 and others), "You passed Rook!" moments, tests
+  on both pages, republish.
+
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
   iPhones, how hard the fight is, how the conversation box reads, and whether

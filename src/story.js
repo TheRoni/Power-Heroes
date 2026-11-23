@@ -15,7 +15,8 @@ const BLIP_EVERY = 4;       // a little typing sound for every 4th letter
 // "root" is the page to draw on (tests pass a spare one). "touch" is true on a phone, so lines can mention the thumb
 // controls. onStart() runs when a conversation begins. onSpeak() when Pip speaks. onWait(kind) when a lesson begins.
 // onCue(name) when a line that names a cue appears. "audio" plays the typing blips; "music" plays the songs a scene names.
-export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue, audio = QUIET, music = QUIET }) {
+// "vars()" gives the words that can be put into lines, such as { power: 12 } for "Power {power}".
+export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue, audio = QUIET, music = QUIET, vars = () => ({}) }) {
   const byId = (id) => root.getElementById(id);
   const overlay = byId('dialogue');
   const nameBox = byId('dialogue-name');
@@ -40,7 +41,8 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
   let lastBubble = '';
   let blipPitch = 1;     // the speaker's typing sound
 
-  const resolve = (text) => (typeof text === 'string' ? text : phone ? text.touch : text.keys);
+  const fill = (text) => text.replace(/\{(\w+)\}/g, (match, name) => String(vars()[name] ?? match));   // "Power {power}" becomes "Power 12"
+  const resolve = (text) => fill(typeof text === 'string' ? text : phone ? text.touch : text.keys);
 
   function showLine([who, text, cue]) {
     const speaker = SPEAKERS[who];

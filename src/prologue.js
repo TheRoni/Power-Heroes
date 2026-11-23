@@ -13,14 +13,15 @@ const RISE_TIME = 1.2;    // seconds for Sol to climb out of the crater
 const DAWN_TIME = 3;      // seconds for the sun to come up
 const ISLAND = 10.2;      // training Gloomlings are placed inside this distance from the middle
 const RING_AT = { x: 4.2, z: 2.2 };       // the glowing ring of lesson one
-const CLIMB = [['Power 1', 0, 1], ['Power 2', 0.9, 1.122], ['Power 4', 1.8, 1.26], ['Power 7', 2.7, 1.498]];   // the number Marlo reads climbing: text, when, and how high its note rings
+const CLIMB = [['Power 1', 0, 1], ['Power 2', 0.9, 1.122], ['Power 3', 1.8, 1.26], ['Power 5', 2.7, 1.498]];   // the number Marlo reads climbing: text, when, and how high its note rings
 const SPARKS = [0xffffff, 0xffe9a0, 0xffd24a, 0xfff6c8];
 
 const random = (min, max) => min + Math.random() * (max - min);
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 // "world" is { scene, camera, setNight }. "shake(amount)" shakes the screen. onDone() starts the first wave.
-export function createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone, audio = QUIET, music = QUIET }) {
+// reward(kind) is told when Marlo reads the Power ('climb') and when each lesson is done ('move', 'strike', 'power'): it gives XP.
+export function createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone, audio = QUIET, music = QUIET, reward = () => {} }) {
   const scene = world.scene;
   const flashBox = document.getElementById('flash');
   const skipButton = document.getElementById('skip');
@@ -128,13 +129,14 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
   function lessonDone() {
     burst(player.position.x, player.position.z, 26);
     audio.play('chime');
+    reward(lesson.kind);
     endLesson();
     story.resume();
   }
 
   // Lines can name a cue. "power-climb" is Marlo reading Sol's glow: the number climbs above their head.
   function cue(name) {
-    if (name === 'power-climb') for (const [text, left, pitch] of CLIMB) numbers.push({ text, left, pitch });
+    if (name === 'power-climb') { for (const [text, left, pitch] of CLIMB) numbers.push({ text, left, pitch }); reward('climb'); }
   }
 
   // The superpower hit something (main.js tells us), for the third lesson.
@@ -210,6 +212,7 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
   function skip() {
     if (phase === 'idle' || phase === 'done') return;
     phase = 'skipping';   // so the end of the conversation does not start the sunrise
+    reward('skip');
     ui.hideTitle();
     story.skip();
     endLesson();

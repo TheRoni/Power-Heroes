@@ -19,6 +19,10 @@ const CSP = "default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs
 let KEEP_INTRO = false;   // the prologue tests want the opening; every other test skips it
 let HERO_PARAM = '';      // play as another hero in the live game (?debug&hero=tide)
 let SHOW_SQUAD = false;   // the squad tests want the squad screen (debug mode normally skips it)
+let POWER_ON = false;     // real Power (debug mode normally keeps everyone at Power 10)
+let SAVE_ON = false;      // saving to the browser (debug mode normally forgets)
+// The address of the game with some debug switches: ?debug&title... normally, #debug-title... for the Claude test link.
+const gameUrl = (flags) => (ARTIFACT ? 'http://game.local/#debug' + flags.map((f) => `-${f}`).join('') : 'http://game.local/?debug' + flags.map((f) => `&${f}`).join(''));
 let SHOW_TITLE = false;   // the title-screen tests want the title screen (debug mode normally skips it)
 
 const OPEN = [];   // every game page opened so far: older ones are closed when a new one opens, so they stop using the (slow) software graphics
@@ -45,7 +49,7 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
-  await page.goto('http://game.local/' + (ARTIFACT ? '#debug' + (SHOW_TITLE ? '-title' : SHOW_SQUAD ? '-squad' : '') + (HERO_PARAM ? `-hero=${HERO_PARAM}` : '') : '?debug' + (SHOW_TITLE ? '&title' : '') + (SHOW_SQUAD ? '&squad' : '') + (HERO_PARAM ? `&hero=${HERO_PARAM}` : '')));
+  await page.goto(gameUrl([...(SHOW_TITLE ? ['title'] : []), ...(SHOW_SQUAD ? ['squad'] : []), ...(HERO_PARAM ? [`hero=${HERO_PARAM}`] : []), ...(POWER_ON ? ['power'] : []), ...(SAVE_ON ? ['power', 'save'] : [])]));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
   if (!KEEP_INTRO && !SHOW_TITLE) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
@@ -364,7 +368,7 @@ async function chunk3(browser) {
   const banner = await page.evaluate(() => `${document.getElementById('banner-title').textContent} | ${document.getElementById('banner-sub').textContent}`);
   check('wave 1 is announced with a banner', banner === 'Wave 1 | of 3', banner);
   await page.screenshot({ path: `${OUT}/stage2-3-banner.png` });
-  await until(page, () => /^Wave 1\/3 · \d left$/.test(document.getElementById('hud-wave').textContent));
+  await until(page, () => /^Wave 1\/3 · \d left · Gloom Power \d+$/.test(document.getElementById('hud-wave').textContent));
   check('the corner note shows the wave and how many are left', true);
 
   await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 40; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
@@ -908,7 +912,7 @@ async function chunk8(browser) {
   check('and the first wave (a moment later) brings in "Battle"', true);
   check('then the first wave begins in full daylight, with the crater gone and the normal hint back', day.night === 0 && ['break', 'spawning'].includes(day.waves) && !day.bodyClass && !day.crater && day.hintDisplay !== 'none', JSON.stringify([day.night, day.waves, day.bodyClass, day.crater]));
   const seen2 = await page.evaluate(() => window.__watch);
-  check('Sol\'s Power number climbed above their head while Marlo watched', ['Power 1', 'Power 2', 'Power 4', 'Power 7'].every((t) => seen2.floaters.includes(t)), seen2.floaters.join());
+  check('Sol\'s Power number climbed above their head while Marlo watched', ['Power 1', 'Power 2', 'Power 3', 'Power 5'].every((t) => seen2.floaters.includes(t)), seen2.floaters.join());
   await page.screenshot({ path: `${OUT}/prologue-7-day.png` });
 
   // Skip intro, mid-cinematic.
@@ -2052,10 +2056,222 @@ async function chunk15(browser) {
   check('after that, each Shock Chain just pops its name over the Gloomling it started on', second.join() === 'Shock Chain!', second.join());
 }
 
+// ---------- Power: the maths, saving, stats, XP, the corner number ----------
+const powerUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const P = await import('/src/power.js');
+  const { createSave } = await import('/src/save.js');
+  const { createHero } = await import('/src/hero.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const { createWaves } = await import('/src/waves.js');
+  const { createStory } = await import('/src/story.js');
+  const out = {};
+  out.table = [1, 2, 10, 12, 100, 300, 1000, 3000].map((n) => `${n}:${Math.round(P.xpForPower(n))}`).join(' ');
+  let roundTrip = true, increasing = true, steady = true;
+  for (let n = 1; n < 400; n++) {
+    if (P.powerFromXp(P.xpForPower(n)) !== n || P.powerFromXp(P.xpForPower(n) + 0.5 * P.stepXp(n)) !== n) roundTrip = false;
+    if (P.xpForPower(n + 1) <= P.xpForPower(n)) increasing = false;
+    if (n > 1 && P.stepXp(n) <= P.stepXp(n - 1)) steady = false;
+  }
+  out.curve = { roundTrip, increasing, steady, none: P.powerFromXp(0), negative: P.powerFromXp(-5), huge: P.powerFromXp(1e12) > 100000, noLimit: P.powerFromXp(P.xpForPower(1e6)) === 1e6 };
+  out.strength = [P.strength(10), P.strength(20), P.strength(1), P.strength(), P.strength(1000)].join();
+  out.tiers = [0, 99, 100, 299, 300, 999, 1000, 2999, 3000, 1e9].map((n) => P.tierIndex(n)).join() + ' ' + P.TIERS.map((t) => t.name).join();
+  out.short = [0, 7, 999, 1234, 9999, 10000, 12400, 99999, 999999, 1000000, 3100000, 2500000000].map((n) => P.shortNumber(n)).join(' ');
+  out.pay = { kill: [P.xpForKill(1), P.xpForKill(10), P.xpForKill(100)].join(), bonus: P.winBonus(12), enemy: [P.enemyPowerFor(10, 0), P.enemyPowerFor(10, 1), P.enemyPowerFor(10, 2), P.enemyPowerFor(10, 9), P.enemyPowerFor(2, 1), P.enemyPowerFor(100, 2)].join() };
+
+  // the progress record, with a pretend save
+  const start = (k) => ({ sol: 1, ember: 120 }[k] || 1);
+  const disk = {};
+  const save = { load: () => (disk.data ? JSON.parse(JSON.stringify(disk.data)) : null), store: (d) => { disk.data = JSON.parse(JSON.stringify(d)); } };
+  const prog = P.createProgress(start, save);
+  const first = { power: prog.powerOf('sol'), xp: prog.xpOf('sol'), unlocked: prog.unlocked.join(), saved: prog.saved, flat: prog.flat };
+  const gain = prog.addXp(['sol'], 35);
+  prog.unlock(['sol', 'ember', 'tide']);
+  prog.winRound();
+  prog.mark('combo');
+  prog.store();
+  out.progress = { first, gain: JSON.stringify(gain), ember: prog.powerOf('ember'), tide: prog.powerOf('tide'), unlocked: prog.unlocked.join(), average: prog.averagePower(['sol', 'ember']), saved: prog.saved, has: [prog.has('combo'), prog.has('nothing')].join() };
+  const again = P.createProgress(start, save);
+  out.reload = { power: again.powerOf('sol'), ember: again.powerOf('ember'), unlocked: again.unlocked.join(), wins: again.roundsWon, has: again.has('combo') };
+  again.reset();
+  out.reset = { power: again.powerOf('sol'), unlocked: again.unlocked.join(), wins: again.roundsWon, stored: disk.data.roundsWon };
+  out.flat = (() => { const f = P.createProgress(start, null, 10); f.addXp(['sol'], 1e6); return { power: f.powerOf('sol'), ember: f.powerOf('ember'), flat: f.flat }; })();
+
+  // the browser's storage: real, broken, or full of rubbish
+  {
+    const real = createSave('test.powerheroes');
+    real.store({ version: 1, xp: { sol: 5 }, roundsWon: 2, unlocked: ['sol'], seen: {} });
+    const back = real.load();
+    localStorage.setItem('test.powerheroes', '{not json');
+    const bad = real.load();
+    localStorage.setItem('test.powerheroes', JSON.stringify({ version: 99, xp: {}, unlocked: [] }));
+    const wrong = real.load();
+    real.clear();
+    const gone = real.load();
+    const original = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', { get() { throw new Error('storage is turned off'); }, configurable: true });
+    let broken;
+    try { broken = { load: createSave('x').load(), store: createSave('x').store({ version: 1 }) }; } catch (error) { broken = 'threw'; }
+    Object.defineProperty(window, 'localStorage', original);
+    out.save = { wins: back && back.roundsWon, bad, wrong, gone, broken: JSON.stringify(broken) };
+  }
+
+  // stats scale with Power
+  {
+    const scene = new THREE.Scene();
+    const hero = createHero({ scene, bound: 10, kind: 'sol' });
+    const base = { power: hero.power, max: hero.maxHealth, health: hero.health };
+    hero.takeHit(50, 1, 0);
+    hero.setPower(20);
+    const doubled = { max: hero.maxHealth, health: hero.health };
+    hero.setPower(1);
+    const tiny = { max: hero.maxHealth, health: hero.health };
+    hero.setPower(10);
+    hero.reset();
+    out.hero = { base, doubled, tiny, reset: hero.health };
+  }
+  {
+    const scene = new THREE.Scene();
+    const weak = createGloomling({ scene, x: 0, z: 0 });
+    const strong = createGloomling({ scene, x: 0, z: 0, power: 20 });
+    let bump = 0;
+    const target = { position: new THREE.Vector3(0.5, 0, 0), down: false, takeHit: (amount) => { bump = amount; return true; } };
+    for (let i = 0; i < 90 && !bump; i++) strong.update(1 / 30, target, i / 30, [strong]);
+    out.gloom = { weak: [weak.power, weak.maxHealth, weak.health], strong: [strong.power, strong.maxHealth, strong.health], bump };
+  }
+  {
+    const make = (power) => {
+      const scene = new THREE.Scene();
+      const g = createGloomling({ scene, x: 5, z: 0, power: 1000 });
+      const log = [];
+      const hero = { kind: 'sol', power, position: new THREE.Vector3(0, 0, 0), yaw: 0, down: false, face() {} };
+      const powers = createPowers({ scene, hero, gloomlings: [g], events: { hit: (gl, amount, k) => log.push(`${k}:${amount}`) } });
+      for (let i = 0; i < 25; i++) powers.update(1 / 30, i / 30);
+      powers.castPower();
+      for (let i = 0; i < 20; i++) powers.update(1 / 30, i / 30);
+      return log.join(' ');
+    };
+    out.damage = { ten: make(10), twenty: make(20), one: make(1), none: make(undefined) };
+  }
+  {   // waves: each wave's Gloomling Power comes from the game
+    const scene = new THREE.Scene();
+    const gloomlings = [];
+    const seen = [];
+    const waves = createWaves({ scene, hero: { position: new THREE.Vector3(0, 0, 0), down: false }, gloomlings, enemyPower: (w) => 7 + w * 5, events: { spawn: (g) => seen.push(g.power) } });
+    waves.start();
+    const asked = [waves.enemyPower];
+    for (let i = 0; i < 30 * 60 && waves.state !== 'over'; i++) { gloomlings.splice(0).forEach((g) => g.remove()); waves.update(1 / 30); if (waves.state === 'fighting' && asked.length < 2) asked.push(waves.enemyPower); }
+    out.waves = { powers: [...new Set(seen)].join(), counts: seen.length, asked: asked.join(), plain: createWaves({ scene, hero: { position: new THREE.Vector3(), down: false }, gloomlings: [], events: {} }).enemyPower };
+  }
+  {   // story lines can use Power
+    const doc = document.implementation.createHTMLDocument('story test');
+    doc.body.innerHTML = '<div id="bubble"></div><div id="lesson" hidden></div><div id="dialogue" hidden><div id="dialogue-box"><div id="dialogue-face"></div><div id="dialogue-body"><div id="dialogue-name"></div><p id="dialogue-text"></p></div><div id="dialogue-next"></div></div></div>';
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 100);
+    const story = createStory({ camera, anchors: { pip: { object: new THREE.Object3D(), lift: 0 }, marlo: { object: new THREE.Object3D(), lift: 0 } }, root: doc, touch: false, vars: () => ({ power: 42, next: 43 }) });
+    const press = () => document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', cancelable: true, bubbles: true }));
+    story.scene('win');
+    story.update(0.3);
+    const lines = [];
+    for (let i = 0; i < 80 && story.inScene; i++) {
+      if (story.waiting) { story.resume(); story.update(0.3); continue; }
+      story.update(10);
+      lines.push(doc.getElementById('dialogue-text').textContent);
+      press();
+    }
+    out.tokens = { sol: lines.find((l) => /Maybe/.test(l)), ember: lines.find((l) => /trained a whole year/.test(l)), left: lines.some((l) => /[{}]/.test(l)) };
+  }
+  return out;
+};
+
+async function chunk16(browser) {
+  let { page } = await openGame(browser, 'power-unit');
+  const u = await page.evaluate(powerUnit);
+  check('XP for each Power: Power 1 is 0 XP, 10 is 27, 12 is about 35, 100 about 1,200, 300 about 9,600, 1,000 about 100,000, 3,000 about 900,000', u.table === '1:0 2:2 10:27 12:35 100:1188 300:9568 1000:101898 3000:905698', u.table);
+  check('the curve: XP and Power convert both ways exactly, each step costs more than the last (steady growth), and there is no limit', u.curve.roundTrip && u.curve.increasing && u.curve.steady && u.curve.none === 1 && u.curve.negative === 1 && u.curve.huge && u.curve.noLimit, JSON.stringify(u.curve));
+  check('health and damage are multiplied by Power / 10', u.strength === '1,2,0.1,1,100', u.strength);
+  check('the aura tiers start at 0, 100, 300, 1,000 and 3,000', u.tiers === '0,0,1,1,2,2,3,3,4,4 Spark,Glow,Blaze,Surge,Radiant', u.tiers);
+  check('big numbers are short: 1,234 then 12.4K and 3.1M', u.short === '0 7 999 1,234 9,999 10K 12.4K 99.9K 999.9K 1M 3.1M 2.5B', u.short);
+  check('a kill pays 30% of the Gloomling\'s Power (at least 1), a win adds 2x the last wave\'s Power, and the Gloomlings are 0.8, 1 and 1.2 times your Power (never below 6)', u.pay.kill === '1,3,30' && u.pay.bonus === 24 && u.pay.enemy === '8,10,12,12,6,120', JSON.stringify(u.pay));
+  check('the progress record: starts fresh, XP raises Power, joiners start at their own Power (Ember 120), wins and "seen" are kept', u.progress.first.power === 1 && u.progress.first.xp === 0 && u.progress.first.unlocked === 'sol' && !u.progress.first.saved && !u.progress.first.flat && JSON.parse(u.progress.gain)[0].before === 1 && JSON.parse(u.progress.gain)[0].after === 11 && u.progress.ember === 120 && u.progress.unlocked === 'sol,ember,tide' && u.progress.average === 66 && u.progress.saved && u.progress.has === 'true,false', JSON.stringify(u.progress));
+  check('what was saved comes back after a restart, and "Start over" wipes it', u.reload.power === 11 && u.reload.ember === 120 && u.reload.unlocked === 'sol,ember,tide' && u.reload.wins === 1 && u.reload.has && u.reset.power === 1 && u.reset.unlocked === 'sol' && u.reset.wins === 0 && u.reset.stored === 0, JSON.stringify([u.reload, u.reset]));
+  check('flat mode (debug) keeps every hero at Power 10 whatever the XP', u.flat.power === 10 && u.flat.ember === 10 && u.flat.flat, JSON.stringify(u.flat));
+  check('the browser\'s storage can be missing, broken or full of rubbish and the game just carries on without it', u.save.wins === 2 && u.save.bad === null && u.save.wrong === null && u.save.gone === null && u.save.broken === '{"load":null}', JSON.stringify(u.save));
+  check('a hero\'s health follows their Power (100 at Power 10, 200 at 20, 10 at 1), keeping the same share when it changes, and a fresh start is full', u.hero.base.power === 10 && u.hero.base.max === 100 && u.hero.doubled.max === 200 && u.hero.doubled.health === 100 && u.hero.tiny.max === 10 && u.hero.tiny.health === 5 && u.hero.reset === 100, JSON.stringify(u.hero));
+  check('a Gloomling\'s health and bump follow its Power (30 and 8 at Power 10; 60 and 16 at Power 20)', u.gloom.weak.join() === '10,30,30' && u.gloom.strong.join() === '20,60,60' && u.gloom.bump === 16, JSON.stringify(u.gloom));
+  check('damage follows the hero\'s Power: a dart is 9 at Power 10, 18 at 20, 1 at Power 1 (never zero), and a hero without Power counts as 10', u.damage.ten.startsWith('hit:9') && u.damage.twenty.startsWith('hit:18') && u.damage.one.startsWith('hit:1 ') && u.damage.none.startsWith('hit:9') && /big:40/.test(u.damage.ten) && /big:80/.test(u.damage.twenty), JSON.stringify(u.damage));
+  check('the waves ask the game how strong each wave\'s Gloomlings are (7, 12, 17 here), and say so for the Gloom Power note', u.waves.powers === '7,12,17' && u.waves.counts === 18 && u.waves.asked.startsWith('7,') && u.waves.plain === 10, JSON.stringify(u.waves));
+  check('story lines can say Sol\'s Power ("42? Maybe 43"), and no {braces} are left on screen', /^42\? Maybe 43\./.test(u.tokens.sol) && /^42\?!/.test(u.tokens.ember) && !u.tokens.left, JSON.stringify(u.tokens));
+
+  // Live game with real Power (?debug&power): XP, the corner number, the round's pay, unlocking, the end screen.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'power-live'));
+  POWER_ON = false;
+  const real = await page.evaluate(() => { const G = window.__game; return { flat: G.progress.flat, sol: G.progress.powerOf('sol'), corner: document.getElementById('hud-power').textContent, health: G.player.maxHealth, wave: document.getElementById('hud-wave').textContent }; });
+  check('with real Power, skipping the prologue still gives Sol what the lessons would (Power 10), the corner says so, and the health is 100', !real.flat && real.sol === 10 && real.corner === 'Power 10' && real.health === 100, JSON.stringify(real));
+  await until(page, () => /Gloom Power \d+/.test(document.getElementById('hud-wave').textContent));
+  const note = await page.evaluate(() => document.getElementById('hud-wave').textContent);
+  check('the wave note shows the Gloom Power of the wave (8 in wave 1, for a Power 10 squad)', /^Wave 1\/3 · \d left · Gloom Power 8$/.test(note), note);
+  const lessons = await page.evaluate(() => { const G = window.__game; G.progress.reset(); const r = G.rounds; const out = [G.progress.powerOf('sol')]; for (const k of ['climb', 'move', 'strike', 'power']) { r.reward(k); out.push(G.progress.powerOf('sol')); } return out.join(); });
+  check('the prologue\'s rewards raise Sol\'s Power as Marlo teaches: 1, then 5, 6, 8 and 10', lessons === '1,5,6,8,10', lessons);
+  const round = await page.evaluate(() => {
+    const G = window.__game;
+    G.progress.reset();
+    G.progress.addXp(['sol'], 27);
+    G.rounds.refresh();
+    G.rounds.defeat({ power: 10 }); G.rounds.defeat({ power: 10 }); G.rounds.defeat({ power: 20 });
+    for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); }
+    return { gains: G.rounds.gains, wins: G.progress.roundsWon, unlocked: G.progress.unlocked.join(), corner: document.getElementById('hud-power').textContent, ember: G.progress.powerOf('ember'), ending: G.rounds.ending };
+  });
+  const g = round.gains[0];
+  check('a won round pays XP for the Gloomlings beaten (3 + 3 + 6) and a win bonus (2 x the last wave\'s Power), raises Power, unlocks the other heroes (Ember joins at 120) and sends Marlo over', g && g.kind === 'sol' && g.name === 'Sol' && g.xp === 12 + 24 && g.before === 10 && g.after === 17 && round.wins === 1 && round.unlocked === 'sol,ember,tide,volt' && round.corner === 'Power 17' && round.ember === 120 && round.ending === 'won', JSON.stringify(round));
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await until(page, () => !document.getElementById('end').hidden);
+  const endText = await page.evaluate(() => document.getElementById('end-gains').textContent);
+  check('the end screen says what the round did: "Sol: Power 10 → 17 (+36 XP)"', endText === 'Sol: Power 10 → 17 (+36 XP)', endText);
+  await page.screenshot({ path: `${OUT}/power-1-end.png` });
+
+  // A round that is lost still pays for what was beaten, and no bonus.
+  POWER_ON = true;
+  ({ page } = await openGame(browser, 'power-lost'));
+  POWER_ON = false;
+  const lost = await page.evaluate(() => {
+    const G = window.__game;
+    G.rounds.defeat({ power: 10 }); G.rounds.defeat({ power: 10 });
+    G.player.takeHit(1000, 0, 0);
+    for (let i = 0; i < 90; i++) G.waves.update(1 / 30);
+    return { gains: G.rounds.gains.map((x) => `${x.kind}:${x.xp}:${x.before}->${x.after}`).join(), wins: G.progress.roundsWon, unlocked: G.progress.unlocked.join(), ending: G.rounds.ending };
+  });
+  check('a lost round still gives some experience (the Gloomlings beaten), no win bonus, no new heroes', lost.gains === 'sol:6:10->11' && lost.wins === 0 && lost.unlocked === 'sol' && lost.ending === 'lost', JSON.stringify(lost));
+
+  // Saving: win a round, reload, and the game remembers (?debug&power&save). A returning player skips the prologue.
+  SAVE_ON = true;
+  ({ page } = await openGame(browser, 'power-save'));
+  SAVE_ON = false;
+  await page.evaluate(() => { const G = window.__game; G.progress.addXp(['sol'], 100); G.progress.winRound(); G.progress.unlock(['sol', 'ember', 'tide', 'volt']); G.progress.mark('prologue'); G.progress.mark('combo'); G.progress.store(); });
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('powerheroes.save')));
+  check('progress is written to the browser\'s storage', stored.version === 1 && stored.roundsWon === 1 && stored.unlocked.length === 4 && stored.seen.prologue && stored.xp.sol >= 100, JSON.stringify(stored));
+  await page.goto(gameUrl(['power', 'save', 'title', 'squad']));
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
+  const back = await page.evaluate(() => { const G = window.__game; return { power: G.progress.powerOf('sol'), wins: G.progress.roundsWon, unlocked: G.progress.unlocked.length, combo: G.progress.has('combo'), reset: !document.getElementById('title-reset').hidden, phase: G.prologue.phase }; });
+  check('after a reload the game remembers: Sol\'s Power, the win, who has joined and what Pip has said; the title offers "Start over"', back.power > 10 && back.wins === 1 && back.unlocked === 4 && back.combo && back.reset && back.phase === 'title', JSON.stringify(back));
+  await page.mouse.click(400, 225);
+  await until(page, () => !document.getElementById('squad-screen').hidden);
+  const skipped = await page.evaluate(() => ({ phase: window.__game.prologue.phase, waves: window.__game.waves.state, lesson: window.__game.story.inScene }));
+  check('a returning player skips the prologue and goes straight to choosing a squad', skipped.phase === 'done' && skipped.waves === 'idle' && !skipped.lesson, JSON.stringify(skipped));
+  await page.goto(gameUrl(['power', 'save', 'title']));
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5, null, { timeout: 90000 });
+  await page.click('#title-reset');
+  await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 5 && document.getElementById('title-reset').hidden, null, { timeout: 90000 });
+  const wiped = await page.evaluate(() => ({ power: window.__game.progress.powerOf('sol'), wins: window.__game.progress.roundsWon, stored: localStorage.getItem('powerheroes.save') }));
+  check('"Start over" wipes the save and starts a brand new game', wiped.power === 1 && wiped.wins === 0 && wiped.stored === null, JSON.stringify(wiped));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

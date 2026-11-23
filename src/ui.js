@@ -4,6 +4,7 @@ import * as THREE from '../lib/three.module.min.js';
 import { CAMERA_PITCH } from './scene.js';
 import { QUIET } from './audio.js';
 import { TYPE_COLORS } from './types.js';
+import { shortNumber } from './power.js';
 
 const ENDINGS = {
   won: { title: 'Isle saved!', text: 'Sunmeadow is green again.', button: 'Play again' },
@@ -77,9 +78,17 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     event.stopPropagation();
     startFromTitle();
   });
-  function showTitle(onStart) {
+  // "onReset" (optional) shows a small "Start over" button for someone who has saved progress.
+  function showTitle(onStart, onReset = null) {
     titleStart = onStart;
     titleScreen.hidden = false;
+    const reset = document.getElementById('title-reset');
+    reset.hidden = !onReset;
+    reset.onpointerdown = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (onReset) onReset();
+    };
   }
   function hideTitle() {
     titleStart = null;
@@ -124,12 +133,18 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
   }
 
   // Shows which hero you are: the name in the corner, and the power button's label and icon.
-  function setHero({ name, type, powerName, powerId }) {
+  function setHero({ name, type, power, powerName, powerId }) {
     document.getElementById('hud-name').textContent = name;
+    setHeroPower(power);
     if (TYPE_COLORS[type]) document.getElementById('hud-hero').style.setProperty('--c', TYPE_COLORS[type].css);   // a dot of the hero's type colour
     document.getElementById('power-label').textContent = powerName;
     powerButton.dataset.power = powerId;
     powerButton.setAttribute('aria-label', powerName);
+  }
+
+  // The hero's Power number in the corner ("Power 12", or 12.4K when large).
+  function setHeroPower(power) {
+    document.getElementById('hud-power').textContent = power === undefined ? '' : `Power ${shortNumber(power)}`;
   }
 
   // The power button. "progress" goes from 0 (just used) to 1 (ready). The dark sweep shows how much is left.
@@ -272,9 +287,10 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     banner.classList.add('show');
   }
 
-  // kind: 'won' or 'lost'.
-  function showEnd(kind) {
+  // kind: 'won' or 'lost'. "gains" is what the round did to each hero: [{ name, xp, before, after }].
+  function showEnd(kind, gains = []) {
     const ending = ENDINGS[kind];
+    document.getElementById('end-gains').innerHTML = gains.map((g) => `<div>${g.name}: Power ${shortNumber(g.before)} → <b>${shortNumber(g.after)}</b> (+${shortNumber(g.xp)} XP)</div>`).join('');
     document.getElementById('end-title').textContent = ending.title;
     document.getElementById('end-text').textContent = ending.text;
     endButton.textContent = ending.button;
@@ -301,5 +317,5 @@ export function createUI({ camera, onCast, onAgain, onSwap = () => {}, audio = Q
     setTimeout(() => element.remove(), 900);
   }
 
-  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, showEnd, hideEnd, popNumber, showTitle, hideTitle, setSquad, setPortraits, showSquad, showFps, fps };
+  return { setHealth, setPower, setHero, setWaveText, setVeil, showBanner, showEnd, hideEnd, popNumber, showTitle, hideTitle, setSquad, setPortraits, showSquad, showFps, fps, setHeroPower };
 }

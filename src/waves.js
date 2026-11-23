@@ -9,7 +9,8 @@ const LOSE_DELAY = 1.5;      // after Ember is knocked out: a moment before the 
 
 // "gloomlings" is the live list shared with main.js and powers.js. New Gloomlings are added to it here.
 // events (all optional): wave(number, total) when a wave starts, spawn(gloom), cleared(number), end('won' or 'lost').
-export function createWaves({ scene, hero, gloomlings, events = {} }) {
+// enemyPower(waveIndex) says how strong that wave's Gloomlings are (their Power); it defaults to 10.
+export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower = () => 10 }) {
   const total = WAVES.sizes.length;
   const everyone = WAVES.sizes.reduce((sum, size) => sum + size, 0);
   let state = 'idle';   // idle, break (waiting), spawning, fighting, won / lost (the short pause), over (end screen showing)
@@ -32,7 +33,7 @@ export function createWaves({ scene, hero, gloomlings, events = {} }) {
       if (away > 7) break;
     }
     const kinds = WAVES.types[wave];   // this wave's types, taken in turn
-    const gloom = createGloomling({ scene, x: best.x, z: best.z, type: kinds[(WAVES.sizes[wave] - toSpawn) % kinds.length] });
+    const gloom = createGloomling({ scene, x: best.x, z: best.z, type: kinds[(WAVES.sizes[wave] - toSpawn) % kinds.length], power: enemyPower(wave) });
     gloomlings.push(gloom);
     spawned++;
     if (events.spawn) events.spawn(gloom);
@@ -112,6 +113,7 @@ export function createWaves({ scene, hero, gloomlings, events = {} }) {
     get state() { return state; },
     get wave() { return wave + 1; },                           // the current wave, counting from 1 (the coming one during a break)
     get total() { return total; },
+    get enemyPower() { return enemyPower(wave); },   // the Gloomling Power of the wave now (or about to) be fought
     get remaining() { return toSpawn + gloomlings.length; },   // Gloomlings still to beat in this wave
     get progress() { return Math.max(0, (spawned - gloomlings.length) / everyone); },   // 0 to 1: how much of the whole round is beaten
   };

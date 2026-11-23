@@ -3,6 +3,7 @@
 // phone and on a computer, and a third item names a "cue": something that happens when the line appears.
 // A step like { wait: 'move', hint } hands the game back to the player until they have done what the lesson asked.
 // { wait: 'arrive' } (no hint) pauses the talk while a character runs in.
+// {power} in a line is Sol's Power right now ({next} is one more).
 // { music: 'marlo', fade: 2 } changes the song (the names are in music-data.js) and carries straight on.
 // Keep lines short, warm and a bit funny.
 
@@ -34,13 +35,13 @@ export const SCENES = {
     } },
     ['marlo', 'Good. Lesson two: hit something. Your light fires by itself, so just get close.'],
     { wait: 'strike', hint: 'Get close to the training Gloomling. Your light darts fire by themselves.' },
-    ['pip', 'Look at that! Power 9 for the newcomer!'],
+    ['pip', 'Look at that! Power {power} for the newcomer!'],
     ['marlo', 'Last lesson. Every hero has one big power. Yours is Starburst.'],
     { wait: 'power', hint: {
       touch: 'Tap the star button to burst all three.',
       keys: 'Press Space to burst all three.',
     } },
-    ['pip', 'Did you SEE that? Power 12!'],
+    ['pip', 'Did you SEE that? Power {power}!'],
     ['marlo', 'I saw. Faster than anyone I have taught.'],
     ['marlo', "Everyone in the Sky Isles chases Power. Most never ask what it's for."],
     ['sol', "What's it for?"],
@@ -51,8 +52,8 @@ export const SCENES = {
     ['marlo', 'Well fought, Sol. Your number jumped. I felt it from the hill.'],
     { wait: 'arrive' },   // Ember runs in from the edge of the island; her line comes when she gets there
     ['ember', "So YOU'RE the falling star. Power 120. You?"],
-    ['sol', 'Fourteen? Maybe fifteen. It keeps changing.'],
-    ['ember', 'Fifteen. I trained a whole year for my 120. ...Rematch tomorrow?'],
+    ['sol', '{power}? Maybe {next}. It keeps changing.'],
+    ['ember', '{power}?! I trained a whole year for my 120. ...Rematch tomorrow?'],
     ['pip', 'Ember is the brightest young hero on Sunmeadow. Also very easy to annoy.'],
     ['ember', "I'm not annoyed. I'm... competitive."],
     { music: 'lullaby', fade: 3 },   // the first time we hear the song that runs through the whole game

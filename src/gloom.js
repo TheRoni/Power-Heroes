@@ -2,6 +2,7 @@
 import * as THREE from '../lib/three.module.min.js';
 import { GLOOMLING } from './heroes-data.js';
 import { TYPE_COLORS } from './types.js';
+import { strength } from './power.js';
 import { createFloatingBar } from './ui.js';
 
 const EDGE = 11.2;         // Gloomlings cannot be shoved past the edge of the island
@@ -20,7 +21,7 @@ const browMaterial = new THREE.MeshLambertMaterial({ color: 0x1d1233 });
 
 // "scene" is where it is added. x and z are where it appears. A "passive" Gloomling is a training dummy:
 // pale blue, and it just stands there and never bumps anyone. A "type" (fire, water, storm, nature) tints its body.
-export function createGloomling({ scene, x, z, passive = false, type = null }) {
+export function createGloomling({ scene, x, z, passive = false, type = null, power = 10 }) {
   const group = new THREE.Group();
   const body = new THREE.Group();   // hops, squashes and swells inside the group
   group.add(body);
@@ -53,7 +54,9 @@ export function createGloomling({ scene, x, z, passive = false, type = null }) {
   scene.add(group, bar.group);
 
   const shove = { x: 0, z: 0 };   // the push it is currently sliding with
-  let health = GLOOMLING.health;
+  const maxHealth = Math.round(GLOOMLING.health * strength(power));   // a stronger Gloomling has more health and bumps harder
+  const bump = Math.round(GLOOMLING.damage * strength(power));
+  let health = maxHealth;
   let alive = true;
   let mode = 'chase';   // chase, then windup (the warning), then the bump, then rest, then chase again
   let timer = 0;        // time left in the current mode
@@ -87,7 +90,7 @@ export function createGloomling({ scene, x, z, passive = false, type = null }) {
     } else if (mode === 'windup') {
       timer -= dt;
       if (timer <= 0) {
-        if (distance < GLOOMLING.reach * 1.4) target.takeHit(GLOOMLING.damage, p.x, p.z);
+        if (distance < GLOOMLING.reach * 1.4) target.takeHit(bump, p.x, p.z);
         mode = 'rest';
         timer = GLOOMLING.pause;
       }
@@ -133,7 +136,7 @@ export function createGloomling({ scene, x, z, passive = false, type = null }) {
     const wet = Math.min(1, soaked * 2);   // fades out at the end
     skin.emissive.setRGB(flash * 0.9, flash * 0.9 + wet * 0.1, flash * 0.9 + wet * 0.24);
     bar.group.position.set(p.x, 1.75, p.z);
-    bar.set(health / GLOOMLING.health);
+    bar.set(health / maxHealth);
   }
 
   // Hurts it. "pushX, pushZ" is how far it gets shoved. Returns true if this finished it off.
@@ -157,7 +160,7 @@ export function createGloomling({ scene, x, z, passive = false, type = null }) {
   }
 
   const gloomling = {
-    group, position: p, radius: 0.5, type, update, hit, remove,
+    group, position: p, radius: 0.5, type, power, maxHealth, update, hit, remove,
     soak(seconds) { soaked = Math.max(soaked, seconds); },
     get soaked() { return soaked; },
     get alive() { return alive; },

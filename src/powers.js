@@ -6,6 +6,7 @@ import { createSuperpower, distanceToSegment } from './superpowers.js';
 import { QUIET } from './audio.js';
 import { effectiveness } from './types.js';
 import { createCombos } from './combos.js';
+import { strength } from './power.js';
 
 const FLAME_COLORS = [0xff4b1f, 0xff8a1f, 0xffc933];                     // red, orange, yellow
 const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
@@ -114,7 +115,7 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
   // Hurts a Gloomling: pop-up number, sparks, and if it falls, a burst of colour. Returns true if it was defeated.
   function damage(gloom, base, pushX, pushZ, kind) {
     const { multiplier, label } = effectiveness(data.type, gloom.type);   // SUPER! against a type you beat, weak against one that beats you
-    const amount = Math.round(base * multiplier);
+    const amount = Math.max(1, Math.round(base * multiplier * strength(hero.power)));   // types, then Power
     const defeated = gloom.hit(amount, pushX, pushZ);
     const p = gloom.position;
     if (events.hit) events.hit(gloom, amount, kind, label);
