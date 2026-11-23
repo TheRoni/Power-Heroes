@@ -57,8 +57,8 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
     active = false;
     overlay.hidden = true;
     waiting = step.wait;
-    lessonBox.textContent = resolve(step.hint);
-    lessonBox.hidden = false;
+    lessonBox.textContent = step.hint ? resolve(step.hint) : '';   // some waits (a character running in) need no reminder
+    lessonBox.hidden = !step.hint;
     if (onWait) onWait(step.wait);
   }
 

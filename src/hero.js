@@ -16,7 +16,8 @@ const STILL = { x: 0, z: 0 };   // "no push", used while knocked out
 
 // "kind" is which hero (a key in heroes-data.js). "scene" is where the hero is added. "bound" is how far from
 // the middle of the island they may walk. onHurt(amount) is called when hit. onDown() is called when knocked out.
-export function createHero({ scene, bound, kind = 'sol', onHurt, onDown }) {
+// showBar = false makes a hero with no health bar (a guest).
+export function createHero({ scene, bound, kind = 'sol', onHurt, onDown, showBar = true }) {
   const data = HEROES[kind];
   const model = buildHeroModel(kind);
   const group = new THREE.Group();   // this part moves and turns
@@ -120,7 +121,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown }) {
   // Hides or shows the hero and their health bar (used while the story has them off stage).
   function setVisible(visible) {
     group.visible = visible;
-    bar.group.visible = visible;
+    bar.group.visible = visible && showBar;
   }
 
   // Starts over: full health, standing up, back in the middle.
@@ -142,5 +143,67 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown }) {
     get maxHealth() { return data.health; },
     get down() { return down; },
     get yaw() { return yaw; },
+  };
+}
+
+// A guest is a hero the game steers, not the player. It is hidden until it runs in, stops by someone, turns to face
+// them and hops for joy. It has no health bar and cannot be hurt. Ember runs in like this at the end of Chapter 1.
+const CHEER_TIME = 1.4;   // seconds of hopping after arriving
+
+export function createGuest({ scene, bound, kind }) {
+  const hero = createHero({ scene, bound, kind, showBar: false });
+  const push = { x: 0, z: 0 };   // the "controls" the game presses for it
+  let state = 'away';            // away (hidden), running, or here
+  let goal = null;               // where it runs to
+  let look = null;               // what it turns to face on arrival
+  let cheer = 0;                 // seconds of hopping left
+  hero.setVisible(false);
+
+  // Appears at (fromX, fromZ), runs to (toX, toZ), then turns toward (lookX, lookZ).
+  function runIn(fromX, fromZ, toX, toZ, lookX, lookZ) {
+    hero.position.set(fromX, 0, fromZ);
+    hero.face(Math.atan2(toX - fromX, toZ - fromZ));
+    goal = { x: toX, z: toZ };
+    look = { x: lookX, z: lookZ };
+    state = 'running';
+    hero.setVisible(true);
+  }
+
+  function leave() {
+    hero.setVisible(false);
+    hero.reset();
+    state = 'away';
+    goal = null;
+    cheer = 0;
+    hero.group.position.y = 0;
+  }
+
+  // Called every frame with the time that passed and the clock.
+  function update(dt, time) {
+    const p = hero.position;
+    if (state === 'running') {
+      const dx = goal.x - p.x;
+      const dz = goal.z - p.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < 0.25) {   // arrived: stand, face them, and cheer
+        state = 'here';
+        push.x = push.z = 0;
+        hero.face(Math.atan2(look.x - p.x, look.z - p.z));
+        cheer = CHEER_TIME;
+      } else {
+        const pace = Math.min(1, distance / 1.5);   // eases off near the end, so it does not overshoot
+        push.x = (dx / distance) * pace;
+        push.z = (dz / distance) * pace;
+      }
+    }
+    hero.update(dt, push, time);
+    cheer = Math.max(0, cheer - dt);
+    hero.group.position.y = cheer > 0 ? Math.abs(Math.sin((CHEER_TIME - cheer) * 9)) * 0.3 : 0;
+  }
+
+  return {
+    group: hero.group, position: hero.position, runIn, leave, update,
+    get state() { return state; },
+    get arrived() { return state === 'here'; },
   };
 }

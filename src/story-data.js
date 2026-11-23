@@ -2,6 +2,7 @@
 // A scene is a list of steps. A line is [speaker, text]. The text can be { touch, keys } to say different things on a
 // phone and on a computer, and a third item names a "cue": something that happens when the line appears.
 // A step like { wait: 'move', hint } hands the game back to the player until they have done what the lesson asked.
+// { wait: 'arrive' } (no hint) pauses the talk while a character runs in.
 // Keep lines short, warm and a bit funny.
 
 export const CHAPTER = { number: 1, name: 'Sunmeadow' };
@@ -46,6 +47,7 @@ export const SCENES = {
   win: [
     ['pip', 'LOOK AT THAT! Sunmeadow is green again!'],
     ['marlo', 'Well fought, Sol. Your number jumped. I felt it from the hill.'],
+    { wait: 'arrive' },   // Ember runs in from the edge of the island; her line comes when she gets there
     ['ember', "So YOU'RE the falling star. Power 120. You?"],
     ['sol', 'Fourteen? Maybe fifteen. It keeps changing.'],
     ['ember', 'Fifteen. I trained a whole year for my 120. ...Rematch tomorrow?'],

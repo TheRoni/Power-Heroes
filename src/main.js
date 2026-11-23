@@ -2,7 +2,7 @@
 import * as THREE from '../lib/three.module.min.js';
 import { createWorld, WALK_RADIUS } from './scene.js';
 import { createInput } from './input.js';
-import { createHero } from './hero.js';
+import { createHero, createGuest } from './hero.js';
 import { HEROES } from './heroes-data.js';
 import { createPowers } from './powers.js';
 import { createWaves } from './waves.js';
@@ -42,6 +42,8 @@ let waveHits = 0;                // how many Gloomlings the latest superpower hi
 let waveHitTimer = -1;           // counts down until we know how big that superpower was
 const said = { first: false, hurt: false, low: false };   // Pip's one-time comments, so they are not repeated every round
 const soon = [];   // Pip's comments waiting for their moment: { key, left }
+let ending = null;   // 'won' or 'lost' while Marlo walks over, before the closing conversation
+let endWait = 0;
 
 // Pip says something after a short delay (so a wave's comment does not land on top of its banner).
 function saySoon(key, delay) {
@@ -52,10 +54,12 @@ function shake(amount) {
   if (!calmMotion) fx.shake = Math.max(fx.shake, amount);
 }
 
+const frozen = () => prologue.cinematic || ending !== null || story.waiting === 'arrive';   // the controls are off
+
 // --- Create everything ---
 const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
-const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active && !prologue.cinematic) powers.castPower(); }, onAgain: restart });
+const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active && !frozen()) powers.castPower(); }, onAgain: restart });
 const player = createHero({
   scene: world.scene,
   bound: WALK_RADIUS,
@@ -68,6 +72,7 @@ const player = createHero({
   onDown: () => shake(0.3),
 });
 ui.setHero({ name: player.name, powerName: HEROES[PLAYER_KIND].power.name, powerId: HEROES[PLAYER_KIND].power.id });
+const ember = createGuest({ scene: world.scene, bound: WALK_RADIUS, kind: 'ember' });   // she runs in at the end of Chapter 1
 const gloomlings = [];   // every living Gloomling (waves.js adds to this list, powers.js takes defeated ones out)
 const powers = createPowers({
   scene: world.scene,
@@ -97,7 +102,7 @@ const story = createStory({
   anchors: { pip: { object: pip.group, lift: 0.7 }, marlo: { object: marlo.group, lift: 3.4 } },   // where each speaker's bubble floats
   onStart: () => input.release(),   // a conversation starts: let go of the controls
   onSpeak: () => pip.excite(),
-  onWait: (kind) => prologue.startLesson(kind),   // a lesson begins: the prologue sets it up
+  onWait: (kind) => (kind === 'arrive' ? emberArrives() : prologue.startLesson(kind)),   // a lesson begins, or Ember runs in
   onCue: (cue) => prologue.cue(cue),
 });
 const waves = createWaves({
@@ -114,7 +119,7 @@ const waves = createWaves({
       celebrate(number === waves.total ? 110 : 25);
       if (number < waves.total) story.say('cleared');
     },
-    end: (kind) => story.scene(kind === 'won' ? 'win' : 'lose', () => ui.showEnd(kind)),   // a short conversation, then the end screen
+    end: (kind) => { ending = kind; endWait = 0; marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
   },
 });
 
@@ -123,6 +128,12 @@ function puff(position) {
   for (let i = 0; i < 8; i++) {
     powers.sparks.emit(position.x, 0.3, position.z, (Math.random() - 0.5) * 4, 1 + Math.random() * 2, (Math.random() - 0.5) * 4, 0.5, 0.2, 0x6a45b0, -4);
   }
+}
+
+// Ember runs in from the left edge and stops beside Sol (the win conversation waits for her).
+function emberArrives() {
+  const p = player.position;
+  ember.runIn(-WALK_RADIUS * 0.95, WALK_RADIUS * 0.25, p.x - 2, p.z + 0.8, p.x, p.z);
 }
 
 // Confetti shooting up all over the island when a wave is cleared (a big burst after the last one).
@@ -144,6 +155,8 @@ function restart() {
   player.reset();
   powers.reset();
   said.first = said.hurt = said.low = false;
+  ending = null;
+  ember.leave();
   waveHitTimer = -1;
   soon.length = 0;
   marlo.goHome();
@@ -185,7 +198,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -203,7 +216,7 @@ function frame(now) {
   if (story.active) dt = 0;   // a conversation: the game waits
   gameTime += dt;
 
-  const move = prologue.cinematic ? NO_MOVE : input.move;   // the opening cinematic ignores the controls
+  const move = frozen() ? NO_MOVE : input.move;
   player.update(dt, move, gameTime);
   for (const gloomling of gloomlings) gloomling.update(dt, player, gameTime, gloomlings);
   powers.update(dt, gameTime);
@@ -214,6 +227,13 @@ function frame(now) {
   story.update(realDt);
   marlo.raise(waves.state === 'spawning' || waves.state === 'fighting' || prologue.lanternUp);   // he holds his lantern up while the fight is on
   marlo.update(realDt, now / 1000, player.position);
+  ember.update(realDt, now / 1000);
+  if (ending && (marlo.arrived || (endWait += realDt) > 8)) {   // Marlo has come over: the closing conversation begins
+    const kind = ending;
+    ending = null;
+    story.scene(kind === 'won' ? 'win' : 'lose', () => ui.showEnd(kind));
+  }
+  if (story.waiting === 'arrive' && ember.arrived) story.resume();   // Ember is here: the talk carries on
   // Pip stays by the hero, but in a conversation Pip hovers by Marlo if he has come over to talk.
   const marloHere = prologue.pipWithMarlo || (story.active && Math.hypot(marlo.position.x - player.position.x, marlo.position.z - player.position.z) < 5);
   pip.update(realDt, now / 1000, marloHere ? marlo.position : player.position, marloHere ? 3.5 : 2.7);

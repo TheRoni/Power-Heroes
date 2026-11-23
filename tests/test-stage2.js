@@ -49,6 +49,12 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
 }
 const until = (page, fn, arg, timeout = 90000) => page.waitForFunction(fn, arg, { timeout });
 
+// The round has just ended: Marlo is put beside Sol (so he has already "arrived"), and we wait for the closing conversation to begin.
+async function waitForClosing(page) {
+  await page.evaluate(() => { const G = window.__game; const x = G.player.position.x + 2.2, z = G.player.position.z - 1.3; G.marlo.walkTo(x, z); G.marlo.position.set(x, 0, z); });
+  await until(page, () => window.__game.story.active);
+}
+
 // ---------- Chunk 1: Gloomlings, Ember's health, health bars ----------
 // Exact, repeatable checks: the game code is run step by step with a fixed time step, away from the live game.
 const chunk1Unit = async () => {
@@ -359,6 +365,7 @@ async function chunk3(browser) {
   check('the corner note shows the wave and how many are left', true);
 
   await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 40; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
+  await waitForClosing(page);
   // All in one step, so a slow computer cannot make the 0.8 s lock run out in between: skip the win conversation,
   // read the end screen, then press Space straight away.
   const { win, early } = await page.evaluate(() => {
@@ -377,7 +384,9 @@ async function chunk3(browser) {
   const again = await page.evaluate(() => ({ state: window.__game.waves.state, health: window.__game.player.health, ready: window.__game.powers.powerReady, wave: window.__game.waves.wave, count: window.__game.gloomlings.length }));
   check('Space on the win screen starts a fresh round (and does not fire the wave)', again.health === 100 && again.ready && again.wave === 1 && again.count === 0 && ['break', 'spawning'].includes(again.state), JSON.stringify(again));
 
-  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); G.story.skip(); });
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
   const lose = await page.evaluate(() => ({ hidden: document.getElementById('end').hidden, title: document.getElementById('end-title').textContent, button: document.getElementById('end-button').textContent }));
   check('being knocked out shows "Knocked out" and a Try again button', !lose.hidden && lose.title === 'Knocked out' && lose.button === 'Try again', JSON.stringify(lose));
   await page.screenshot({ path: `${OUT}/stage2-3-lose.png` });
@@ -390,7 +399,9 @@ async function chunk3(browser) {
   // Phone: the end screen fits, and touches on it never steer.
   ({ page, context } = await openGame(browser, 'chunk3-touch', { width: 390, height: 844 }, true));
   const client = await context.newCDPSession(page);
-  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); G.story.skip(); });
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
   await page.waitForTimeout(900);
   const spot = await page.evaluate(() => { const r = document.getElementById('end-button').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, shown: !document.getElementById('end').hidden, fits: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight }; });
   check('the end screen fits a phone screen', spot.shown && spot.fits);
@@ -464,7 +475,7 @@ async function chunk4(browser) {
   await until(page, () => parseFloat(document.getElementById('tint').style.opacity) < 0.03);
   check('after the last wave the island is in full colour', true);
   await page.screenshot({ path: `${OUT}/stage2-4-full-colour.png` });
-  await until(page, () => window.__game.story.active);
+  await waitForClosing(page);
   await page.evaluate(() => window.__game.story.skip());   // skip the win conversation, to reach the end screen
   await until(page, () => !document.getElementById('end').hidden);
   await page.waitForTimeout(900);
@@ -600,7 +611,7 @@ const storyUnit = async () => {
     for (const [id, steps] of Object.entries(SCENES)) {
       steps.forEach((step, i) => {
         if (Array.isArray(step)) { if (!SPEAKERS[step[0]] || !lengthOk(step[1])) problems.push(`${id}#${i}`); }
-        else if (!['move', 'strike', 'power'].includes(step.wait) || !lengthOk(step.hint)) problems.push(`${id}#${i} (lesson)`);
+        else if (!['move', 'strike', 'power', 'arrive'].includes(step.wait) || (step.wait !== 'arrive' && !lengthOk(step.hint))) problems.push(`${id}#${i} (lesson)`);
       });
     }
     for (const [id, list] of Object.entries(BUBBLES)) {
@@ -611,6 +622,7 @@ const storyUnit = async () => {
       lessons: SCENES.prologue.filter((step) => !Array.isArray(step)).map((step) => step.wait),
       cue: SCENES.prologue.some((step) => Array.isArray(step) && step[2] === 'power-climb'),
       emberInWin: SCENES.win.some((step) => step[0] === 'ember'),
+      arriveBeforeEmber: (() => { const i = SCENES.win.findIndex((step) => !Array.isArray(step) && step.wait === 'arrive'); return i > 0 && SCENES.win[i + 1][0] === 'ember' && SCENES.win.slice(0, i).every((step) => !Array.isArray(step) || step[0] !== 'ember'); })(),
       marloLast: SCENES.win[SCENES.win.length - 1][0],
     };
   }
@@ -620,9 +632,9 @@ const storyUnit = async () => {
 async function readOn(page) {   // one press at a time: it finishes the line, or goes on to the next
   const names = new Set();
   for (let guard = 0; guard < 80; guard++) {
-    const now = await page.evaluate(() => ({ active: window.__game.story.active, name: document.getElementById('dialogue-name').textContent }));
-    if (!now.active) break;
-    names.add(now.name);
+    const now = await page.evaluate(() => ({ active: window.__game.story.active, waiting: window.__game.story.waiting, name: document.getElementById('dialogue-name').textContent }));
+    if (!now.active && !now.waiting) break;
+    if (now.active) names.add(now.name);
     await page.waitForTimeout(350);
     await page.keyboard.press('Space');
   }
@@ -661,7 +673,7 @@ async function chunk5(browser) {
   check('a bubble never repeats the line before it', u.repeats === 0, `repeats=${u.repeats}`);
   check('bubbles are refused during a conversation and for unknown names', u.duringScene === false && u.unknown === false);
   check('every line is well formed and short (100 letters at most)', u.data.problems.length === 0, u.data.problems.join(', '));
-  check('the prologue has the three lessons in order and the Power-climb cue; the win scene has Ember and ends on Marlo', u.data.lessons.join() === 'move,strike,power' && u.data.cue && u.data.emberInWin && u.data.marloLast === 'marlo', JSON.stringify(u.data));
+  check('the prologue has the three lessons in order and the Power-climb cue; the win scene has Ember and ends on Marlo', u.data.lessons.join() === 'move,strike,power' && u.data.cue && u.data.emberInWin && u.data.arriveBeforeEmber && u.data.marloLast === 'marlo', JSON.stringify(u.data));
 
   // Live game: the first wave brings a bubble; the win and knocked-out conversations come before the end screens.
   ({ page } = await openGame(browser, 'story-live'));
@@ -670,7 +682,7 @@ async function chunk5(browser) {
   check('the first wave brings a speech bubble from Pip or Marlo', bubbleTexts('wave1').includes(bubbleText), bubbleText);
   await page.screenshot({ path: `${OUT}/story-2-bubble.png` });
   await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
-  await until(page, () => window.__game.story.active);
+  await waitForClosing(page);
   const winTalk = await page.evaluate(() => ({ endHidden: document.getElementById('end').hidden, text: document.getElementById('dialogue-name').textContent }));
   check('after the last wave the story talks first, with no end screen yet', winTalk.endHidden && winTalk.text === SPEAKERS[SCENES.win[0][0]].name, JSON.stringify(winTalk));
   await page.waitForTimeout(600);
@@ -686,7 +698,7 @@ async function chunk5(browser) {
   check('playing again skips the prologue and starts straight away', !again.active && ['break', 'spawning'].includes(again.state) && again.prologue === 'done', JSON.stringify(again));
 
   await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
-  await until(page, () => window.__game.story.active);
+  await waitForClosing(page);
   check('being knocked out brings a short conversation too (Marlo helps Sol up), with no end screen yet', await page.evaluate(() => document.getElementById('end').hidden && document.getElementById('dialogue-name').textContent === 'Marlo'));
   await readOn(page);
   await until(page, () => !document.getElementById('end').hidden);
@@ -1087,7 +1099,9 @@ async function chunk7(browser) {
   check('in the live game Marlo is at his post', first.at < 0.5, `off by ${first.at.toFixed(2)}`);
   await until(page, () => window.__game.marlo.lantern > 0.8);
   check('he raises his lantern when the fight starts', true);
-  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } G.story.skip(); });
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
   await until(page, () => window.__game.marlo.lantern < 0.2);
   check('and lowers it when the fight is won', true);
   await page.evaluate(() => { const G = window.__game; G.waves.reset(); G.marlo.walkTo(G.player.position.x + 2.2, G.player.position.z - 1.3); });
@@ -1102,10 +1116,111 @@ async function chunk7(browser) {
   check('after it, Pip goes back to the hero', true);
 }
 
+// ---------- Ember's arrival and the closing scenes (Marlo walks over first) ----------
+const guestUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createGuest } = await import('/src/hero.js');
+  const out = {};
+  const scene = new THREE.Scene();
+  const guest = createGuest({ scene, bound: 10.5, kind: 'ember' });
+  const shown = () => scene.children.filter((c) => c.visible).length;
+  out.before = { state: guest.state, visible: guest.group.visible, arrived: guest.arrived, shown: shown() };
+  guest.runIn(-9, 2.5, -2, 1, 0, 0);
+  out.started = { state: guest.state, visible: guest.group.visible, shown: shown(), x: guest.position.x, z: guest.position.z };
+  for (let i = 0; i < 15; i++) guest.update(1 / 30, i / 30);
+  out.early = { state: guest.state, moved: guest.position.x + 9 };
+  let t = 0.5;
+  while (guest.state === 'running' && t < 8) { guest.update(1 / 30, t); t += 1 / 30; }
+  out.arrival = { state: guest.state, arrived: guest.arrived, seconds: t, off: Math.hypot(guest.position.x + 2, guest.position.z - 1), yaw: guest.group.rotation.y, want: Math.atan2(0 - guest.position.x, 0 - guest.position.z) };
+  let maxY = 0;
+  for (let i = 0; i < 90; i++) { guest.update(1 / 30, t + i / 30); maxY = Math.max(maxY, guest.group.position.y); }
+  out.cheer = { maxY, finalY: guest.group.position.y, off: Math.hypot(guest.position.x + 2, guest.position.z - 1) };
+  guest.leave();
+  out.left = { state: guest.state, visible: guest.group.visible, shown: shown(), y: guest.group.position.y };
+  guest.runIn(-30, 0, 0, 0, 0, 5);
+  guest.update(1 / 30, 0);
+  out.clamped = Math.hypot(guest.position.x, guest.position.z);
+  return out;
+};
+
+async function chunk9(browser) {
+  let { page } = await openGame(browser, 'ember-unit');
+  const u = await page.evaluate(guestUnit);
+  check('a guest starts hidden, with no health bar even when shown', u.before.state === 'away' && !u.before.visible && !u.before.arrived && u.before.shown === 0 && u.started.visible && u.started.shown === 1, JSON.stringify([u.before, u.started]));
+  check('it appears at the edge and runs toward its spot', u.started.state === 'running' && u.started.x === -9 && u.started.z === 2.5 && u.early.state === 'running' && u.early.moved > 1.5, JSON.stringify([u.started, u.early]));
+  check('it stops at its spot within about two seconds, turns to face Sol and is "here"', u.arrival.state === 'here' && u.arrival.arrived && u.arrival.seconds < 3 && u.arrival.off < 0.3 && near(u.arrival.yaw, u.arrival.want, 0.15), JSON.stringify(u.arrival));
+  check('it hops for joy for a moment, then stands still and flat on the ground', u.cheer.maxY > 0.15 && u.cheer.finalY === 0 && u.cheer.off < 0.35, JSON.stringify(u.cheer));
+  check('leaving hides it again, and it can never be placed outside the island', u.left.state === 'away' && !u.left.visible && u.left.shown === 0 && u.left.y === 0 && u.clamped <= 10.51, JSON.stringify([u.left, u.clamped]));
+
+  // Live game: the win. Marlo walks over first, then the conversation; Ember runs in when her turn comes.
+  ({ page } = await openGame(browser, 'ember-live'));
+  const ended = await page.evaluate(() => {
+    const G = window.__game;
+    for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); }
+    return { state: G.waves.state, active: G.story.active, end: !document.getElementById('end').hidden, marloHome: G.marlo.atHome, ember: G.ember.state };
+  });
+  check('when the last wave is beaten Marlo sets off to meet Sol: no conversation yet, no end screen, no Ember', ended.state === 'over' && !ended.active && !ended.end && !ended.marloHome && ended.ember === 'away', JSON.stringify(ended));
+  await page.keyboard.down('d');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(400);
+  const lock = await page.evaluate(() => ({ x: window.__game.player.position.x, ready: window.__game.powers.powerReady, active: window.__game.story.active }));
+  await page.keyboard.up('d');
+  check('while Marlo walks over the controls are off: Sol stands still and Space does nothing', lock.x === 0 && lock.ready, JSON.stringify(lock));
+  await until(page, () => window.__game.story.active);
+  const talk = await page.evaluate(state);
+  check('the conversation begins once Marlo has arrived beside Sol, with Pip first', talk.name === 'Pip' && talk.marloGap < 3.2 && !talk.boxHidden, JSON.stringify([talk.name, talk.marloGap]));
+  check('Ember has not appeared yet', (await page.evaluate(() => window.__game.ember.state)) === 'away');
+  check('reading on leads to Ember\'s entrance', await readUntil(page, () => window.__game.story.waiting === 'arrive'));
+  const run = await page.evaluate(() => {
+    const G = window.__game;
+    const p = G.ember.group.position;
+    return { state: G.ember.state, visible: G.ember.group.visible, waiting: G.story.waiting, active: G.story.active, boxHidden: document.getElementById('dialogue').hidden, hintHidden: document.getElementById('lesson').hidden, x: p.x, z: p.z };
+  });
+  check('the talk pauses (no box, no hint) while Ember runs in from the left edge', run.waiting === 'arrive' && !run.active && run.boxHidden && run.hintHidden && (run.state === 'running' || run.state === 'here') && run.visible && run.x < 0, JSON.stringify(run));
+  await page.screenshot({ path: `${OUT}/ember-1-running.png` });
+  await page.keyboard.down('d');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(300);
+  const frozenNow = await page.evaluate(() => ({ x: window.__game.player.position.x, ready: window.__game.powers.powerReady }));
+  await page.keyboard.up('d');
+  check('Sol cannot walk or use Starburst while Ember runs in', frozenNow.x === 0 && frozenNow.ready, JSON.stringify(frozenNow));
+  await until(page, () => window.__game.story.active);
+  const here = await page.evaluate(() => {
+    const G = window.__game;
+    const v = G.ember.group.position.clone().project(G.world.camera);
+    return { name: document.getElementById('dialogue-name').textContent, state: G.ember.state, gap: Math.hypot(G.ember.position.x - G.player.position.x, G.ember.position.z - G.player.position.z), onScreen: Math.abs(v.x) < 1 && Math.abs(v.y) < 1, marloGap: Math.hypot(G.marlo.position.x - G.player.position.x, G.marlo.position.z - G.player.position.z) };
+  });
+  check('when she arrives the conversation carries on with her first line, and she stands beside Sol on screen', here.name === 'Ember' && here.state === 'here' && here.gap < 3.5 && here.gap > 1 && here.onScreen && here.marloGap < 3.2, JSON.stringify(here));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/ember-2-arrived.png` });
+  const names = await readOn(page);
+  await until(page, () => !document.getElementById('end').hidden);
+  const stay = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, ember: window.__game.ember.state, marloHome: window.__game.marlo.atHome }));
+  check('after the talk the "Isle saved!" screen shows, with Ember and Marlo still beside Sol', names.includes('Ember') && stay.title === 'Isle saved!' && stay.ember === 'here' && !stay.marloHome, JSON.stringify([names, stay]));
+  await page.screenshot({ path: `${OUT}/ember-3-end.png` });
+  await page.waitForTimeout(900);
+  await page.keyboard.press('Space');
+  await until(page, () => document.getElementById('end').hidden);
+  const again = await page.evaluate(() => ({ ember: window.__game.ember.state, visible: window.__game.ember.group.visible, marloHome: window.__game.marlo.atHome, state: window.__game.waves.state }));
+  check('"Play again" sends Ember away and Marlo back to his post', again.ember === 'away' && !again.visible && again.marloHome && ['break', 'spawning'].includes(again.state), JSON.stringify(again));
+
+  // Live game: being knocked out. Marlo walks over to the fallen hero; Ember never appears.
+  await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
+  const fallen = await page.evaluate(() => ({ state: window.__game.waves.state, active: window.__game.story.active, marloHome: window.__game.marlo.atHome }));
+  check('when Sol is knocked out Marlo sets off to help, and the conversation waits for him', fallen.state === 'over' && !fallen.active && !fallen.marloHome, JSON.stringify(fallen));
+  await until(page, () => window.__game.story.active);
+  const help = await page.evaluate(state);
+  check('he arrives, and the knocked-out conversation begins with Marlo', help.name === 'Marlo' && help.marloGap < 3.2, JSON.stringify([help.name, help.marloGap]));
+  const lostNames = await readOn(page);
+  await until(page, () => !document.getElementById('end').hidden);
+  const lost = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, ember: window.__game.ember.state }));
+  check('Ember does not come for a knocked-out round, and the "Knocked out" screen follows', !lostNames.includes('Ember') && lost.title === 'Knocked out' && lost.ember === 'away', JSON.stringify([lostNames, lost]));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
