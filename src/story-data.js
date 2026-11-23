@@ -85,4 +85,7 @@ export const BUBBLES = {
   hurt: ['Ouch! They pause after each bump. Use it!', 'Careful! Keep moving!', { who: 'marlo', text: 'Every hero gets hit. Heroes get up.' }],
   low: ["Sol, you're running low! Dodge, don't dare!", 'Health is low! Run in circles. Dramatic circles.'],
   big: ['Whoa! Three at once? Show-off!', 'That Starburst was at least Power 20!'],
+  super: ['SUPER! Fire > Nature > Storm > Water > Fire. Swap to the right hero!'],
+  swapTip: [{ touch: 'Tap a portrait to swap heroes!', keys: 'Press 1, 2 or 3 (or tap a portrait) to swap heroes!' }],
+  combo: ['Wet plus lightning? That is a Shock Chain!'],
 };

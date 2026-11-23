@@ -45,7 +45,7 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   page.on('console', (m) => {
     if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
-  await page.goto('http://game.local/' + (ARTIFACT ? '#debug' + (SHOW_TITLE ? '-title' : SHOW_SQUAD ? '-squad' : '') : '?debug' + (SHOW_TITLE ? '&title' : '') + (SHOW_SQUAD ? '&squad' : '') + (HERO_PARAM ? `&hero=${HERO_PARAM}` : '')));
+  await page.goto('http://game.local/' + (ARTIFACT ? '#debug' + (SHOW_TITLE ? '-title' : SHOW_SQUAD ? '-squad' : '') + (HERO_PARAM ? `-hero=${HERO_PARAM}` : '') : '?debug' + (SHOW_TITLE ? '&title' : '') + (SHOW_SQUAD ? '&squad' : '') + (HERO_PARAM ? `&hero=${HERO_PARAM}` : '')));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
   if (!KEEP_INTRO && !SHOW_TITLE) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
@@ -621,7 +621,7 @@ const storyUnit = async () => {
       });
     }
     for (const [id, list] of Object.entries(BUBBLES)) {
-      list.forEach((b, i) => { if (!(typeof b === 'string' ? lengthOk(b) : SPEAKERS[b.who] && lengthOk(b.text))) problems.push(`bubble ${id}#${i}`); });
+      list.forEach((b, i) => { if (!((typeof b === 'string' || b.touch) ? lengthOk(b) : SPEAKERS[b.who] && lengthOk(b.text))) problems.push(`bubble ${id}#${i}`); });
     }
     out.data = {
       problems,
@@ -1947,10 +1947,115 @@ async function chunk14(browser) {
   await page.screenshot({ path: `${OUT}/types-1-weak.png` });
 }
 
+// ---------- Combos: Shock Chain ----------
+const comboUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const out = {};
+  const fakeHero = (kind) => ({ kind, position: new THREE.Vector3(0, 0, 0), yaw: 0, down: false, face() {}, takeHit() { return false; } });
+  // A setup: gloomlings given as [x, z, soakedSeconds, health?]. The hero starts at the middle.
+  const setup = (kind, spots) => {
+    const scene = new THREE.Scene();
+    const gloomlings = spots.map(([x, z, soak, health]) => { const g = createGloomling({ scene, x, z }); if (soak) g.soak(soak); if (health) g.hit(30 - health, 0, 0); return g; });
+    const log = { combos: [], hits: [], sounds: [] };
+    const audio = { play: (name) => { log.sounds.push(name); return true; } };
+    const powers = createPowers({ scene, hero: fakeHero(kind), gloomlings, audio, events: { hit: (g, a, k, l) => log.hits.push(`${k}:${a}`), combo: (name, count, g) => log.combos.push(`${name}:${count}`) } });
+    return { gloomlings, powers, log };
+  };
+  const run = (s, seconds) => { for (let i = 0; i < Math.round(seconds * 30); i++) s.powers.update(1 / 30, i / 30); };
+  const healths = (s) => s.gloomlings.map((g) => g.health).join();
+  {   // Volt's first dart hits A; the chain hops to the nearest wet Gloomling, then the next (3 at most); dry or far ones are skipped
+    const s = setup('volt', [[4, 0, 5], [6, 0, 5], [8, 0, 5], [9.5, 0, 5], [5, 3, 0], [20, 0, 5], [4, -3.5, 5]]);
+    s.powers.castPower && null;
+    run(s, 0.45);   // exactly one dart lands
+    out.chain = { combos: s.log.combos.join(), healths: healths(s), hits: s.log.hits.join(), shock: s.log.sounds.filter((n) => n === 'shock').length, a: s.gloomlings[0].health };
+  }
+  {   // not Storm: no chain
+    const s = setup('ember', [[4, 0, 5], [6, 0, 5]]);
+    run(s, 0.45);
+    out.notStorm = { combos: s.log.combos.join(), healths: healths(s) };
+  }
+  {   // not soaked: no chain
+    const s = setup('volt', [[4, 0, 0], [6, 0, 5]]);
+    run(s, 0.45);
+    out.dry = { combos: s.log.combos.join(), healths: healths(s) };
+  }
+  {   // nobody else wet nearby: a hit is only a hit
+    const s = setup('volt', [[4, 0, 5], [12, 0, 5], [4, 3.5, 0]]);
+    run(s, 0.45);
+    out.alone = { combos: s.log.combos.join(), healths: healths(s) };
+  }
+  {   // the one that was hit can be defeated and the chain still goes on from where it stood
+    const s = setup('volt', [[4, 0, 5, 5], [6, 0, 5]]);
+    run(s, 0.45);
+    out.defeated = { combos: s.log.combos.join(), left: s.gloomlings.map((g) => g.health).join() };
+  }
+  {   // a chain never starts another chain (the log has one combo, not several), and Lightning Dash through wet Gloomlings works
+    const s = setup('volt', [[0, 3, 5], [0.5, 5, 5], [2.5, 5, 5], [0, 6.5, 5]]);
+    s.powers.autoFire = false;
+    s.powers.castPower();
+    run(s, 0.5);
+    out.dash = { combos: s.log.combos.length, chain: s.log.hits.filter((h) => h.startsWith('chain')).length, big: s.log.hits.filter((h) => h.startsWith('big')).length, left: s.gloomlings.length };
+  }
+  {   // Tide's own hits do not chain, even on soaked Gloomlings
+    const s = setup('tide', [[4, 0, 5], [6, 0, 5]]);
+    run(s, 0.8);
+    out.tide = { combos: s.log.combos.length };
+  }
+  return out;
+};
+
+async function chunk15(browser) {
+  let { page } = await openGame(browser, 'combo-unit');
+  const u = await page.evaluate(comboUnit);
+  check('Shock Chain: a Storm hit on a soaked Gloomling jumps to the nearest wet Gloomling, then the next, three at most (6 damage each); a dry one, one too far away and the first one\'s own damage are right', u.chain.combos === 'Shock Chain:3' && u.chain.healths === '22,24,24,24,30,30,30' && u.chain.shock === 1 && u.chain.hits.startsWith('hit:8'), JSON.stringify(u.chain));
+  check('nothing happens if the attacker is not Storm, the Gloomling is dry, or no other wet Gloomling is close', u.notStorm.combos === '' && u.dry.combos === '' && u.alone.combos === '' && u.notStorm.healths === '20,30' && u.dry.healths === '22,30' && u.alone.healths === '22,30,30', JSON.stringify([u.notStorm, u.dry, u.alone]));
+  check('the Gloomling that was hit can be defeated and the chain still goes on', u.defeated.combos === 'Shock Chain:1' && u.defeated.left === '24', JSON.stringify(u.defeated));
+  check('a hit from a chain never starts another chain (at most three chain hits per Shock Chain), Lightning Dash through wet Gloomlings clears them without endless chains, and Tide\'s own hits do not chain', u.dash.big >= 2 && u.dash.combos >= 1 && u.dash.combos <= 4 && u.dash.chain <= 3 * u.dash.combos && u.dash.left === 0 && u.tide.combos === 0, JSON.stringify([u.dash, u.tide]));
+
+  // Live game: play as Volt against wet Gloomlings (?debug&hero=volt).
+  HERO_PARAM = 'volt';
+  ({ page } = await openGame(browser, 'combo-live'));
+  HERO_PARAM = '';
+  const live = await page.evaluate(async () => {
+    const G = window.__game;
+    const { createGloomling } = await import('/src/gloom.js');
+    G.waves.reset();
+    G.gloomlings.splice(0).forEach((g) => g.remove());
+    const wet = [[4, 0], [5.5, 1], [7, 0]].map(([x, z]) => { const g = createGloomling({ scene: G.world.scene, x, z }); g.soak(30); return g; });
+    G.gloomlings.push(...wet);
+    const seen = { banner: '', combos: new Set(), bubbles: new Set() };
+    const timer = setInterval(() => {
+      if (document.getElementById('banner').classList.contains('show')) seen.banner = document.getElementById('banner-title').textContent;
+      document.querySelectorAll('.floater.combo').forEach((e) => seen.combos.add(e.textContent));
+      if (document.getElementById('bubble').classList.contains('show')) seen.bubbles.add(document.getElementById('bubble').textContent);
+    }, 40);
+    await new Promise((r) => setTimeout(r, 3500));
+    clearInterval(timer);
+    const again = G.gloomlings.length;
+    return { banner: seen.banner, sub: document.getElementById('banner-sub').textContent, combos: [...seen.combos], bubbles: [...seen.bubbles], alive: again, shocks: G.audio.counts.shock };
+  });
+  check('the first Shock Chain gets its name on a banner ("A new combo!") and a word from Pip, and it makes its crackle', live.banner === 'Shock Chain!' && live.sub === 'A new combo!' && live.bubbles.includes('Wet plus lightning? That is a Shock Chain!') && live.shocks >= 1, JSON.stringify(live));
+  await page.screenshot({ path: `${OUT}/combo-1-chain.png` });
+  const second = await page.evaluate(async () => {
+    const G = window.__game;
+    const { createGloomling } = await import('/src/gloom.js');
+    G.gloomlings.splice(0).forEach((g) => g.remove());
+    G.gloomlings.push(...[[4, 0], [5.5, 1]].map(([x, z]) => { const g = createGloomling({ scene: G.world.scene, x, z }); g.soak(30); return g; }));
+    const seen = new Set();
+    const timer = setInterval(() => document.querySelectorAll('.floater.combo').forEach((e) => seen.add(e.textContent)), 40);
+    await new Promise((r) => setTimeout(r, 3000));
+    clearInterval(timer);
+    return [...seen];
+  });
+  check('after that, each Shock Chain just pops its name over the Gloomling it started on', second.join() === 'Shock Chain!', second.join());
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

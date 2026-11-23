@@ -2,18 +2,19 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 5 (movement, the first fight, the story begins, the Newcomer and
-  Marlo, flute music and sound). All 254 automatic checks pass on the normal
-  page and on the Claude test link, which was republished at the end of Stage 5.
+  Stages 1 to 6 (movement, the first fight, the story begins, the Newcomer and
+  Marlo, flute music and sound, the squad). All 307 automatic checks pass on the
+  normal page and on the Claude test link, which was republished at the end of Stage 6.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
   hero who falls from the sky; **Keeper Marlo** is your mentor and teaches the
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 5 is done (built on Sonnet):** a title screen, 22 sound effects, a Mute
-  button, and flute music: six songs that change with the story and the fight.
-  Nobody has *listened* to it yet (see "Known problems"). **Next: Stage 6, the
-  squad (Ember, Tide and Volt join, swapping, types).**
+- **Stage 6 is done (built on Sonnet):** Tide and Volt, a squad of three with
+  swapping (keys 1-3 or portraits), the squad screen, types (SUPER! and weak), and
+  the first combo, Shock Chain. **Next: Stage 7, Power, auras and Rankings.**
+- Stage 5 (title, sound, flute music) was done before it. Nobody has *listened* to
+  it yet (see "Known problems").
 
 ## How we work
 - **Opus** plans stages and fixes hard problems. **Sonnet** builds from the
@@ -25,10 +26,11 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (235
-  checks in 11 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (288
+  checks in 15 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
-  screen, 11 music). A full run takes about 25 minutes in the test browser.
+  screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain).
+  A full run takes 10 to 25 minutes in the test browser.
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
   `/home/user/power-heroes`. Playwright and Chromium come with the container.
@@ -73,10 +75,10 @@
   falling star and Marlo's three lessons; Ember runs in when you win. (Plan below.)
 - [x] **Stage 5: Flute music and sound.** A title screen, 22 sound effects, a Mute
   button, and flute music (six songs, including Lyra's Lullaby). (Plan below.)
+- [x] **Stage 6: The squad.** Tide and Volt, a squad of three with swapping,
+  types with SUPER! and weak, and the first combo (Shock Chain). (Plan below.)
 
 ### Next
-- [ ] **Stage 6: The squad.** Ember, Tide and Volt join; hero swapping; types
-  with "SUPER!" and "weak" pop-ups; the first combo (Shock Chain).
 - [ ] **Stage 7: Power, auras and Rankings.** Power numbers, XP, the power-up
   moment, auras Spark to Blaze, Overdrive, a Power Rankings board, saving.
 - [ ] **Stage 8: Phone app.** Title screen with name entry, icons, offline
@@ -423,7 +425,23 @@ This changes how the game plays, so each chunk ends playable and is reported.
 - Tests: group 14 (8 checks): the whole type table, the numbers, darts and superpowers,
   Gloomling colours, wave mixes, and the pop-ups live.
 
-**Chunk 4: the first combo, polish, republish.**
+**Chunk 4 build notes (DONE):**
+- New `src/combos.js`: **Shock Chain**. A Storm hit (Volt's bolts or Lightning Dash)
+  on a *soaked* Gloomling (Big Splash soaks for 6 s) jumps to the nearest wet
+  Gloomling within 4 units, then on to the next, up to three. Each takes 60% of the
+  hit that started it (at least 6) and is shoved and stunned a little. A hit from a
+  chain never starts another chain. The chain still goes on if the first one
+  was defeated.
+- Every `createPowers` has its own combo checker, called after every hit in
+  `powers.damage()`. The game hears about it through `events.combo(name, count)`.
+- The first time: a banner "Shock Chain!" ("A new combo!"), a screen shake and a
+  word from Pip. After that a "Shock Chain!" pop-up over the Gloomling. A crackle sound.
+- Pip's hints (once): the first SUPER! ("Fire > Nature > Storm > Water > Fire"),
+  and at the start of the first round with a squad, how to swap.
+- Tests: group 15 (6 checks): the chain rules, defeated first target, no chain from
+  other types or dry Gloomlings, no endless chains, and the live game as Volt.
+
+**Chunk 4 (original plan): the first combo, polish, republish.**
 - New `src/combos.js`: **Soaked + lightning = Shock Chain** (Big Splash soaks;
   a Storm hit on a soaked Gloomling jumps to the wet ones nearby). A name pop-up
   the first time it is found. Tests, full run on both pages, republish, docs.
@@ -442,9 +460,12 @@ This changes how the game plays, so each chunk ends playable and is reported.
   too quiet, too sharp, annoying). The numbers to change are in `src/audio.js`
   (effects) and `src/music.js` / `src/music-data.js` (music).
 - Sound only starts after the first tap on the title screen (a browser rule).
-- Open differences from `CLAUDE.md`: Ember only appears
-  in the win scene (she joins your squad in Stage 6); no types, swapping or
-  combos (Stage 6); no Power numbers, auras or Overdrive (Stage 7). The Power
+- Open differences from `CLAUDE.md`: no Power numbers, auras or Overdrive
+  (Stage 7); only Gloomlings so far (no Brutes, Spitters, Shielders or the
+  Golden Gloom: Stage 12); Rook and the other 11 heroes are not made yet;
+  Ember, Tide and Volt all join after the first win (the story gates them in
+  Stages 9 and 13); the other combos (Wildfire, Vortex Blast, Shatter) need heroes
+  that come later; the squad screen asks "pick 3 of 4" and nothing is saved yet (Stage 7). The Power
   numbers Marlo and Pip say in the story are only words for now.
 - `sky.js` and `prologue.js` are new files that were not in the first plan
   (the director was told in the Stage 4 plan).

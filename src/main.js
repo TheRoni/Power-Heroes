@@ -21,7 +21,8 @@ const flag = (name) => FLAGS.has(name) || HASH.includes(name);
 const DEBUG = flag('debug');
 const TITLE = !DEBUG || flag('title');   // debug mode skips the title screen and the squad screen (so the tests are quick), unless asked
 const PICK = !DEBUG || flag('squad');
-const PLAYER_KIND = DEBUG && HEROES[FLAGS.get('hero')] ? FLAGS.get('hero') : 'sol';   // which hero the player controls (a key in heroes-data.js); ?debug&hero=tide previews another
+const PREVIEW = FLAGS.get('hero') || (HASH.find((h) => h.startsWith('hero=')) || '').slice(5);   // ?debug&hero=tide (or #debug-hero=tide) previews another hero
+const PLAYER_KIND = DEBUG && HEROES[PREVIEW] ? PREVIEW : 'sol';   // which hero the player controls (a key in heroes-data.js)
 
 // --- Set up the screen ---
 const canvas = document.getElementById('game');
@@ -45,7 +46,7 @@ const calmMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 let waveFreezePending = false;   // a superpower freezes the game once, the first time it lands
 let waveHits = 0;                // how many Gloomlings the latest superpower hit
 let waveHitTimer = -1;           // counts down until we know how big that superpower was
-const said = { first: false, hurt: false, low: false };   // Pip's one-time comments, so they are not repeated every round
+const said = { first: false, hurt: false, low: false, super: false, swap: false, combo: false };   // Pip's one-time comments, so they are not repeated every round
 const soon = [];   // Pip's comments waiting for their moment: { key, left }
 let ending = null;   // 'won' or 'lost' while Marlo walks over, before the closing conversation
 let endWait = 0;
@@ -90,6 +91,7 @@ const squad = createSquad({
     hit: (gloom, amount, kind, label) => {
       ui.popNumber(gloom.position, amount, kind, 1.6);
       if (label !== 'normal') ui.popNumber(gloom.position, label === 'super' ? 'SUPER!' : 'weak', label, 2.5);   // the type pop-ups
+      if (label === 'super' && !said.super) { said.super = true; saySoon('super', 0.8); }
       if (kind !== 'big') return;
       prologue.noteHit(kind);
       waveHits++;
@@ -101,6 +103,11 @@ const squad = createSquad({
       }
     },
     defeat: () => { if (!said.first && !prologue.running) { said.first = true; story.say('first'); } },
+    combo: (name, count, gloom) => {   // a combo went off: the first time it gets a banner and a word from Pip
+      shake(0.15);
+      if (said.combo) ui.popNumber(gloom.position, `${name}!`, 'combo', 2.8);
+      else { said.combo = true; ui.showBanner(`${name}!`, 'A new combo!'); saySoon('combo', 1); }
+    },
   },
 });
 const player = squad.player;   // always whoever is in play (see squad.js)
@@ -167,6 +174,7 @@ function startRound() {
   player.reset();
   powers.reset();
   said.first = said.hurt = said.low = false;
+  if (squad.roster.length > 1 && !said.swap) { said.swap = true; saySoon('swapTip', 3); }
   ending = null;
   ember.leave();
   waveHitTimer = -1;

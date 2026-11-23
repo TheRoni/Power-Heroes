@@ -256,3 +256,5 @@ body.prologue #hint { display: none; }
 .floater.super { color: #ff4a2a; font-size: 34px; font-weight: 900; letter-spacing: 0.04em; text-shadow: 0 0 10px #ffd24a, 0 3px 0 rgba(0, 0, 0, 0.4); }
 .floater.weak { color: #c4c4d0; font-size: 15px; font-weight: 700; }
 #hud-name::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: var(--c, #fff); box-shadow: 0 0 5px var(--c, #fff); }
+.floater.combo { color: #9fe0ff; font-size: 30px; font-weight: 900; letter-spacing: 0.03em; text-shadow: 0 0 10px #fff59a, 0 3px 0 rgba(0, 0, 0, 0.4); }
+.floater.chain { color: #bfe8ff; font-size: 22px; }

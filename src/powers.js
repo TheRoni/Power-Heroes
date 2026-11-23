@@ -5,6 +5,7 @@ import { HEROES } from './heroes-data.js';
 import { createSuperpower, distanceToSegment } from './superpowers.js';
 import { QUIET } from './audio.js';
 import { effectiveness } from './types.js';
+import { createCombos } from './combos.js';
 
 const FLAME_COLORS = [0xff4b1f, 0xff8a1f, 0xffc933];                     // red, orange, yellow
 const POP_COLORS = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
@@ -119,6 +120,7 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
     if (events.hit) events.hit(gloom, amount, kind, label);
     audio.play(label === 'weak' ? 'weak' : kind === 'big' ? 'bell' : 'tick', { pitch: random(0.92, 1.08) });
     if (label === 'super') audio.play('super');
+    combos.onHit(data.type, gloom, base, kind);   // Storm on a soaked Gloomling: Shock Chain
     if (defeated) audio.play('pop', { pitch: random(0.9, 1.1) });
     for (let i = 0; i < 5; i++) sparks.emit(p.x, 0.8, p.z, random(-3, 3), random(1, 4), random(-3, 3), 0.3, 0.12, 0xffe9a0, -9);
     if (defeated) {
@@ -131,6 +133,7 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
     return defeated;
   }
 
+  const combos = createCombos({ gloomlings, sparks, damage, audio, events });
   const superpower = createSuperpower(data.power, { scene, hero, gloomlings, sparks, nearest, damage });
 
   function shoot(target) {

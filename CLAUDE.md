@@ -244,6 +244,7 @@ src/                  the game code, one job per file
   input.js            joystick, buttons, keyboard
   heroes-data.js      hero stats, types, powers (numbers live here)
   hero.js             hero model, movement, attacks
+  squad.js            the squad: swapping, each hero's health and recharge
   powers.js           automatic shots, damage rules and sparks
   superpowers.js      each hero's superpower (Flame Wave, Starburst, ...)
   combos.js           power reactions
