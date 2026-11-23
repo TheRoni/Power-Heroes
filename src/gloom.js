@@ -17,12 +17,13 @@ const eyeCalm = new THREE.MeshBasicMaterial({ color: 0xfff08a });    // glowing 
 const eyeAngry = new THREE.MeshBasicMaterial({ color: 0xff4a3a });   // eyes turn red just before a bump
 const browMaterial = new THREE.MeshLambertMaterial({ color: 0x1d1233 });
 
-// "scene" is where it is added. x and z are where it appears.
-export function createGloomling({ scene, x, z }) {
+// "scene" is where it is added. x and z are where it appears. A "passive" Gloomling is a training dummy:
+// pale blue, and it just stands there and never bumps anyone.
+export function createGloomling({ scene, x, z, passive = false }) {
   const group = new THREE.Group();
   const body = new THREE.Group();   // hops, squashes and swells inside the group
   group.add(body);
-  const skin = new THREE.MeshLambertMaterial({ color: 0x4a2f7a });   // its own copy, so only this Gloomling flashes when hit
+  const skin = new THREE.MeshLambertMaterial({ color: passive ? 0x6f86b8 : 0x4a2f7a });   // its own copy, so only this Gloomling flashes when hit
 
   const blob = new THREE.Mesh(blobShape, skin);
   blob.scale.set(1, 0.85, 1);
@@ -71,8 +72,8 @@ export function createGloomling({ scene, x, z }) {
     let moving = false;
 
     stun = Math.max(0, stun - dt);
-    if (stun > 0 || target.down) {
-      mode = 'chase';   // a shove cancels a bump, and nobody bumps Ember while she is out
+    if (stun > 0 || target.down || passive) {
+      mode = 'chase';   // a shove cancels a bump, nobody bumps a hero who is out, and a training dummy never does
     } else if (mode === 'chase') {
       if (distance > GLOOMLING.reach * 0.7) {
         p.x += (dx / distance) * GLOOMLING.speed * dt;
@@ -136,9 +137,11 @@ export function createGloomling({ scene, x, z }) {
     if (!alive) return false;
     health -= damage;
     flash = 1;
-    shove.x += pushX * SHOVE_FADE;   // a shove of a given distance needs a starting speed of distance x fade rate
-    shove.z += pushZ * SHOVE_FADE;
-    if (Math.hypot(pushX, pushZ) >= 1) stun = STUN_TIME;   // only a real shove stuns it, not a small tap
+    if (!passive) {   // a training dummy stays where it is, so it can never be shoved out of reach
+      shove.x += pushX * SHOVE_FADE;   // a shove of a given distance needs a starting speed of distance x fade rate
+      shove.z += pushZ * SHOVE_FADE;
+      if (Math.hypot(pushX, pushZ) >= 1) stun = STUN_TIME;   // only a real shove stuns it, not a small tap
+    }
     bar.group.visible = true;
     if (health <= 0) alive = false;
     return !alive;

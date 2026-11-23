@@ -2,17 +2,18 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 3 (movement, the first fight, the story begins). All 124
-  automatic checks pass on the normal page and on the Claude test link.
+  Stages 1 to 3 (movement, the first fight, the story begins). All 182
+  automatic checks pass on the normal page. The Claude test link is still the
+  Stage 3 version; it is republished (and re-tested) at the end of Stage 4.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
   hero who falls from the sky; **Keeper Marlo** is your mentor and teaches the
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 4 in progress (built on Sonnet, one chunk per reply):** chunk 1 is done
-  (you play Sol; heroes are general) and chunk 2 is done (Keeper Marlo).
-  **Next: chunk 3, the prologue and the new words.** Until then the story text
-  still talks to "Ember".
+- **Stage 4 in progress (built on Sonnet, one chunk per reply):** chunk 1 done
+  (you play Sol; heroes are general), chunk 2 done (Keeper Marlo), chunk 3 done
+  (the prologue, three lessons and the new words). **Next: chunk 4: Ember
+  arrives for real, polish, full test run, republish the Claude link.**
 
 ## How we work
 - **Opus** plans stages and fixes hard problems. **Sonnet** builds from the
@@ -24,17 +25,20 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (131
-  checks in 7 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes, 7 Marlo).
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (163
+  checks in 8 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  7 Marlo, 8 prologue). A full run takes about 15 minutes in the test browser.
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
   `/home/user/power-heroes`. Playwright and Chromium come with the container.
 - Add `ARTIFACT_PAGE=<page>` to test the Claude-wrapped page, built with
   `node tests/make-artifact-page.js <page>`.
-- The tests skip the opening conversation (`story.skip()`); group 5 keeps it.
+- The tests skip the prologue (`prologue.skip()`); groups 5 and 8 keep what they need of it.
 - The test browser has no graphics card: allow generous waits, and never trust
-  its frame rate. Running several test files at once slows them down.
-- When the story changes (Stage 4), update the story checks in group 5.
+  its frame rate. Running several test files at once slows them down. The test
+  runner closes each game page when it opens the next one, for the same reason.
+- When the story words change, update the story checks in group 5 (they read
+  `story-data.js`, so most of them follow the words by themselves).
 
 ## Director to-do (one time)
 - [ ] Turn on GitHub Pages (needed in Stage 8 for offline play and installing
@@ -155,7 +159,7 @@ of Chapter 1. Ember arrives at the end as a rival.
 - Tests: group 7 (13 checks). `tests/look-heroes.js` also draws Marlo:
   `node tests/look-heroes.js <folder> marlo`.
 
-**Chunk 3: the Prologue (the tutorial) and the new words.**
+**Chunk 3: the Prologue (the tutorial) and the new words. DONE.**
 - `story.js`: a scene line can wait for the player to do something, hiding the
   box until it is done: `wait: 'move'` (walk into a glowing ring), `'strike'`
   (beat one training Gloomling), `'power'` (use the superpower on a small group).
@@ -173,9 +177,42 @@ of Chapter 1. Ember arrives at the end as a rival.
 - Banners: "Prologue · The Falling Star", then "Chapter 1 · Sunmeadow".
   "Play again" skips the prologue.
 
-**Chunk 4:** full test run on both pages, polish, republish, update docs.
+**Chunk 3 build notes:**
+- New `src/sky.js`: the sky as a gradient painted on a small canvas, day or night
+  (deep blue, purple glow at the horizon, 70 twinkling stars). `scene.js` has
+  `world.setNight(0 to 1, time)`: the sky, the two lights and the clouds' glow
+  change together. `world.night` says how dark it is.
+- New `src/prologue.js` (the opening, about 290 lines). Phases: dark (1.4 s),
+  a star falls (2 s, with a spark trail), it lands (white flash, shake, spark
+  burst, a glowing crater) and Sol climbs out, Marlo walks over, the
+  conversation (with three lessons), the sunrise (3 s, title "Sunmeadow ·
+  Chapter 1"), then the first wave. During the dark part the controls are off.
+- Lessons: **walk** into a glowing ring; **strike**: one training Gloomling
+  that the darts bring down by themselves; **power**: three training
+  Gloomlings around Sol, the darts switched off, Starburst must hit two.
+  A short hint box shows what to do (different words on a phone and a
+  computer). Training Gloomlings are pale blue (`passive` in `gloom.js`): they
+  never move, never bump and cannot be shoved.
+- "Skip intro" button (top right) jumps straight to daylight and the first
+  wave. "Play again" never replays the prologue. With "reduce motion" the
+  landing is a soft glow, not a white flash, and nothing shakes.
+- `story.js`: lines can be `{ wait, hint }` steps (lessons) and can name a cue
+  (`'power-climb'`: Sol's Power number climbs above their head while Marlo
+  reads it). Bubbles can be Marlo's (shown as "Marlo: ..." above him).
+- `story-data.js` is rewritten: prologue (19 steps), win (Ember meets Sol,
+  Marlo: "So did she."), lose (Marlo helps Sol up), and bubbles from Pip and Marlo.
+- Small changes: `powers.autoFire` (darts can be switched off), `hero.setVisible`,
+  `waves.progress` never goes below 0, the grey veil is not drawn at night and
+  comes in with the sunrise.
+- Tests: group 5 rewritten for the new story (reads `story-data.js`); new group 8
+  (prologue: unit checks, the whole prologue played with the keys, both Skip
+  cases, reduce motion, a phone).
 
-**New files:** `src/hero-models.js`, `src/marlo.js` (and maybe `src/superpowers.js`).
+**Chunk 4:** Ember's real arrival at the end of Chapter 1 (she walks in during
+the win scene), full test run on both pages, polish, republish, update docs.
+
+**New files:** `src/hero-models.js`, `src/marlo.js`, `src/superpowers.js`,
+`src/sky.js`, `src/prologue.js` (the last two were not in the first plan).
 
 ## Stage 5 plan: flute music and sound (outline; detail it before building)
 - New `src/audio.js` (sound engine, starts on the first tap, Mute button that
@@ -194,8 +231,13 @@ of Chapter 1. Ember arrives at the end as a rival.
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
   iPhones, how hard the fight is, how the conversation box reads, and whether
   48 letters a second feels right. Difficulty numbers are in `src/heroes-data.js`.
-- No skip button for conversations yet (the opening plays once per visit).
-- Open differences from `CLAUDE.md`: no sound yet (Stage 5); you are still Ember
-  until Stage 4; no types, swapping or combos (Stage 6); no Power numbers,
-  auras or Overdrive (Stage 7).
+- The prologue has a Skip button; the win and knocked-out conversations do not
+  (you tap through them). Closing the page mid-prologue replays it next visit
+  (saving comes in Stage 7).
+- Open differences from `CLAUDE.md`: no sound yet (Stage 5); Ember speaks in
+  the win scene but is not shown on screen until chunk 4; no types, swapping or
+  combos (Stage 6); no Power numbers, auras or Overdrive (Stage 7). The Power
+  numbers Marlo and Pip say in the story are only words for now.
+- `sky.js` and `prologue.js` are new files that were not in the first plan
+  (the director was told in the Stage 4 plan).
 - Trees only grow along the far side of the island.

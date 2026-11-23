@@ -40,7 +40,7 @@ async function openGame(browser, label, options) {
   });
   await page.goto('http://game.local/' + (ARTIFACT ? '#debug' : '?debug'));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
-  await page.evaluate(() => { window.__game.story.skip(); window.__game.waves.reset(); });   // the Stage 1 checks are about movement, so skip the story and switch the enemies off
+  await page.evaluate(() => { window.__game.prologue.skip(); window.__game.waves.reset(); });   // the Stage 1 checks are about movement, so skip the prologue and switch the enemies off
   return { context, page };
 }
 

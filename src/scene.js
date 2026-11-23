@@ -1,6 +1,7 @@
 // scene.js: builds the 3D world (sky, floating island, trees, rocks, clouds, lights)
 // and the camera that follows the hero.
 import * as THREE from '../lib/three.module.min.js';
+import { createSky } from './sky.js';
 
 export const ISLAND_RADIUS = 12;   // the whole island, including its decorated edge
 export const WALK_RADIUS = 10.2;   // how far from the centre the hero may walk
@@ -34,26 +35,10 @@ function hash(x, y, z) {
   return s - Math.floor(s);
 }
 
-// The sky: a blue-to-cream gradient painted on a tiny canvas and used as the background.
-function makeSky() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 2;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-  gradient.addColorStop(0, '#4aa8ee');
-  gradient.addColorStop(0.55, '#a6dcf8');
-  gradient.addColorStop(1, '#fff0d6');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 2, 256);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
 function addLights(scene) {
   // Soft light from the sky above and bounced light from the grass below.
-  scene.add(new THREE.HemisphereLight(0xdff3ff, 0x9bc46a, 1.5));
+  const hemi = new THREE.HemisphereLight(0xdff3ff, 0x9bc46a, 1.5);
+  scene.add(hemi);
   // The sun: warm light that also casts shadows.
   const sun = new THREE.DirectionalLight(0xfff1d8, 2.2);
   sun.position.set(7, 14, 8);
@@ -64,6 +49,7 @@ function addLights(scene) {
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
   scene.add(sun);
+  return { hemi, sun };
 }
 
 // The island: a grassy top, a band of soil, and a chunky rock underneath.
@@ -220,8 +206,9 @@ function addClouds(scene, rand) {
 export function createWorld() {
   const scene = new THREE.Scene();
   const rand = makeRandom(7);
-  scene.background = makeSky();
-  addLights(scene);
+  const sky = createSky();
+  scene.background = sky.texture;
+  const lights = addLights(scene);
   scene.add(buildIsland());
 
   // Grass tufts (which sway) and flowers, so you can see yourself moving across the ground.
@@ -252,6 +239,25 @@ export function createWorld() {
     const forDepth = (MIN_DEPTH / 2) * Math.sin(PITCH) / tanHalf;
     distance = Math.max(forWidth, forDepth);
     camera.updateProjectionMatrix();
+    sky.resize(width, height);
+  }
+
+  // 0 = day, 1 = night: the sky and the lights change together. "time" makes the stars twinkle.
+  const light = { hemi: [0xdff3ff, 0x5468c0], ground: [0x9bc46a, 0x121a44], sun: [0xfff1d8, 0x8aa0ff] };   // [day, night]
+  const tint = new THREE.Color();
+  const other = new THREE.Color();
+  const cloudGlow = clouds.children[0].material;   // the clouds glow a little by themselves, so they are dimmed at night too
+  let night = 0;
+  function setNight(amount, time = 0) {
+    night = amount;
+    sky.set(amount, time);
+    cloudGlow.emissive.set(0x7fa6cc).lerp(other.set(0x1c2552), amount);
+    const mix = (pair) => tint.set(pair[0]).lerp(other.set(pair[1]), amount);
+    lights.hemi.color.copy(mix(light.hemi));
+    lights.hemi.groundColor.copy(mix(light.ground));
+    lights.sun.color.copy(mix(light.sun));
+    lights.hemi.intensity = 1.5 - 1.0 * amount;
+    lights.sun.intensity = 2.2 - 1.75 * amount;
   }
 
   // Glides the camera after the hero. "snap" jumps straight there (used once, at the start).
@@ -273,5 +279,5 @@ export function createWorld() {
     clouds.rotation.y += dt * 0.012;
   }
 
-  return { scene, camera, resize, follow, update };
+  return { scene, camera, resize, follow, update, setNight, get night() { return night; } };
 }

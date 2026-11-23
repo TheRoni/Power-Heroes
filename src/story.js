@@ -1,5 +1,6 @@
-// story.js: tells the story. A scene is a conversation you tap through (the game waits while it plays).
-// A bubble is a quick line from Pip that floats by while the fight carries on.
+// story.js: tells the story. A scene is a conversation you tap through (the game waits while it plays). A scene can
+// also hand the game back to the player for a lesson (a "wait") and carry on when the lesson is done.
+// A bubble is a quick line that floats by while the fight carries on.
 import * as THREE from '../lib/three.module.min.js';
 import { SPEAKERS, SCENES, BUBBLES } from './story-data.js';
 
@@ -8,34 +9,37 @@ const BUBBLE_TIME = 3.2;   // how long a bubble stays (seconds)
 const TAP_LOCK = 0.25;     // when a scene starts, taps are ignored for this long, so a hurried tap cannot skip the first line
 const MOVEMENT_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 
-// "anchor" is the 3D object Pip's bubble follows. "root" is the page to draw on (tests pass a spare one).
-// "touch" is true on a phone, so lines can mention the thumb controls. onStart() runs when a scene begins.
-// onSpeak() runs when Pip says something.
-export function createStory({ camera, anchor, root = document, touch, onStart, onSpeak }) {
+// "anchors" say where each speaker's bubble floats: { pip: { object, lift }, marlo: { object, lift } }.
+// "root" is the page to draw on (tests pass a spare one). "touch" is true on a phone, so lines can mention the thumb
+// controls. onStart() runs when a conversation begins. onSpeak() when Pip speaks. onWait(kind) when a lesson begins.
+// onCue(name) when a line that names a cue appears.
+export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue }) {
   const byId = (id) => root.getElementById(id);
   const overlay = byId('dialogue');
   const nameBox = byId('dialogue-name');
   const textBox = byId('dialogue-text');
   const nextMark = byId('dialogue-next');
   const bubble = byId('bubble');
+  const lessonBox = byId('lesson');
   const phone = touch === undefined ? window.matchMedia('(pointer: coarse)').matches : touch;
   const point = new THREE.Vector3();
 
-  let lines = [];       // the lines of the scene being told
-  let index = 0;        // which line we are on
-  let full = '';        // the whole line being typed
-  let typed = 0;        // how many letters should be showing
-  let shown = 0;        // how many letters are on the page right now
-  let lock = 0;         // time left in the tap lock
-  let onDone = null;    // what to do when the scene ends
-  let active = false;
-  let bubbleLeft = 0;   // time left before the bubble fades
+  let lines = [];        // the steps of the scene being told
+  let index = 0;         // which step we are on
+  let full = '';         // the whole line being typed
+  let typed = 0;         // how many letters should be showing
+  let shown = 0;         // how many letters are on the page right now
+  let lock = 0;          // time left in the tap lock
+  let onDone = null;     // what to do when the scene ends
+  let active = false;    // the conversation box is showing (the game waits)
+  let waiting = null;    // the kind of lesson the scene is waiting for, if any (the game runs)
+  let bubbleLeft = 0;    // time left before the bubble fades
+  let bubbleAnchor = null;
   let lastBubble = '';
 
   const resolve = (text) => (typeof text === 'string' ? text : phone ? text.touch : text.keys);
 
-  function showLine() {
-    const [who, text] = lines[index];
+  function showLine([who, text, cue]) {
     const speaker = SPEAKERS[who];
     full = resolve(text);
     typed = 0;
@@ -45,14 +49,39 @@ export function createStory({ camera, anchor, root = document, touch, onStart, o
     textBox.textContent = '';
     nextMark.classList.remove('on');
     if (who === 'pip' && onSpeak) onSpeak();
+    if (cue && onCue) onCue(cue);
+  }
+
+  // A lesson: hide the conversation, show a short reminder, and let the player play until the lesson is done.
+  function startWait(step) {
+    active = false;
+    overlay.hidden = true;
+    waiting = step.wait;
+    lessonBox.textContent = resolve(step.hint);
+    lessonBox.hidden = false;
+    if (onWait) onWait(step.wait);
+  }
+
+  function showStep() {
+    const step = lines[index];
+    if (Array.isArray(step)) showLine(step);
+    else startWait(step);
   }
 
   function finish() {
     active = false;
+    waiting = null;
     overlay.hidden = true;
+    lessonBox.hidden = true;
     const callback = onDone;
     onDone = null;
     if (callback) callback();
+  }
+
+  function goOn() {
+    index++;
+    if (index < lines.length) showStep();
+    else finish();
   }
 
   // A tap, click, Space or Enter. The first one finishes typing the line. The next one goes on.
@@ -65,42 +94,59 @@ export function createStory({ camera, anchor, root = document, touch, onStart, o
       nextMark.classList.add('on');
       return;
     }
-    index++;
-    if (index < lines.length) showLine();
-    else finish();
+    goOn();
   }
 
-  // Starts a conversation. "onEnd" is called when the last line has been read.
+  // Starts a conversation. "onEnd" is called when the last step is done.
   function scene(id, onEnd) {
     lines = SCENES[id];
     index = 0;
     active = true;
+    waiting = null;
     lock = TAP_LOCK;
     onDone = onEnd || null;
     bubble.classList.remove('show');
     bubbleLeft = 0;
     overlay.hidden = false;
     if (onStart) onStart();
-    showLine();
+    showStep();
   }
 
-  // Ends the conversation right away (used by the automatic tests).
+  // The lesson is done: the conversation comes back and carries on.
+  function resume() {
+    if (!waiting) return;
+    waiting = null;
+    lessonBox.hidden = true;
+    active = true;
+    lock = TAP_LOCK;
+    overlay.hidden = false;
+    if (onStart) onStart();
+    goOn();
+  }
+
+  // Ends the conversation (or lesson) right away. Used by the skip button and by the automatic tests.
   function skip() {
-    if (active) finish();
+    if (active || waiting) finish();
   }
 
-  // A quick line from Pip. Refused while a conversation is on. Never the same line twice in a row.
+  // A quick line. A plain line is Pip's; { who, text } is someone else's. Refused during a conversation or lesson.
+  // Never the same line twice in a row.
   function say(key) {
     const options = BUBBLES[key];
-    if (active || !options || options.length === 0) return false;
+    if (active || waiting || !options || options.length === 0) return false;
+    let choice;
     let text;
-    do text = resolve(options[Math.floor(Math.random() * options.length)]);
-    while (text === lastBubble && options.length > 1);
+    do {
+      choice = options[Math.floor(Math.random() * options.length)];
+      text = resolve(choice.who ? choice.text : choice);
+      if (choice.who) text = `${SPEAKERS[choice.who].name}: ${text}`;
+    } while (text === lastBubble && options.length > 1);
     lastBubble = text;
     bubble.textContent = text;
     bubble.classList.add('show');
     bubbleLeft = BUBBLE_TIME;
-    if (onSpeak) onSpeak();
+    bubbleAnchor = anchors[choice.who || 'pip'] || anchors.pip;
+    if (!choice.who && onSpeak) onSpeak();
     return true;
   }
 
@@ -122,9 +168,9 @@ export function createStory({ camera, anchor, root = document, touch, onStart, o
       bubbleLeft -= dt;
       if (bubbleLeft <= 0) {
         bubble.classList.remove('show');
-      } else {   // keep the bubble just above Pip, and on the screen
-        point.copy(anchor.position);
-        point.y += 0.7;
+      } else {   // keep the bubble just above whoever is speaking, and on the screen
+        point.copy(bubbleAnchor.object.position);
+        point.y += bubbleAnchor.lift;
         point.project(camera);
         const x = Math.max(130, Math.min(window.innerWidth - 130, (point.x * 0.5 + 0.5) * window.innerWidth));
         const y = Math.max(60, (-point.y * 0.5 + 0.5) * window.innerHeight);
@@ -139,7 +185,7 @@ export function createStory({ camera, anchor, root = document, touch, onStart, o
     advance();
   });
 
-  // Keys are caught before anything else sees them, so Space cannot also fire the Flame Wave, and Ember cannot walk off.
+  // Keys are caught before anything else sees them, so Space cannot also fire the superpower, and the hero cannot walk off.
   window.addEventListener('keydown', (event) => {
     if (!active) return;
     if (event.code === 'Space' || event.code === 'Enter') {
@@ -151,5 +197,10 @@ export function createStory({ camera, anchor, root = document, touch, onStart, o
     }
   }, true);
 
-  return { scene, say, skip, advance, update, get active() { return active; } };
+  return {
+    scene, say, skip, advance, resume, update,
+    get active() { return active; },
+    get waiting() { return waiting; },
+    get inScene() { return active || waiting !== null; },
+  };
 }

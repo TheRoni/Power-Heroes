@@ -16,10 +16,14 @@ const ARTIFACT = process.env.ARTIFACT_PAGE || '';
 const SKELETON = (inner) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>${inner}</body></html>`;
 const CSP = "default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://code.jquery.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:";
 
-let KEEP_INTRO = false;   // the story tests want the opening conversation; every other test skips it
+let KEEP_INTRO = false;   // the prologue tests want the opening; every other test skips it
+
+const OPEN = [];   // every game page opened so far: older ones are closed when a new one opens, so they stop using the (slow) software graphics
 
 async function openGame(browser, label, viewport = { width: 800, height: 450 }, hasTouch = false, extra = {}) {
+  await Promise.all(OPEN.splice(0).map((old) => old.close().catch(() => {})));
   const context = await browser.newContext({ viewport, hasTouch, isMobile: hasTouch, deviceScaleFactor: 1, ...extra });
+  OPEN.push(context);
   await context.route('http://game.local/**', (route) => {
     let p = new URL(route.request().url()).pathname;
     if (p === '/' && ARTIFACT) {
@@ -36,11 +40,11 @@ async function openGame(browser, label, viewport = { width: 800, height: 450 }, 
   const page = await context.newPage();
   page.on('pageerror', (e) => problems.push(`[${label}] page error: ${e.message}`));
   page.on('console', (m) => {
-    if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
+    if ((m.type() === 'error' || m.type() === 'warning') && !m.text().includes('GPU stall') && !m.text().includes('willReadFrequently')) problems.push(`[${label}] console ${m.type()}: ${m.text()}`);
   });
   await page.goto('http://game.local/' + (ARTIFACT ? '#debug' : '?debug'));
   await page.waitForFunction(() => window.__game && window.__game.renderer.info.render.frame > 10, null, { timeout: 90000 });
-  if (!KEEP_INTRO) await page.evaluate(() => window.__game.story.skip());
+  if (!KEEP_INTRO) await page.evaluate(() => window.__game.prologue.skip());
   return { page, context };
 }
 const until = (page, fn, arg, timeout = 90000) => page.waitForFunction(fn, arg, { timeout });
@@ -471,52 +475,75 @@ async function chunk4(browser) {
 }
 
 
-// ---------- Story: Pip, conversations, bubbles ----------
+// ---------- Story: conversations, lessons, bubbles (Pip and Marlo) ----------
 const storyUnit = async () => {
   const THREE = await import('/lib/three.module.min.js');
   const { createStory } = await import('/src/story.js');
-  const { SCENES, BUBBLES } = await import('/src/story-data.js');
+  const { SCENES, BUBBLES, SPEAKERS } = await import('/src/story-data.js');
   const out = {};
   const make = (touch) => {
     const doc = document.implementation.createHTMLDocument('story test');
-    doc.body.innerHTML = '<div id="bubble"></div><div id="dialogue" hidden><div id="dialogue-box"><div id="dialogue-face"></div><div id="dialogue-body"><div id="dialogue-name"></div><p id="dialogue-text"></p></div><div id="dialogue-next"></div></div></div>';
+    doc.body.innerHTML = '<div id="bubble"></div><div id="lesson" hidden></div><div id="dialogue" hidden><div id="dialogue-box"><div id="dialogue-face"></div><div id="dialogue-body"><div id="dialogue-name"></div><p id="dialogue-text"></p></div><div id="dialogue-next"></div></div></div>';
     const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 100);
     camera.position.set(0, 10, 10); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
-    const log = { started: 0, spoke: 0, done: 0 };
-    const story = createStory({ camera, anchor: new THREE.Object3D(), root: doc, touch, onStart: () => { log.started++; }, onSpeak: () => { log.spoke++; } });
+    const log = { started: 0, spoke: 0, done: 0, waits: [], cues: [] };
+    const pip = new THREE.Object3D(); pip.position.set(-3, 0, 0);       // Pip is left of the middle of the picture, Marlo right of it
+    const marlo = new THREE.Object3D(); marlo.position.set(3, 0, 0);
+    const story = createStory({
+      camera, anchors: { pip: { object: pip, lift: 0.7 }, marlo: { object: marlo, lift: 3.4 } }, root: doc, touch,
+      onStart: () => { log.started++; }, onSpeak: () => { log.spoke++; }, onWait: (kind) => { log.waits.push(kind); }, onCue: (cue) => { log.cues.push(cue); },
+    });
     return { story, log, $: (id) => doc.getElementById(id) };
   };
   const press = (code) => document.body.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true, bubbles: true }));   // like a real key press: it starts at the page and travels up
   const letters = (s) => s.$('dialogue-text').textContent.length;
   const tap = (s) => s.$('dialogue').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  const readToLesson = (s) => { for (let i = 0; i < 60 && !s.story.waiting; i++) { press('Space'); press('Space'); } };
 
-  {
+  {   // the prologue, line by line
     const s = make(false);
-    s.story.scene('intro', () => { s.log.done++; });
-    out.opened = { active: s.story.active, shown: !s.$('dialogue').hidden, started: s.log.started, name: s.$('dialogue-name').textContent, spoke: s.log.spoke };
+    const first = SCENES.prologue[0];
+    s.story.scene('prologue', () => { s.log.done++; });
+    out.opened = { active: s.story.active, shown: !s.$('dialogue').hidden, started: s.log.started, name: s.$('dialogue-name').textContent, cues: s.log.cues.slice(), spoke: s.log.spoke };
     s.story.update(0.1);
     out.typingEarly = letters(s);
     press('Space');
-    out.lockHeld = letters(s) < SCENES.intro[0][1].length;
+    out.lockHeld = letters(s) < first[1].length;
     s.story.update(0.3);
     out.typingLater = letters(s);
     press('Space');
-    out.finished = s.$('dialogue-text').textContent === SCENES.intro[0][1] && s.$('dialogue-next').classList.contains('on');
+    out.finished = s.$('dialogue-text').textContent === first[1] && s.$('dialogue-next').classList.contains('on');
     press('Space');
     out.nextLine = { name: s.$('dialogue-name').textContent, letters: letters(s) };
-    for (let i = 0; i < 2; i++) { press('Space'); press('Space'); }
-    out.emberLine = s.$('dialogue-name').textContent;
-    for (let i = 0; i < 6; i++) { press('Space'); press('Space'); }
-    out.ended = { active: s.story.active, hidden: s.$('dialogue').hidden, done: s.log.done };
-  }
-  for (const [touch, key] of [[true, 'phone'], [false, 'computer']]) {
-    const s = make(touch);
-    s.story.scene('intro');
+    readToLesson(s);
+    out.wait1 = { waiting: s.story.waiting, active: s.story.active, inScene: s.story.inScene, hidden: s.$('dialogue').hidden, hint: s.$('lesson').textContent, shown: !s.$('lesson').hidden, waits: s.log.waits.slice() };
+    out.refusedInLesson = s.story.say('wave1') === false;
+    let ws = 0;
+    const probe = (e) => { if (e.code === 'KeyW') ws++; };
+    window.addEventListener('keydown', probe); press('KeyW'); window.removeEventListener('keydown', probe);
+    out.keysFreeInLesson = ws === 1;
+    const startedBefore = s.log.started;
+    s.story.resume();
+    out.resumed = { active: s.story.active, waiting: s.story.waiting, lessonHidden: s.$('lesson').hidden, started: s.log.started - startedBefore, name: s.$('dialogue-name').textContent, letters: letters(s) };
+    press('Space');
+    out.lockAfterLesson = letters(s) === 0;
     s.story.update(0.3);
-    for (let i = 0; i < 5; i++) { press('Space'); press('Space'); }
-    s.story.update(5);
-    out[key] = s.$('dialogue-text').textContent;
+    s.story.resume();   // not in a lesson: nothing happens
+    out.resumeIdle = { started: s.log.started - startedBefore, active: s.story.active };
+    for (let i = 0; i < 80 && s.story.inScene; i++) {
+      if (s.story.waiting) s.story.resume(); else { press('Space'); press('Space'); }
+      s.story.update(0.3);
+    }
+    out.ended = { active: s.story.active, waiting: s.story.waiting, hidden: s.$('dialogue').hidden, lessonHidden: s.$('lesson').hidden, done: s.log.done, waits: s.log.waits.slice() };
+  }
+  for (const [touch, key] of [[true, 'phone'], [false, 'computer']]) {   // a lesson's hint can differ on a phone and a computer
+    const s = make(touch);
+    s.story.scene('prologue');
+    s.story.update(0.3);
+    readToLesson(s);
+    out[key] = s.$('lesson').textContent;
     s.story.skip();
+    out[key + 'Skip'] = { waiting: s.story.waiting, lessonHidden: s.$('lesson').hidden, active: s.story.active, inScene: s.story.inScene };
   }
   {
     let spaces = 0, ws = 0;
@@ -535,126 +562,388 @@ const storyUnit = async () => {
     const s = make(false);
     s.story.scene('lose'); s.story.update(0.05);
     tap(s);
-    out.tapTooSoon = letters(s) < SCENES.lose[0][1].length && s.$('dialogue-name').textContent === 'Pip';
+    out.tapTooSoon = letters(s) < SCENES.lose[0][1].length && s.$('dialogue-name').textContent === 'Marlo';
     s.story.update(0.3);
     const before = letters(s);
     tap(s);
     out.tapFinishes = letters(s) > before && s.$('dialogue-text').textContent === SCENES.lose[0][1];
   }
-  {
+  {   // bubbles: Pip's are plain, Marlo's are named, and each floats by its own speaker
     const s = make(false);
+    const textOf = (b) => (typeof b === 'string' ? b : `${SPEAKERS[b.who].name}: ${b.text}`);
+    const valid = (text) => BUBBLES.wave1.some((b) => textOf(b) === text);
+    const bubbleX = () => +/translate\(([\d.-]+)px/.exec(s.$('bubble').style.transform)[1];
     out.said = s.story.say('wave1');
     const text = s.$('bubble').textContent;
-    out.bubble = { valid: BUBBLES.wave1.includes(text), visible: s.$('bubble').classList.contains('show'), spoke: s.log.spoke };
+    out.bubble = { valid: valid(text), visible: s.$('bubble').classList.contains('show'), spokeRight: s.log.spoke === (text.startsWith('Marlo: ') ? 0 : 1) };
     s.story.update(1); s.story.update(1); s.story.update(1.5);
     out.bubbleGone = !s.$('bubble').classList.contains('show');
-    let repeats = 0, previous = '';
-    for (let i = 0; i < 40; i++) { s.story.say('wave1'); const t = s.$('bubble').textContent; if (t === previous) repeats++; previous = t; }
+    let repeats = 0, previous = '', pipX = null, marloX = null;
+    for (let i = 0; i < 80; i++) {
+      s.story.say('wave1');
+      const t = s.$('bubble').textContent;
+      if (t === previous) repeats++;
+      previous = t;
+      s.story.update(0.01);
+      if (t.startsWith('Marlo: ')) marloX = bubbleX(); else pipX = bubbleX();
+    }
     out.repeats = repeats;
+    out.anchored = { pipX, marloX };
     s.story.scene('lose');
     out.duringScene = s.story.say('wave1');
     s.story.skip();
     out.unknown = s.story.say('nonsense');
   }
+  {   // the words themselves: every step is well formed and short
+    const problems = [];
+    const lengthOk = (text) => (typeof text === 'string' ? [text] : [text.touch, text.keys]).every((t) => typeof t === 'string' && t.length > 0 && t.length <= 100);
+    for (const [id, steps] of Object.entries(SCENES)) {
+      steps.forEach((step, i) => {
+        if (Array.isArray(step)) { if (!SPEAKERS[step[0]] || !lengthOk(step[1])) problems.push(`${id}#${i}`); }
+        else if (!['move', 'strike', 'power'].includes(step.wait) || !lengthOk(step.hint)) problems.push(`${id}#${i} (lesson)`);
+      });
+    }
+    for (const [id, list] of Object.entries(BUBBLES)) {
+      list.forEach((b, i) => { if (!(typeof b === 'string' ? lengthOk(b) : SPEAKERS[b.who] && lengthOk(b.text))) problems.push(`bubble ${id}#${i}`); });
+    }
+    out.data = {
+      problems,
+      lessons: SCENES.prologue.filter((step) => !Array.isArray(step)).map((step) => step.wait),
+      cue: SCENES.prologue.some((step) => Array.isArray(step) && step[2] === 'power-climb'),
+      emberInWin: SCENES.win.some((step) => step[0] === 'ember'),
+      marloLast: SCENES.win[SCENES.win.length - 1][0],
+    };
+  }
   return out;
 };
 
 async function readOn(page) {   // one press at a time: it finishes the line, or goes on to the next
+  const names = new Set();
   for (let guard = 0; guard < 80; guard++) {
-    if (!(await page.evaluate(() => window.__game.story.active))) return;
+    const now = await page.evaluate(() => ({ active: window.__game.story.active, name: document.getElementById('dialogue-name').textContent }));
+    if (!now.active) break;
+    names.add(now.name);
     await page.waitForTimeout(350);
     await page.keyboard.press('Space');
   }
+  return [...names];
+}
+
+async function readUntil(page, done) {   // reads on (one press at a time) until the page says "done"
+  for (let guard = 0; guard < 100; guard++) {
+    if (await page.evaluate(done)) return true;
+    await page.waitForTimeout(350);
+    await page.keyboard.press('Space');
+  }
+  return false;
 }
 
 async function chunk5(browser) {
-  let { page, context } = await openGame(browser, 'story-unit');
+  const { SCENES, BUBBLES, SPEAKERS } = await import(`file://${ROOT}/src/story-data.js`);
+  const bubbleTexts = (key) => BUBBLES[key].map((b) => (typeof b === 'string' ? b : `${SPEAKERS[b.who].name}: ${b.text}`));
+  let { page } = await openGame(browser, 'story-unit');
   const u = await page.evaluate(storyUnit);
-  check('a conversation opens, Pip speaks, and the controls are let go', u.opened.active && u.opened.shown && u.opened.started === 1 && u.opened.name === 'Pip' && u.opened.spoke === 1, JSON.stringify(u.opened));
+  check('a conversation opens with the first speaker, the controls are let go and the cue fires', u.opened.active && u.opened.shown && u.opened.started === 1 && u.opened.name === 'Marlo' && u.opened.cues.join() === 'power-climb' && u.opened.spoke === 0, JSON.stringify(u.opened));
   check('the words appear letter by letter', u.typingEarly > 0 && u.typingEarly < 12 && u.typingLater > u.typingEarly, `${u.typingEarly} then ${u.typingLater}`);
   check('a press in the first moment is ignored (tap lock)', u.lockHeld);
-  check('the first press finishes the line, the next goes on', u.finished && u.nextLine.name === 'Pip' && u.nextLine.letters === 0, JSON.stringify(u.nextLine));
-  check('Ember has her own lines', u.emberLine === 'Ember', u.emberLine);
-  check('after the last line the conversation closes and "done" runs once', !u.ended.active && u.ended.hidden && u.ended.done === 1, JSON.stringify(u.ended));
-  check('a phone is told about the thumb controls', /Drag on the left/.test(u.phone), u.phone);
-  check('a computer is told about the keys', /WASD/.test(u.computer), u.computer);
+  check('the first press finishes the line, the next goes on', u.finished && u.nextLine.name === 'Sol' && u.nextLine.letters === 0, JSON.stringify(u.nextLine));
+  check('a lesson hands the game back: the box hides, a hint shows, the game is told which lesson', u.wait1.waiting === 'move' && !u.wait1.active && u.wait1.inScene && u.wait1.hidden && u.wait1.shown && u.wait1.waits.join() === 'move' && u.wait1.hint.length > 10, JSON.stringify(u.wait1));
+  check('during a lesson bubbles are refused and the movement keys reach the game', u.refusedInLesson && u.keysFreeInLesson);
+  check('when the lesson is done the conversation comes back, the controls are let go, and the tap lock applies again', u.resumed.active && u.resumed.waiting === null && u.resumed.lessonHidden && u.resumed.started === 1 && u.resumed.name === 'Marlo' && u.lockAfterLesson, JSON.stringify(u.resumed));
+  check('resuming when no lesson is on does nothing', u.resumeIdle.started === 1 && u.resumeIdle.active);
+  check('the scene ends after its last line: box and hint hidden, "done" runs once, all three lessons were announced in order', !u.ended.active && u.ended.waiting === null && u.ended.hidden && u.ended.lessonHidden && u.ended.done === 1 && u.ended.waits.join() === 'move,strike,power', JSON.stringify(u.ended));
+  check('a phone is told about the thumb controls, a computer about the keys', /Drag on the left/.test(u.phone) && /W A S D/.test(u.computer), `${u.phone} | ${u.computer}`);
+  check('skipping during a lesson ends everything cleanly', !u.phoneSkip.inScene && u.phoneSkip.lessonHidden && !u.computerSkip.inScene && u.computerSkip.lessonHidden);
   check('during a conversation Space and movement keys never reach the game', u.swallowed.spaces === 0 && u.swallowed.ws === 0 && u.passed.spaces === 1 && u.passed.ws === 1, JSON.stringify([u.swallowed, u.passed]));
   check('a tap too soon is ignored, a later one finishes the line', u.tapTooSoon && u.tapFinishes);
-  check('Pip bubbles show a line from the right set and fade after about 3 s', u.said && u.bubble.valid && u.bubble.visible && u.bubbleGone, JSON.stringify(u.bubble));
+  check('bubbles show a line from the right set (Marlo\'s are named), and fade after about 3 s', u.said && u.bubble.valid && u.bubble.visible && u.bubble.spokeRight && u.bubbleGone, JSON.stringify(u.bubble));
+  check('Pip speaks only for his own bubbles, and each bubble floats by its speaker', u.anchored.pipX !== null && u.anchored.marloX !== null && u.anchored.pipX < 400 && u.anchored.marloX > 400, JSON.stringify(u.anchored));
   check('a bubble never repeats the line before it', u.repeats === 0, `repeats=${u.repeats}`);
   check('bubbles are refused during a conversation and for unknown names', u.duringScene === false && u.unknown === false);
+  check('every line is well formed and short (100 letters at most)', u.data.problems.length === 0, u.data.problems.join(', '));
+  check('the prologue has the three lessons in order and the Power-climb cue; the win scene has Ember and ends on Marlo', u.data.lessons.join() === 'move,strike,power' && u.data.cue && u.data.emberInWin && u.data.marloLast === 'marlo', JSON.stringify(u.data));
 
-  // Live game: the opening.
-  KEEP_INTRO = true;
+  // Live game: the first wave brings a bubble; the win and knocked-out conversations come before the end screens.
   ({ page } = await openGame(browser, 'story-live'));
-  KEEP_INTRO = false;
-  const open = await page.evaluate(() => ({ active: window.__game.story.active, state: window.__game.waves.state, name: document.getElementById('dialogue-name').textContent, shown: !document.getElementById('dialogue').hidden, bannerTitle: document.getElementById('banner-title').textContent, bannerSub: document.getElementById('banner-sub').textContent }));
-  check('the game opens with the chapter title and Pip talking', open.active && open.shown && open.name === 'Pip' && open.state === 'idle' && open.bannerTitle === 'Sunmeadow' && open.bannerSub === 'Chapter 1', JSON.stringify(open));
-  await until(page, () => document.getElementById('dialogue-text').textContent.length > 20);
-  await page.screenshot({ path: `${OUT}/story-1-intro.png` });
-  await until(page, () => { const G = window.__game; return Math.hypot(G.pip.group.position.x - G.player.position.x, G.pip.group.position.z - G.player.position.z) < 4; });
-  check('Pip flies in to Ember\'s side', true);
-  await page.keyboard.down('d');
-  await page.waitForTimeout(500);
-  const held = await page.evaluate(() => ({ x: window.__game.player.position.x, state: window.__game.waves.state, ready: window.__game.powers.powerReady }));
-  await page.keyboard.up('d');
-  check('the fight waits: Ember cannot walk off and no wave starts', Math.abs(held.x) < 1e-6 && held.state === 'idle', JSON.stringify(held));
-  await readOn(page);
-  const afterIntro = await page.evaluate(() => ({ active: window.__game.story.active, ready: window.__game.powers.powerReady, state: window.__game.waves.state }));
-  check('reading the last line starts the first wave', !afterIntro.active && ['break', 'spawning'].includes(afterIntro.state), JSON.stringify(afterIntro));
-  check('Space during the conversation did not fire the Flame Wave', afterIntro.ready);
   await until(page, () => document.getElementById('bubble').classList.contains('show'));
   const bubbleText = await page.evaluate(() => document.getElementById('bubble').textContent);
-  const { BUBBLES } = { BUBBLES: { wave1: ['Here they come! Try not to get bumped.', 'Incoming! Stay bouncy!'] } };
-  check('Pip cheers on the first wave with a speech bubble', BUBBLES.wave1.includes(bubbleText), bubbleText);
+  check('the first wave brings a speech bubble from Pip or Marlo', bubbleTexts('wave1').includes(bubbleText), bubbleText);
   await page.screenshot({ path: `${OUT}/story-2-bubble.png` });
-
-  // Live game: the win and knocked-out conversations come before the end screens.
   await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
   await until(page, () => window.__game.story.active);
   const winTalk = await page.evaluate(() => ({ endHidden: document.getElementById('end').hidden, text: document.getElementById('dialogue-name').textContent }));
-  check('after the last wave Pip and Ember talk first, with no end screen yet', winTalk.endHidden && winTalk.text === 'Pip', JSON.stringify(winTalk));
+  check('after the last wave the story talks first, with no end screen yet', winTalk.endHidden && winTalk.text === SPEAKERS[SCENES.win[0][0]].name, JSON.stringify(winTalk));
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${OUT}/story-3-win.png` });
-  await readOn(page);
+  const winNames = await readOn(page);
+  check('the win conversation has Pip, Marlo, Sol and Ember in it', ['Pip', 'Marlo', 'Sol', 'Ember'].every((n) => winNames.includes(n)), winNames.join());
   await until(page, () => !document.getElementById('end').hidden);
   check('then the "Isle saved!" screen appears', (await page.evaluate(() => document.getElementById('end-title').textContent)) === 'Isle saved!');
   await page.waitForTimeout(900);
   await page.keyboard.press('Space');
   await until(page, () => document.getElementById('end').hidden);
-  const again = await page.evaluate(() => ({ active: window.__game.story.active, state: window.__game.waves.state }));
-  check('playing again skips the introduction and starts straight away', !again.active && ['break', 'spawning'].includes(again.state), JSON.stringify(again));
+  const again = await page.evaluate(() => ({ active: window.__game.story.active, state: window.__game.waves.state, prologue: window.__game.prologue.phase }));
+  check('playing again skips the prologue and starts straight away', !again.active && ['break', 'spawning'].includes(again.state) && again.prologue === 'done', JSON.stringify(again));
 
   await page.evaluate(() => { const G = window.__game; G.player.takeHit(1000, 0, 0); for (let i = 0; i < 90; i++) G.waves.update(1 / 30); });
   await until(page, () => window.__game.story.active);
-  check('being knocked out brings a short conversation too, with no end screen yet', await page.evaluate(() => document.getElementById('end').hidden));
+  check('being knocked out brings a short conversation too (Marlo helps Sol up), with no end screen yet', await page.evaluate(() => document.getElementById('end').hidden && document.getElementById('dialogue-name').textContent === 'Marlo'));
   await readOn(page);
   await until(page, () => !document.getElementById('end').hidden);
   check('then the "Knocked out" screen appears', (await page.evaluate(() => document.getElementById('end-title').textContent)) === 'Knocked out');
+}
 
-  // Phone: touches advance the conversation and never steer.
+
+// ---------- Prologue: the falling star, Marlo, three lessons, the sunrise ----------
+const prologueUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createSky } = await import('/src/sky.js');
+  const out = {};
+  const hero = (counter) => ({ position: new THREE.Vector3(0, 0, 0), down: false, takeHit: () => { counter.n++; return true; } });
+  const run = (g, h, crowd, seconds) => { for (let i = 0; i < Math.round(seconds * 30); i++) g.update(1 / 30, h, i / 30, crowd); };
+  const away = (g, x) => Math.hypot(g.position.x - x, g.position.z);
+  {   // a training Gloomling: it never moves, never bumps, and a hit does not shove it
+    const scene = new THREE.Scene();
+    const bumps = { n: 0 };
+    const h = hero(bumps);
+    const dummy = createGloomling({ scene, x: 0.4, z: 0, passive: true });
+    run(dummy, h, [dummy], 5);
+    out.still = { bumps: bumps.n, moved: away(dummy, 0.4), mode: dummy.mode };
+    const before = dummy.health;
+    const finished = dummy.hit(3, 4, 0);
+    run(dummy, h, [dummy], 1);
+    out.struck = { lost: before - dummy.health, moved: away(dummy, 0.4), alive: dummy.alive, finished };
+    out.killed = dummy.hit(1000, 0, 0) && !dummy.alive;
+  }
+  {   // a normal Gloomling still bumps and still gets shoved
+    const scene = new THREE.Scene();
+    const bumps = { n: 0 };
+    const h = hero(bumps);
+    const normal = createGloomling({ scene, x: 3, z: 0 });
+    run(normal, h, [normal], 5);
+    out.normalBumps = bumps.n;
+    const other = createGloomling({ scene, x: 4, z: 0 });
+    other.hit(1, 3, 0);
+    other.update(0.1, { position: new THREE.Vector3(0, 0, 0), down: true, takeHit: () => true }, 0, [other]);
+    out.normalShoved = other.position.x - 4;
+  }
+  {   // the sky: bright by day, dark and starry by night
+    const sky = createSky();
+    sky.resize(800, 450);
+    const canvas = sky.texture.image;
+    const light = (x, y) => { const d = canvas.getContext('2d').getImageData(x, y, 1, 1).data; return d[0] + d[1] + d[2]; };
+    sky.set(0, 0);
+    const day = light(5, 2);
+    sky.set(1, 0);
+    const night = light(5, 2);
+    let stars = 0;
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] > 450) stars++;
+    out.sky = { day, night, stars, width: canvas.width, height: canvas.height };
+  }
+  return out;
+};
+
+const watch = () => {   // runs inside the page: remembers every phase, the strongest white flash and every number that popped up
+  const G = window.__game;
+  const w = window.__watch = { phases: [], flash: 0, floaters: [], star: false, crater: false, shake: 0 };
+  const flash = document.getElementById('flash');
+  (function loop() {
+    const p = G.prologue.phase;
+    if (w.phases[w.phases.length - 1] !== p) w.phases.push(p);
+    w.flash = Math.max(w.flash, +getComputedStyle(flash).opacity);
+    w.star = w.star || G.prologue.starVisible;
+    w.crater = w.crater || G.prologue.craterVisible;
+    w.shake = Math.max(w.shake, G.fx.shake);
+    for (const f of document.querySelectorAll('.floater')) if (!w.floaters.includes(f.textContent)) w.floaters.push(f.textContent);
+    requestAnimationFrame(loop);
+  })();
+};
+
+const state = () => {   // a snapshot of the prologue, from inside the page
+  const G = window.__game;
+  const lesson = document.getElementById('lesson');
+  const rect = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+  return {
+    phase: G.prologue.phase, kind: G.prologue.lessonKind, active: G.story.active, waiting: G.story.waiting, night: G.world.night,
+    name: document.getElementById('dialogue-name').textContent, boxHidden: document.getElementById('dialogue').hidden,
+    hint: lesson.textContent, hintShown: !lesson.hidden, ring: G.prologue.ringVisible, crater: G.prologue.craterVisible, star: G.prologue.starVisible,
+    gloom: G.gloomlings.length, autoFire: G.powers.autoFire, shots: G.powers.shotCount, ready: G.powers.powerReady, waves: G.waves.state,
+    health: G.player.health, maxHealth: G.player.maxHealth, visible: G.player.group.visible, scale: G.player.group.scale.x,
+    px: G.player.position.x, pz: G.player.position.z, marloAtHome: G.marlo.atHome, marloGap: Math.hypot(G.marlo.position.x - G.player.position.x, G.marlo.position.z - G.player.position.z),
+    pipGap: Math.hypot(G.pip.group.position.x - G.marlo.position.x, G.pip.group.position.z - G.marlo.position.z), pipHeight: G.pip.group.position.y,
+    bodyClass: document.body.classList.contains('prologue'), skipShown: !document.getElementById('skip').hidden,
+    bannerTitle: document.getElementById('banner-title').textContent, bannerSub: document.getElementById('banner-sub').textContent,
+    hintDisplay: getComputedStyle(document.getElementById('hint')).display,
+    healths: G.gloomlings.map((g) => g.health), alive: G.gloomlings.filter((g) => g.alive).length,
+    lessonRect: rect('lesson'), skipRect: rect('skip'), boxRect: rect('dialogue-box'), hudRect: rect('hud-hero'),
+  };
+};
+
+async function chunk8(browser) {
+  let { page } = await openGame(browser, 'prologue-unit');
+  const u = await page.evaluate(prologueUnit);
+  check('a training Gloomling never moves, never bumps, and a hit hurts it without shoving it', u.still.bumps === 0 && u.still.moved < 0.001 && u.struck.moved < 0.001 && u.struck.lost === 3 && u.struck.alive && !u.struck.finished && u.killed, JSON.stringify([u.still, u.struck]));
+  check('a normal Gloomling still bumps and still gets shoved', u.normalBumps > 0 && u.normalShoved > 1, JSON.stringify([u.normalBumps, u.normalShoved]));
+  check('the sky is bright by day, deep blue by night, and the night has stars', u.sky.day > 450 && u.sky.night < 150 && u.sky.stars > 20, JSON.stringify(u.sky));
+  const lights = await page.evaluate(() => {
+    const W = window.__game.world;
+    const hemi = W.scene.children.find((c) => c.isHemisphereLight);
+    const sun = W.scene.children.find((c) => c.isDirectionalLight);
+    const read = () => [+hemi.intensity.toFixed(2), +sun.intensity.toFixed(2), W.night];
+    const out = { start: read() };
+    W.setNight(1, 0); out.night = read(); const nightBg = W.scene.background.image.getContext('2d').getImageData(5, 2, 1, 1).data[2];
+    W.setNight(0.5, 0); out.half = read();
+    W.setNight(0, 0); out.day = read(); out.nightBg = nightBg; out.dayBg = W.scene.background.image.getContext('2d').getImageData(5, 2, 1, 1).data[2];
+    return out;
+  });
+  check('night dims the lights and darkens the sky; day brings them all back', lights.day[0] === 1.5 && lights.day[1] === 2.2 && lights.night[0] < 0.7 && lights.night[1] < 0.7 && lights.half[0] < 1.5 && lights.half[0] > lights.night[0] && lights.night[2] === 1 && lights.day[2] === 0 && lights.dayBg > lights.nightBg, JSON.stringify(lights));
+
+  // Turning the phone (or resizing the window) at night and by day: the sky picture is made again at the new size.
+  ({ page } = await openGame(browser, 'prologue-resize'));
+  const sizes = [];
+  for (const [night, width, height] of [[0, 500, 900], [1, 900, 500], [1, 390, 844], [0, 800, 450]]) {
+    await page.evaluate((n) => window.__game.world.setNight(n, 0), night);
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(700);
+    sizes.push(await page.evaluate(() => { const c = window.__game.world.scene.background.image; return [c.width, c.height]; }));
+  }
+  check('when the screen changes shape the sky is repainted at the new size, by day and at night (no graphics errors)', sizes.every(([w, h], i) => w === Math.ceil([500, 900, 390, 800][i] / 3) && h === Math.ceil([900, 500, 844, 450][i] / 3)), JSON.stringify(sizes));
+
+  // Live game: the whole prologue, played like a person would.
   KEEP_INTRO = true;
-  ({ page, context } = await openGame(browser, 'story-touch', { width: 390, height: 844 }, true));
+  ({ page } = await openGame(browser, 'prologue-live'));
+  KEEP_INTRO = false;
+  await page.evaluate(watch);
+  const open = await page.evaluate(state);
+  check('the game opens at night in the prologue, with Sol off stage, a Skip button and the title', open.phase === 'dark' && open.night === 1 && !open.visible && open.waves === 'idle' && open.bodyClass && open.skipShown && open.bannerTitle === 'Prologue' && open.bannerSub === 'The Falling Star' && open.hintDisplay === 'none', JSON.stringify(open));
+  await page.keyboard.down('d');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(500);
+  const held = await page.evaluate(state);
+  await page.keyboard.up('d');
+  check('the controls are off during the cinematic: Sol cannot walk and Space does nothing', held.px === 0 && held.ready && held.phase !== 'done', JSON.stringify([held.px, held.ready, held.phase]));
+  await until(page, () => window.__game.prologue.starVisible);
+  await page.screenshot({ path: `${OUT}/prologue-1-star.png` });
+  check('a star falls out of the night sky', true);
+  await until(page, () => window.__game.prologue.phase === 'rising');
+  await page.screenshot({ path: `${OUT}/prologue-2-landing.png` });
+  await until(page, () => window.__game.prologue.phase === 'talking');
+  const seen = await page.evaluate(() => window.__watch);
+  check('the phases come in order: dark, falling, rising, walking, talking', seen.phases.join() === 'dark,falling,rising,walking,talking', seen.phases.join());
+  check('the landing makes a white flash and a shake, and leaves a glowing crater', seen.flash > 0.3 && seen.shake > 0.1 && seen.star && seen.crater, JSON.stringify([seen.flash, seen.shake, seen.star, seen.crater]));
+  await page.waitForTimeout(1500);
+  const talk = await page.evaluate(state);
+  check('Marlo has walked over to Sol and starts to speak, with Pip floating by his shoulder', talk.active && talk.name === 'Marlo' && talk.marloGap < 3.2 && talk.pipGap < 3.2 && talk.pipHeight > 3, JSON.stringify([talk.name, talk.marloGap, talk.pipGap, talk.pipHeight]));
+  check('Sol is back at full size, standing in the crater', talk.visible && near(talk.scale, 1, 0.001) && talk.crater && talk.night === 1, JSON.stringify([talk.visible, talk.scale, talk.crater]));
+  await page.screenshot({ path: `${OUT}/prologue-3-marlo.png` });
+
+  // Lesson one: walk into the ring.
+  check('reading on leads to lesson one', await readUntil(page, () => window.__game.story.waiting === 'move'));
+  const l1 = await page.evaluate(state);
+  check('lesson one: the conversation steps aside, the hint names the keys, and a glowing ring appears', l1.kind === 'move' && !l1.active && l1.boxHidden && l1.hintShown && /W A S D/.test(l1.hint) && l1.ring && l1.gloom === 0, JSON.stringify([l1.kind, l1.hint, l1.ring]));
+  await page.screenshot({ path: `${OUT}/prologue-4-lesson-walk.png` });
+  await page.keyboard.down('d');   // right first, then down: the ring is to the right and a little toward the viewer
+  await until(page, () => window.__game.player.position.x > 3.8);
+  await page.keyboard.up('d');
+  await page.keyboard.down('s');
+  await until(page, () => window.__game.story.active);
+  await page.keyboard.up('s');
+  const l1done = await page.evaluate(state);
+  check('walking into the ring ends the lesson, and Marlo carries on', l1done.active && l1done.kind === null && !l1done.ring && !l1done.hintShown && l1done.name === 'Marlo' && Math.hypot(l1done.px - 4.2, l1done.pz - 2.2) < 1.6, JSON.stringify([l1done.px, l1done.pz, l1done.name]));
+
+  // Lesson two: the darts fire by themselves.
+  check('reading on leads to lesson two', await readUntil(page, () => window.__game.story.waiting === 'strike'));
+  const l2 = await page.evaluate(state);
+  check('lesson two: one training Gloomling appears, close enough for the darts', l2.kind === 'strike' && l2.gloom === 1 && l2.autoFire && l2.hintShown && /darts/.test(l2.hint) && Math.hypot(l2.px - 4.2, l2.pz - 2.2) < 1.6, JSON.stringify([l2.gloom, l2.hint]));
+  await until(page, () => window.__game.story.active);
+  const l2done = await page.evaluate(state);
+  check('the darts fire by themselves and bring it down; it never hurt Sol', l2done.gloom === 0 && l2done.kind === null && l2done.health === l2done.maxHealth && l2done.name !== '', JSON.stringify([l2done.gloom, l2done.health]));
+
+  // Lesson three: Starburst.
+  check('reading on leads to lesson three', await readUntil(page, () => window.__game.story.waiting === 'power'));
+  const l3 = await page.evaluate(state);
+  await page.waitForTimeout(1200);
+  const l3rest = await page.evaluate(state);
+  check('lesson three: three training Gloomlings stand around Sol, and the darts rest so only Starburst can reach them', l3.kind === 'power' && l3.gloom === 3 && !l3.autoFire && l3rest.alive === 3 && l3rest.shots === 0 && l3rest.healths.join() === l3.healths.join() && /Space/.test(l3.hint), JSON.stringify([l3.gloom, l3.autoFire, l3rest.healths, l3rest.shots]));
+  await page.screenshot({ path: `${OUT}/prologue-5-lesson-power.png` });
+  await page.keyboard.press('Space');
+  await until(page, () => window.__game.story.active);
+  const l3done = await page.evaluate(state);
+  check('Starburst hits them and ends the lesson; the darts wake up again and the dummies are gone', l3done.gloom === 0 && l3done.autoFire && l3done.kind === null && l3done.name === 'Pip', JSON.stringify([l3done.gloom, l3done.autoFire, l3done.name]));
+
+  // The sunrise.
+  check('reading on leads to the sunrise', await readUntil(page, () => window.__game.prologue.phase === 'dawn'));
+  const dawn = await page.evaluate(state);
+  check('after the last line the sun comes up under the title "Sunmeadow, Chapter 1"; Marlo heads home; no wave yet', dawn.bannerTitle === 'Sunmeadow' && dawn.bannerSub === 'Chapter 1' && dawn.marloAtHome && dawn.waves === 'idle' && dawn.night < 1 && !dawn.skipShown, JSON.stringify([dawn.bannerTitle, dawn.marloAtHome, dawn.waves, dawn.night]));
+  await page.screenshot({ path: `${OUT}/prologue-6-dawn.png` });
+  await until(page, () => window.__game.prologue.phase === 'done');
+  const day = await page.evaluate(state);
+  check('then the first wave begins in full daylight, with the crater gone and the normal hint back', day.night === 0 && ['break', 'spawning'].includes(day.waves) && !day.bodyClass && !day.crater && day.hintDisplay !== 'none', JSON.stringify([day.night, day.waves, day.bodyClass, day.crater]));
+  const seen2 = await page.evaluate(() => window.__watch);
+  check('Sol\'s Power number climbed above their head while Marlo watched', ['Power 1', 'Power 2', 'Power 4', 'Power 7'].every((t) => seen2.floaters.includes(t)), seen2.floaters.join());
+  await page.screenshot({ path: `${OUT}/prologue-7-day.png` });
+
+  // Skip intro, mid-cinematic.
+  KEEP_INTRO = true;
+  ({ page } = await openGame(browser, 'prologue-skip'));
+  KEEP_INTRO = false;
+  await until(page, () => window.__game.prologue.phase === 'falling');
+  await page.click('#skip');
+  const sk = await page.evaluate(state);
+  check('"Skip intro" jumps to daylight: Sol is on the island, the star is gone, Marlo is at his post and the first wave begins', sk.phase === 'done' && sk.night === 0 && sk.visible && near(sk.scale, 1, 0.001) && !sk.star && !sk.crater && sk.marloAtHome && ['break', 'spawning'].includes(sk.waves) && !sk.bodyClass && !sk.skipShown && sk.bannerTitle === 'Sunmeadow', JSON.stringify(sk));
+
+  // Skip intro, in the middle of a lesson.
+  KEEP_INTRO = true;
+  ({ page } = await openGame(browser, 'prologue-lesson-skip'));
+  KEEP_INTRO = false;
+  await until(page, () => window.__game.prologue.phase === 'talking');
+  await readUntil(page, () => window.__game.story.waiting === 'move');
+  await page.evaluate(() => window.__game.player.position.set(4.2, 0, 2.2));
+  check('(setting up) the darts handle lesson two while we wait, then lesson three begins', await readUntil(page, () => window.__game.story.waiting === 'power'));
+  const mid = await page.evaluate(state);
+  await page.click('#skip');
+  const ls = await page.evaluate(state);
+  check('skipping in the middle of the last lesson clears the dummies, brings the darts back and hides the hint', mid.kind === 'power' && mid.gloom === 3 && !mid.autoFire && ls.phase === 'done' && ls.gloom === 0 && ls.autoFire && !ls.hintShown && !ls.active && ls.kind === null && ['break', 'spawning'].includes(ls.waves), JSON.stringify([mid.kind, mid.gloom, mid.autoFire, ls.phase, ls.gloom, ls.autoFire]));
+
+  // People who ask for less motion get a gentle glow instead of a flash, and no shaking.
+  KEEP_INTRO = true;
+  ({ page } = await openGame(browser, 'prologue-calm', undefined, false, { reducedMotion: 'reduce' }));
+  KEEP_INTRO = false;
+  await page.evaluate(watch);
+  await until(page, () => window.__game.prologue.phase === 'walking');
+  const calm = await page.evaluate(() => window.__watch);
+  check('with "reduce motion" the landing is a soft glow (not a full white flash) and does not shake the screen', calm.flash > 0.1 && calm.flash <= 0.4 && calm.shake === 0, JSON.stringify([calm.flash, calm.shake]));
+  await page.click('#skip');
+
+  // Phone: touches, the hint and the Skip button.
+  KEEP_INTRO = true;
+  let context;
+  ({ page, context } = await openGame(browser, 'prologue-phone', { width: 390, height: 844 }, true));
   KEEP_INTRO = false;
   const client = await context.newCDPSession(page);
-  await page.waitForTimeout(700);
   const touchAt = (type, x, y) => client.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 0 }] });
+  await until(page, () => window.__game.prologue.phase === 'talking');
   await touchAt('touchStart', 60, 300);
   const steering = await page.evaluate(() => document.getElementById('joystick').classList.contains('active'));
   await touchAt('touchEnd');
-  check('touching the screen during a conversation does not start the joystick', !steering);
-  for (let guard = 0; guard < 30; guard++) {
-    if (await page.evaluate(() => document.getElementById('dialogue-name').textContent === 'Pip' && /Drag on the left/.test(document.getElementById('dialogue-text').textContent))) break;
+  check('touching the screen during the first conversation does not start the joystick', !steering);
+  for (let guard = 0; guard < 60; guard++) {
+    if (await page.evaluate(() => window.__game.story.waiting === 'move')) break;
     await page.waitForTimeout(350);
     await touchAt('touchStart', 195, 300); await touchAt('touchEnd');
-    await touchAt('touchStart', 195, 300); await touchAt('touchEnd');
   }
-  await until(page, () => /Drag on the left to run\. Tap the flame to blast\./.test(document.getElementById('dialogue-text').textContent));
-  check('on a phone the last line mentions dragging and the flame button', true);
-  await page.screenshot({ path: `${OUT}/story-4-phone.png` });
-  const box = await page.evaluate(() => { const r = document.getElementById('dialogue-box').getBoundingClientRect(); return { left: r.left, right: r.right, bottom: r.bottom }; });
-  check('the conversation box fits a phone screen', box.left >= 0 && box.right <= 390 && box.bottom <= 844, JSON.stringify(box));
-  await readOn(page).catch(() => {});
+  const ph = await page.evaluate(state);
+  check('on a phone lesson one tells you to drag, and the hint fits the screen without covering the Skip button', ph.waiting === 'move' && /Drag on the left/.test(ph.hint) && ph.lessonRect.left >= 0 && ph.lessonRect.right <= 390 && ph.lessonRect.top > ph.skipRect.bottom, JSON.stringify([ph.hint, ph.lessonRect, ph.skipRect]));
+  check('the Skip button sits inside the screen and clear of the health bar', ph.skipRect.right <= 390 && ph.skipRect.left >= 0 && (ph.skipRect.left >= ph.hudRect.right || ph.skipRect.top >= ph.hudRect.bottom), JSON.stringify([ph.skipRect, ph.hudRect]));
+  await page.screenshot({ path: `${OUT}/prologue-8-phone.png` });
+  await touchAt('touchStart', (ph.skipRect.left + ph.skipRect.right) / 2, (ph.skipRect.top + ph.skipRect.bottom) / 2);
+  const joystickOnSkip = await page.evaluate(() => document.getElementById('joystick').classList.contains('active'));
+  await touchAt('touchEnd');
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(state);
+  check('a finger on the Skip button skips the prologue and does not steer', !joystickOnSkip && after.phase === 'done' && after.night === 0, JSON.stringify([joystickOnSkip, after.phase]));
 }
 
 
@@ -816,7 +1105,7 @@ async function chunk7(browser) {
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

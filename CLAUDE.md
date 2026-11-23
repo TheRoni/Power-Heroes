@@ -261,6 +261,8 @@ src/                  the game code, one job per file
   ui.js               health bars, buttons, pop-ups, menus
   hero-models.js      the look of each hero (built from shapes)
   marlo.js            Keeper Marlo, the mentor
+  sky.js              the sky: day and night colours, twinkling stars
+  prologue.js         the opening: falling star, three lessons, sunrise
   audio.js            synthesized sound effects and the Mute button
   music.js            the flute and the songs
   save.js             saving progress

@@ -117,6 +117,12 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown }) {
     yaw = angle;
   }
 
+  // Hides or shows the hero and their health bar (used while the story has them off stage).
+  function setVisible(visible) {
+    group.visible = visible;
+    bar.group.visible = visible;
+  }
+
   // Starts over: full health, standing up, back in the middle.
   function reset() {
     health = data.health;
@@ -131,7 +137,7 @@ export function createHero({ scene, bound, kind = 'sol', onHurt, onDown }) {
 
   return {
     kind, name: data.name, type: data.type,
-    group, position: group.position, velocity, update, takeHit, reset, face,
+    group, position: group.position, velocity, update, takeHit, reset, face, setVisible,
     get health() { return health; },
     get maxHealth() { return data.health; },
     get down() { return down; },

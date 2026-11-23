@@ -64,6 +64,15 @@
     </div>
   </div>
 
+  <!-- A short reminder of what to do, shown while a lesson is on. -->
+  <div id="lesson" hidden></div>
+
+  <!-- A white flash over the screen (the falling star landing). -->
+  <div id="flash" aria-hidden="true"></div>
+
+  <!-- Skips the prologue. Only shown while the prologue is playing. -->
+  <button id="skip" type="button" hidden>Skip intro</button>
+
   <!-- The end screen: "Isle saved!" or "Knocked out", with a button to go again. -->
   <div id="end" hidden role="dialog" aria-modal="true" aria-labelledby="end-title">
     <div id="end-card">

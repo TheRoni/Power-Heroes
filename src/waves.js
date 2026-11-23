@@ -112,6 +112,6 @@ export function createWaves({ scene, hero, gloomlings, events = {} }) {
     get wave() { return wave + 1; },                           // the current wave, counting from 1 (the coming one during a break)
     get total() { return total; },
     get remaining() { return toSpawn + gloomlings.length; },   // Gloomlings still to beat in this wave
-    get progress() { return (spawned - gloomlings.length) / everyone; },   // 0 to 1: how much of the whole round is beaten
+    get progress() { return Math.max(0, (spawned - gloomlings.length) / everyone); },   // 0 to 1: how much of the whole round is beaten
   };
 }

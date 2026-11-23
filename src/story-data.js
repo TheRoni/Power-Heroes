@@ -1,49 +1,76 @@
-// story-data.js: every word of the story. Change the text here to change what the characters say.
-// A scene line is [speaker, text]. The text can be { touch, keys } to say different things on a phone and on a computer.
+// story-data.js: every word of the story. Change the text here to change what the characters say. (The full story is in STORY.md.)
+// A scene is a list of steps. A line is [speaker, text]. The text can be { touch, keys } to say different things on a
+// phone and on a computer, and a third item names a "cue": something that happens when the line appears.
+// A step like { wait: 'move', hint } hands the game back to the player until they have done what the lesson asked.
 // Keep lines short, warm and a bit funny.
 
 export const CHAPTER = { number: 1, name: 'Sunmeadow' };
+export const PROLOGUE = { name: 'Prologue', subtitle: 'The Falling Star' };
 
 export const SPEAKERS = {
+  marlo: { name: 'Marlo', color: '#9fb8d8' },
+  sol: { name: 'Sol', color: '#fff3c8' },
   pip: { name: 'Pip', color: '#ffd24a' },
   ember: { name: 'Ember', color: '#ff7a3c' },
 };
 
-// Scenes: conversations you tap through. The game waits while they play.
+// Scenes: conversations you tap through. The game waits while they play (except during a lesson).
 export const SCENES = {
-  intro: [
-    ['pip', 'Ember! Over here! Up here! Yes, the tiny glowing one!'],
-    ['pip', 'Welcome to Sunmeadow. Greenest isle in the sky. Well. It was.'],
-    ['pip', 'The Glooms came and started drinking the colour. Look at it. Grey as a soggy sock.'],
-    ['ember', 'They picked the wrong isle.'],
-    ['pip', "That's the spirit! Grey isles sink, you know. Splash. Very rude."],
-    ['pip', {
-      touch: "Drag on the left to run. Tap the flame to blast. I'll cheer from up here.",
-      keys: "WASD to run. Space to blast. I'll cheer from up here.",
-    }],
+  prologue: [
+    ['marlo', 'Power 1. ...No. Look at it climb.', 'power-climb'],
+    ['sol', '...Where am I?'],
+    ['marlo', "Sunmeadow, in the Sky Isles. You fell out of the sky, so I'll call you Sol."],
+    ['pip', "I'm Pip! Guide, translator, snack-finder. That's Marlo. Very old. Very wise. Very TALL."],
+    ['marlo', 'Pip talks a lot. You will get used to it.'],
+    ['marlo', 'Everyone here chases Power. The bigger your number, the brighter your glow.'],
+    ['pip', "Mine is 3. Marlo's is 9,999. It's an old number. Don't ask."],
+    ['marlo', 'Lesson one. Walk. Feet first, glory later.'],
+    { wait: 'move', hint: {
+      touch: 'Drag on the left side to walk into the glowing ring.',
+      keys: 'Use W A S D (or the arrow keys) to walk into the glowing ring.',
+    } },
+    ['marlo', 'Good. Lesson two: hit something. Your light fires by itself, so just get close.'],
+    { wait: 'strike', hint: 'Get close to the training Gloomling. Your light darts fire by themselves.' },
+    ['pip', 'Look at that! Power 9 for the newcomer!'],
+    ['marlo', 'Last lesson. Every hero has one big power. Yours is Starburst.'],
+    { wait: 'power', hint: {
+      touch: 'Tap the star button to burst all three.',
+      keys: 'Press Space to burst all three.',
+    } },
+    ['pip', 'Did you SEE that? Power 12!'],
+    ['marlo', 'I saw. Faster than anyone I have taught.'],
+    ['marlo', "Everyone in the Sky Isles chases Power. Most never ask what it's for."],
+    ['sol', "What's it for?"],
+    ['marlo', 'Ask me again at sunrise. Rest now, Sol. The Glooms come with the light.'],
   ],
   win: [
     ['pip', 'LOOK AT THAT! Sunmeadow is green again!'],
-    ['ember', 'Told you. Wrong isle.'],
-    ['pip', 'The Heartlight just got brighter. I felt it. Tingly.'],
-    ['pip', 'Odd, though. Those Glooms marched in rows. Like someone was leading them.'],
-    ['pip', 'Anyway! Tidecove is next. Bring a towel.'],
+    ['marlo', 'Well fought, Sol. Your number jumped. I felt it from the hill.'],
+    ['ember', "So YOU'RE the falling star. Power 120. You?"],
+    ['sol', 'Fourteen? Maybe fifteen. It keeps changing.'],
+    ['ember', 'Fifteen. I trained a whole year for my 120. ...Rematch tomorrow?'],
+    ['pip', 'Ember is the brightest young hero on Sunmeadow. Also very easy to annoy.'],
+    ['ember', "I'm not annoyed. I'm... competitive."],
+    ['marlo', 'Everyone here wants more. So did I. So did she.'],
+    ['sol', 'Who is she?'],
+    ['marlo', '...Another night, Sol. Tidecove is next.'],
   ],
   lose: [
-    ['pip', 'Ember! Up! Up! ...Okay. That was a lot of Glooms.'],
-    ['ember', "I'm fine. Mostly toast."],
-    ['pip', "Shake it off. The island's still counting on you."],
+    ['marlo', 'Up, Sol. Slowly. Heroes fall. Falling is the easy part.'],
+    ['pip', 'You were SO close! Probably! Eighty percent close!'],
+    ['marlo', 'Again. The island is still waiting.'],
   ],
 };
 
-// Bubbles: quick lines from Pip that float by while the fight carries on. One is picked at random.
+// Bubbles: quick lines that float by while the fight carries on. One is picked at random.
+// A plain line is Pip's. { who: 'marlo', text } is Marlo's.
 export const BUBBLES = {
-  wave1: ['Here they come! Try not to get bumped.', 'Incoming! Stay bouncy!'],
-  wave2: ["More of them! Don't they have homes?", 'Round two! Ember, you are on fire. Literally.'],
-  wave3: ['Final wave! Give it everything!', 'Last lot! Make it a big one!'],
-  cleared: ['Nice! Catch your breath.', 'See the colour creeping back? Keep going!'],
+  wave1: ['Here they come! Try not to get bumped.', 'Incoming! Stay bouncy!', { who: 'marlo', text: 'Keep moving. A hero who stands still is a statue.' }],
+  wave2: ['More of them! Your Power is climbing. I can feel it.', "Round two! Don't they have homes?", { who: 'marlo', text: "Good. Don't let the number go to your head." }],
+  wave3: ['Final wave! Give it everything!', 'Last lot! Make it a big one!', { who: 'marlo', text: 'Everything, Sol. Then a little more.' }],
+  cleared: ['Nice! Catch your breath.', 'See the colour creeping back? Keep going!', { who: 'marlo', text: 'Colour follows courage.' }],
   first: ["Look! A pop of colour! That's what you're fighting for."],
-  hurt: ['Ouch! They pause after each bump. Use it!', 'Careful! Keep moving!'],
-  low: ["Ember, you're running low! Dodge, don't dare!", 'Health is low! Run in circles. Dramatic circles.'],
-  big: ['Ha! Toasted!', 'Three at once? Show-off!'],
+  hurt: ['Ouch! They pause after each bump. Use it!', 'Careful! Keep moving!', { who: 'marlo', text: 'Every hero gets hit. Heroes get up.' }],
+  low: ["Sol, you're running low! Dodge, don't dare!", 'Health is low! Run in circles. Dramatic circles.'],
+  big: ['Whoa! Three at once? Show-off!', 'That Starburst was at least Power 20!'],
 };

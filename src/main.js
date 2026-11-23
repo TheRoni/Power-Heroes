@@ -9,7 +9,7 @@ import { createWaves } from './waves.js';
 import { createPip } from './pip.js';
 import { createMarlo } from './marlo.js';
 import { createStory } from './story.js';
-import { CHAPTER } from './story-data.js';
+import { createPrologue } from './prologue.js';
 import { createUI } from './ui.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
@@ -34,6 +34,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const fx = { shake: 0, freeze: 0, freezes: 0, colour: 0 };
 const WASHED_OUT = 0.6;    // how strong the grey veil is at the start of a round (0 = none, 1 = solid grey)
 const CONFETTI = [0xff7ab8, 0xffe14a, 0x5ad8ff, 0x7dff52, 0xff9a3c];
+const NO_MOVE = { x: 0, z: 0 };   // the controls, as the opening cinematic sees them
 const calmMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;   // people who ask for less motion get no shaking
 const tint = document.getElementById('tint');
 let waveFreezePending = false;   // a superpower freezes the game once, the first time it lands
@@ -54,7 +55,7 @@ function shake(amount) {
 // --- Create everything ---
 const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
-const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active) powers.castPower(); }, onAgain: restart });
+const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active && !prologue.cinematic) powers.castPower(); }, onAgain: restart });
 const player = createHero({
   scene: world.scene,
   bound: WALK_RADIUS,
@@ -77,6 +78,7 @@ const powers = createPowers({
     hit: (gloom, amount, kind) => {
       ui.popNumber(gloom.position, amount, kind, 1.6);
       if (kind !== 'big') return;
+      prologue.noteHit(kind);
       waveHits++;
       if (waveFreezePending) {   // the superpower has landed: a 60 ms freeze-frame and a shake
         waveFreezePending = false;
@@ -85,16 +87,18 @@ const powers = createPowers({
         shake(0.22);
       }
     },
-    defeat: () => { if (!said.first) { said.first = true; story.say('first'); } },
+    defeat: () => { if (!said.first && !prologue.running) { said.first = true; story.say('first'); } },
   },
 });
 const pip = createPip({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
 const marlo = createMarlo({ scene: world.scene, emit: (...spark) => powers.sparks.emit(...spark) });
 const story = createStory({
   camera: world.camera,
-  anchor: pip.group,
+  anchors: { pip: { object: pip.group, lift: 0.7 }, marlo: { object: marlo.group, lift: 3.4 } },   // where each speaker's bubble floats
   onStart: () => input.release(),   // a conversation starts: let go of the controls
   onSpeak: () => pip.excite(),
+  onWait: (kind) => prologue.startLesson(kind),   // a lesson begins: the prologue sets it up
+  onCue: (cue) => prologue.cue(cue),
 });
 const waves = createWaves({
   scene: world.scene,
@@ -146,9 +150,9 @@ function restart() {
   waves.start();
 }
 
-// The very first thing the player sees: the chapter title, then Pip's introduction. The first wave starts when it ends.
-ui.showBanner(CHAPTER.name, `Chapter ${CHAPTER.number}`);
-story.scene('intro', () => waves.start());
+// The very first thing the player sees: a star falls, Marlo comes, three short lessons, then the sunrise. The first wave starts after it.
+const prologue = createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone: () => waves.start() });
+prologue.begin();
 
 // The small note in the corner, such as "Wave 2/3 · 5 left".
 function waveText() {
@@ -181,7 +185,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---
@@ -199,17 +203,19 @@ function frame(now) {
   if (story.active) dt = 0;   // a conversation: the game waits
   gameTime += dt;
 
-  player.update(dt, input.move, gameTime);
+  const move = prologue.cinematic ? NO_MOVE : input.move;   // the opening cinematic ignores the controls
+  player.update(dt, move, gameTime);
   for (const gloomling of gloomlings) gloomling.update(dt, player, gameTime, gloomlings);
   powers.update(dt, gameTime);
   waves.update(dt);
   world.follow(player.position, player.velocity, dt, false);
   world.update(dt, gameTime);
+  prologue.update(realDt, now / 1000);
   story.update(realDt);
-  marlo.raise(waves.state === 'spawning' || waves.state === 'fighting');   // he holds his lantern up while the fight is on
+  marlo.raise(waves.state === 'spawning' || waves.state === 'fighting' || prologue.lanternUp);   // he holds his lantern up while the fight is on
   marlo.update(realDt, now / 1000, player.position);
   // Pip stays by the hero, but in a conversation Pip hovers by Marlo if he has come over to talk.
-  const marloHere = story.active && Math.hypot(marlo.position.x - player.position.x, marlo.position.z - player.position.z) < 5;
+  const marloHere = prologue.pipWithMarlo || (story.active && Math.hypot(marlo.position.x - player.position.x, marlo.position.z - player.position.z) < 5);
   pip.update(realDt, now / 1000, marloHere ? marlo.position : player.position, marloHere ? 3.5 : 2.7);
 
   for (let i = soon.length - 1; i >= 0; i--) {
@@ -237,7 +243,7 @@ function frame(now) {
   }
 
   fx.colour += (waves.progress - fx.colour) * (1 - Math.exp(-3 * realDt));   // colour drifts toward how much of the round is beaten
-  const veil = (WASHED_OUT * (1 - fx.colour)).toFixed(3);
+  const veil = (WASHED_OUT * (1 - fx.colour) * (1 - world.night)).toFixed(3);   // no veil at night: the washed-out look comes in with the sunrise
   if (veil !== lastTint) {
     lastTint = veil;
     tint.style.opacity = veil;
@@ -248,7 +254,7 @@ function frame(now) {
   ui.setWaveText(waveText());
   renderer.render(world.scene, world.camera);
 
-  if (!hintHidden && (input.move.x !== 0 || input.move.z !== 0)) {
+  if (!hintHidden && (move.x !== 0 || move.z !== 0)) {
     hintHidden = true;
     hint.classList.add('gone');
   }

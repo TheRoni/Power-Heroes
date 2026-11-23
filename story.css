@@ -94,3 +94,42 @@ body:has(#dialogue:not([hidden])) #hint { opacity: 0; transition: none; }   /* t
   border-bottom: 0;
   border-top-color: rgba(255, 250, 235, 0.96);
 }
+
+/* A short reminder of what to do while a lesson is on. */
+#lesson {
+  position: fixed;
+  top: calc(96px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(28, 16, 52, 0.82);
+  color: #fff7e8;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+#lesson[hidden] { display: none; }
+
+/* A white flash over the screen. */
+#flash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; opacity: 0; pointer-events: none; }
+
+/* The skip button (top right), and the hint stepping aside during the prologue. */
+#skip {
+  position: fixed;
+  top: calc(48px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(20, 40, 70, 0.55);
+  color: #fff;
+  font: 700 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  cursor: pointer;
+  touch-action: none;
+}
+#skip[hidden] { display: none; }
+body.prologue #hint { display: none; }

@@ -81,6 +81,7 @@ export function createPowers({ scene, hero, gloomlings, events = {} }) {
   const look = LOOKS[data.attack.look];
   let fireTimer = 0;   // time until the next automatic shot
   let powerLeft = 0;   // time until the superpower is ready again
+  let autoFire = true; // the automatic shots can be switched off (for a lesson about the superpower)
 
   const shotShape = new THREE.SphereGeometry(1, 12, 8);
   const outerMaterial = new THREE.MeshBasicMaterial({ color: look.outer });
@@ -168,7 +169,7 @@ export function createPowers({ scene, hero, gloomlings, events = {} }) {
     powerLeft = Math.max(0, powerLeft - dt);
     fireTimer -= dt;
     if (fireTimer <= 0) {
-      const target = hero.down ? null : nearest(data.attack.range);
+      const target = hero.down || !autoFire ? null : nearest(data.attack.range);
       if (target) { shoot(target); fireTimer = data.attack.cooldown; }
       else fireTimer = 0;   // stay ready, so the first shot is instant when an enemy comes into range
     }
@@ -191,5 +192,7 @@ export function createPowers({ scene, hero, gloomlings, events = {} }) {
     get powerProgress() { return 1 - powerLeft / data.power.cooldown; },   // 0 = just used, 1 = ready
     get powerReady() { return powerLeft <= 0; },
     get shotCount() { return shots.length; },
+    get autoFire() { return autoFire; },
+    set autoFire(on) { autoFire = on; },
   };
 }
