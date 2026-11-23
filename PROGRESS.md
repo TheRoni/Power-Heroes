@@ -43,13 +43,13 @@
 ## Tests (in `tests/`, not part of the game)
 - `tests/test-stage1.js` (19 checks: movement), `tests/test-stage8.js` (13 checks: the
   manifest, the icons, the service worker, and playing with no internet, from a real
-  local web address) and `tests/test-stage2.js` (everything else, in 27 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  local web address) and `tests/test-stage2.js` (everything else, in 29 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
   7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
   screen, 11 music, 12 Tide and Volt, 13 the squad, 14 types, 15 Shock Chain,
   16 Power and saving, 17 auras and the power-up moment, 18 Overdrive, 19 Rankings,
   20 naming the hero, 21 the five rounds of Chapter 1, 22 General Bramble, 23 his last
   words and trying again, 24 the campfire and the memory shard, 25 the village, 26 the clan,
-  27 talking and the Rankings board)
+  27 talking and the Rankings board, 28 days and nights, 29 what the clan does)
   A full run takes 10 to 25 minutes in the test browser.
 - **After changing any game file, run `node tests/bump-sw.js`** (it rewrites the file
   list and the version in `sw.js`; without it a phone could keep an old copy of the
@@ -740,6 +740,18 @@ you can ask someone to fight beside you in a battle. (Plan written on Sonnet fro
 - **Chunk 6: polish, tests on both pages, republish.**
 - New files likely: `src/activities.js` (what people do and how it looks), `src/guest.js` (a clan member in a
   battle); `clan.js` grows (or splits).
+- **Chunk 1 build notes (DONE):** a day in the village lasts 420 seconds (`nightAt` in `village.js`: day, dusk,
+  night, dawn; never fully dark, 0.85 at most). The sky and lights follow it, the lamps glow and the Hall's windows
+  light up at night, the clan sets off for the fire a moment after one another at dusk and sits in two rings round
+  it (a little lower, facing the flames), and stands up and walks home in the morning. The song changes to the
+  lullaby at night and back to the village song by day. The time carries on where it was when you left, and the
+  arena is always daylight. Tests: group 28 (9 checks).
+- **Chunk 2 build notes (DONE):** `activities.js`: each person has a job that fits where they stand and does it
+  for 10 to 18 seconds, then rests and strolls: three **train** at the yard (punches, sparks of their type), two
+  **spar** in the ring (they lunge and sway in turn, sparks between them) with one who **cheers**, two **fish**
+  (a rod, a pull and a splash), one **cooks** (a spoon), one **chats** (turns to the nearest, nods, a speech
+  mark), one **naps** (lies down, "Zzz"), one **looks** through the telescope, one **reads** the board and one
+  **shows off** (a pose and a flare). Everyone stops at night. Tests: group 29 (5 checks).
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on

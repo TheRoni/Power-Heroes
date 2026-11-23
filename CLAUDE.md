@@ -267,7 +267,8 @@ src/                  the game code, one job per file
   pip.js              Pip, the guide sprite
   village.js          the Home Village world and places
   village-props.js    the village's buildings and things, built from shapes
-  clan.js             clan member behaviour (daily activities)
+  clan.js             clan member behaviour: where they stand, stroll, sit at the fire at night
+  activities.js       what the clan does by day: train, spar, fish, cook, chat, nap...
   character-gen.js    random names, looks, types, Power
   member-model.js     what a clan member looks like (built from their look)
   ui.js               health bars, buttons, pop-ups

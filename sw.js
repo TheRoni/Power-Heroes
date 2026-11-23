@@ -4,7 +4,7 @@
 // thrown away. The part between BEGIN and END is written by that script: do not edit it by hand.
 
 // BEGIN GENERATED (node tests/bump-sw.js)
-const VERSION = 'power-heroes-74d4cf6a';
+const VERSION = 'power-heroes-db059efe';
 const FILES = [
   './',
   'index.html',
@@ -17,6 +17,7 @@ const FILES = [
   'lib/three.module.min.js',
   'manifest.webmanifest',
   'menus.css',
+  'src/activities.js',
   'src/audio.js',
   'src/aura.js',
   'src/boss-model.js',

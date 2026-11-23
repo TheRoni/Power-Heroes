@@ -1,6 +1,7 @@
 // village-props.js: the buildings and things of the Home Village, built from simple shapes: the Hero Hall, the training yard, the
 // sparring ring, the pond, the campfire square, the lookout tower, the notice board, trees and lamps. village.js puts them on the isle.
 import * as THREE from '../lib/three.module.min.js';
+import { glowTexture } from './campfire.js';
 
 const lambert = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
 const M = {
@@ -10,6 +11,7 @@ const M = {
   glow: new THREE.MeshBasicMaterial({ color: 0xffd27a }),
   paper: lambert(0xfff6d8), rope: lambert(0xd9b46a), path: lambert(0xd9c9a0),
 };
+export const windowMaterial = new THREE.MeshBasicMaterial({ color: 0x8a7a5a });   // the Hall's windows: dark by day, lit at night (village.js changes the colour)
 const part = (geometry, material, x = 0, y = 0, z = 0) => {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(x, y, z);
@@ -60,6 +62,7 @@ export function buildHall() {
   g.add(box(2.2, 2.7, 0.3, M.dark, 0, 1.35, 2.05));   // the door: a dark frame, and the light inside
   g.add(box(1.7, 2.3, 0.2, M.glow, 0, 1.25, 2.15));
   g.add(box(3.4, 0.5, 0.25, M.blue, 0, 3.15, 2.1));   // a sign over the door
+  for (const x of [-2.5, -1.6, 1.6, 2.5]) g.add(box(0.55, 0.8, 0.12, windowMaterial, x, 1.8, 2.03));   // windows
   return g;
 }
 
@@ -168,5 +171,10 @@ export function buildTree(scale = 1) {
 export function buildLamp() {
   const g = new THREE.Group();
   g.add(cyl(0.06, 0.08, 2.0, M.dark, 0, 1.0, 0, 5), part(new THREE.SphereGeometry(0.22, 8, 6), M.glow, 0, 2.1, 0));
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,214,130,0.9)', 'rgba(255,200,100,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+  halo.position.y = 2.1;
+  halo.scale.setScalar(2.4);
+  g.add(halo);
+  g.userData.halo = halo;   // (it shines at night)
   return g;
 }

@@ -11,7 +11,7 @@ const FLY = 0.9;        // ...and to fly to Sol
 const random = (min, max) => min + Math.random() * (max - min);
 
 // A soft round glow, drawn in code: warm in the middle, nothing at the edge.
-function glowTexture(inner, outer) {
+export function glowTexture(inner, outer) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 64;
   const g = canvas.getContext('2d');

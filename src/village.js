@@ -2,11 +2,12 @@
 // the next battle), the training yard, the sparring ring, the pond, the campfire square, the lookout tower and the notice board (the
 // Power Rankings). The arena is hidden while you are here. The buildings are in village-props.js.
 import * as THREE from '../lib/three.module.min.js';
-import { buildIsle, buildPath, buildHall, buildYard, buildRing, buildPond, buildSquare, buildTower, buildBoard, buildTree, buildLamp } from './village-props.js';
+import { windowMaterial, buildIsle, buildPath, buildHall, buildYard, buildRing, buildPond, buildSquare, buildTower, buildBoard, buildTree, buildLamp } from './village-props.js';
 import { buildFire, animateFire } from './campfire.js';
 
 export const VILLAGE_RADIUS = 18;   // the whole isle
 export const VILLAGE_WALK = 16.4;   // how far from the middle the hero may walk
+const DAY = 420;                    // seconds a whole day lasts in the village
 const TALK_RANGE = 2.4;             // how close you must be to talk to somebody
 const BODY = 0.45;                  // how close to a solid thing the hero's middle may come (on top of its size)
 
@@ -31,9 +32,18 @@ const ACTIONS = [
 // The paths, from point to point.
 const PATHS = [[0, -10.4, 0, 3.5], [0, -3, -8, -3], [0, -3, 8, -3], [1.5, 5.5, -6.8, 7.4], [1.5, 5.5, 10.6, 8.6], [-3.4, -8.3, 0, -8.3]];
 
+// How dark it is at a time of the day (0 = morning, going round to 1 = the same morning again): day, then dusk, then night, then dawn.
+// It never gets fully dark (you must still see the village).
+export function nightAt(clock) {
+  const x = ((clock % 1) + 1) % 1;
+  const smooth = (a, b) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+  return 0.85 * smooth(0.55, 0.7) * (1 - smooth(0.9, 1.0));
+}
+
 // "world" is the 3D world (scene.js): the village is added to it, and its setMode hides the arena while you are in the village.
-// "clan" (optional) is the people who live here (clan.js): they appear when you come, and go when you leave.
-export function createVillage({ world, clan = null }) {
+// "clan" (optional) is the people who live here (clan.js): they appear when you come, and go when you leave. "music" (optional) plays
+// the village song by day and the lullaby at night.
+export function createVillage({ world, clan = null, music = null }) {
   const group = new THREE.Group();
   group.visible = false;
   world.scene.add(group);
@@ -65,6 +75,8 @@ export function createVillage({ world, clan = null }) {
   for (const [x, z] of [[-1.3, -8.2], [1.3, -8.2], [-1.3, -1.5], [1.3, -1.5], [-1.3, 2.5], [1.3, 2.5]]) put(buildLamp(), x, z);
 
   // A pushing-out of everything solid (the Hall, the pond, the tower, the fire, the board): "position" is moved if it is inside one.
+  const lamps = [];   // the lamps (they shine at night)
+  group.traverse((o) => { if (o.userData.halo) lamps.push(o.userData.halo); });
   const solids = Object.values(PLACES).flatMap((place) => place.solid || []);
   function keepOut(position) {
     for (const [x, z, size] of solids) {
@@ -88,17 +100,31 @@ export function createVillage({ world, clan = null }) {
     return person ? { id: 'talk', label: 'Talk', member: person } : null;
   }
 
-  function enter() { world.setMode('village'); group.visible = true; if (clan) clan.show(true); }
-  function leave() { group.visible = false; world.setMode('arena'); if (clan) clan.show(false); }
+  let clock = 0.12;       // the time of the day: it carries on where it was when you left
+  let night = 0;
+  let dark = false;       // the night song is playing
+  const DARK_WINDOW = new THREE.Color(0x8a7a5a);
+  const LIT_WINDOW = new THREE.Color(0xffd27a);
+  function enter() { world.setMode('village'); group.visible = true; dark = false; if (clan) clan.show(true); }
+  function leave() { group.visible = false; world.setMode('arena'); world.setNight(0, 0); if (clan) clan.show(false); }
   function update(dt, time, hero) {
     if (!group.visible) return;
+    clock = (clock + dt / DAY) % 1;
+    night = nightAt(clock);
+    world.setNight(night, time);   // (every frame, so the stars twinkle)
+    windowMaterial.color.copy(DARK_WINDOW).lerp(LIT_WINDOW, Math.min(1, night * 1.4));
+    for (const halo of lamps) halo.material.opacity = Math.min(1, night * 1.3);
+    if (music && (night > 0.6) !== dark) { dark = night > 0.6; music.play(dark ? 'lullaby' : 'village', 3); }
     animateFire(fire, time, dt);
-    if (clan) clan.update(dt, time, hero);
+    if (clan) clan.update(dt, time, hero, night);
   }
 
   return {
     group, enter, leave, update, keepOut, actionAt,
     get active() { return group.visible; },
     get people() { return clan ? clan.members : []; },
+    get night() { return night; },
+    get clock() { return clock; },
+    setClock(t) { clock = ((t % 1) + 1) % 1; },   // (the automatic tests set the time of day)
   };
 }

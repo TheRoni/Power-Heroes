@@ -3501,7 +3501,7 @@ const villageUnit = async () => {
   const out = {};
   const modes = [];
   const scene = new THREE.Scene();
-  const village = createVillage({ world: { scene, setMode: (m) => modes.push(m) } });
+  const village = createVillage({ world: { scene, setMode: (m) => modes.push(m), setNight: () => {} } });
   out.start = { active: village.active, inScene: scene.children.length, modes: modes.length };
   village.enter();
   out.enter = { active: village.active, modes: modes.join(), shown: village.group.visible };
@@ -3724,10 +3724,184 @@ async function chunk27(browser) {
   check('in the open, with nobody near, the big button is hidden again', true);
 }
 
+// ---------- Day and night in the village ----------
+const nightUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createVillage, nightAt } = await import('/src/village.js');
+  const { windowMaterial } = await import('/src/village-props.js');
+  const { createClan } = await import('/src/clan.js');
+  const out = {};
+  const at = (t) => +nightAt(t).toFixed(3);
+  out.curve = { morning: at(0), day: at(0.3), dayEnd: at(0.55), mid: at(0.625), night: at(0.7), late: at(0.85), still: at(0.9), dawn: at(0.95), next: at(1), wrap: at(1.3), minus: at(-0.3) };
+  out.range = (() => { let min = 1, max = 0; for (let i = 0; i <= 1000; i++) { const v = nightAt(i / 1000); min = Math.min(min, v); max = Math.max(max, v); } return { min, max }; })();
+  {   // the village's own clock, light and songs
+    const log = { night: [], songs: [], modes: [] };
+    const scene = new THREE.Scene();
+    const village = createVillage({ world: { scene, setMode: (m) => log.modes.push(m), setNight: (a) => log.night.push(+a.toFixed(2)) }, music: { play: (name, fade) => log.songs.push(`${name}@${fade}`) } });
+    out.idle = { clock: village.clock, night: village.night, calls: log.night.length };
+    village.update(1, 0, { x: 0, z: 0 });
+    out.idle.stillWhenAway = village.clock === 0.12;
+    village.enter();
+    village.update(42, 1, { x: 0, z: 0 });   // 42 seconds: a tenth of a day
+    out.clock = +village.clock.toFixed(3);
+    village.setClock(0.8);
+    village.update(0.1, 2, { x: 0, z: 0 });
+    out.night = { value: village.night, last: log.night[log.night.length - 1], songs: log.songs.join(), window: windowMaterial.color.getHexString(), lamps: [] };
+    const lamps = []; scene.traverse((o) => { if (o.userData.halo) lamps.push(o.userData.halo.material.opacity); });
+    out.night.lamps = [lamps.length, Math.min(...lamps)];
+    village.update(0.1, 3, { x: 0, z: 0 });
+    out.night.songsOnce = log.songs.join();
+    village.setClock(0.3);
+    village.update(0.1, 4, { x: 0, z: 0 });
+    const lamps2 = []; scene.traverse((o) => { if (o.userData.halo) lamps2.push(o.userData.halo.material.opacity); });
+    out.day = { value: village.night, songs: log.songs.join(), window: windowMaterial.color.getHexString(), lamps: Math.max(...lamps2) };
+    village.setClock(0.8);
+    village.update(0.1, 5, { x: 0, z: 0 });
+    village.leave();
+    out.left = { last: log.night[log.night.length - 1], modes: log.modes.join() };
+  }
+  {   // the clan: at night to the fire, in the morning home again
+    const tags = document.createElement('div');
+    document.body.appendChild(tags);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 100);
+    camera.position.set(0, 12, 12);
+    camera.lookAt(0, 0, 0);
+    const clan = createClan({ scene: new THREE.Scene(), camera, tags, seed: 7 });
+    clan.show(true);
+    const far = { x: 0, z: -1 };
+    const run = (seconds, night, t0) => { for (let i = 0; i < seconds * 30; i++) clan.update(1 / 30, t0 + i / 30, far, night); };
+    run(5, 0, 0);
+    const home = clan.members.map((m) => ({ x: m.position.x, z: m.position.z }));
+    run(2, 0.8, 5);
+    out.dusk = { started: clan.members.filter((m, i) => Math.hypot(m.position.x - home[i].x, m.position.z - home[i].z) > 0.3).length };
+    run(45, 0.8, 7);
+    const toFire = clan.members.map((m) => Math.hypot(m.position.x - 1.5, m.position.z - 5.5));
+    out.fire = { all: toFire.every((d) => d > 2 && d < 4.6), sitting: clan.members.every((m) => m.sitting), lowered: clan.members.every((m) => m.model.person.position.y < -0.1), seatsDiffer: new Set(clan.members.map((m) => `${m.seat.x.toFixed(1)},${m.seat.z.toFixed(1)}`)).size === 14 };
+    const facing = clan.members.map((m) => { const want = Math.atan2(1.5 - m.position.x, 5.5 - m.position.z); return Math.abs(Math.atan2(Math.sin(m.yaw - want), Math.cos(m.yaw - want))); });
+    out.fire.facing = Math.max(...facing) < 0.5;
+    run(3, 0, 52);
+    out.dawn = { standing: clan.members.some((m) => !m.sitting), someStillSitting: clan.members.some((m) => m.sitting) };
+    run(50, 0, 55);
+    const back = clan.members.map((m, i) => Math.hypot(m.position.x - m.home.x, m.position.z - m.home.z));
+    out.home = { max: +Math.max(...back).toFixed(2), standing: clan.members.every((m) => !m.sitting && m.model.person.position.y > -0.05) };
+  }
+  return out;
+};
+
+async function chunk28(browser) {
+  let { page } = await openGame(browser, 'night-unit');
+  const u = await page.evaluate(nightUnit);
+  const c = u.curve;
+  check('the day in the village: bright through the morning and day, darker through dusk, darkest at night (never fully black: 0.85 at most), then dawn, and it comes round again', c.morning === 0 && c.day === 0 && c.dayEnd === 0 && c.mid > 0.35 && c.mid < 0.5 && c.night === 0.85 && c.late === 0.85 && c.still === 0.85 && c.dawn > 0.35 && c.dawn < 0.5 && c.next === 0 && c.wrap === 0 && c.minus === 0.85 && u.range.min === 0 && u.range.max === 0.85, JSON.stringify([u.curve, u.range]));
+  check('the village clock waits while you are away, runs while you are there (a day is 420 seconds: 42 seconds is a tenth), lights the world by it every frame, and puts day back when you leave', u.idle.clock === 0.12 && u.idle.stillWhenAway && u.idle.calls === 0 && Math.abs(u.clock - 0.22) < 0.002 && u.night.value === 0.85 && u.night.last === 0.85 && u.left.last === 0 && u.left.modes === 'village,arena', JSON.stringify([u.idle, u.clock, u.night.value, u.left]));
+  check('at night the Hall\'s windows light up and the lamps shine (all 6); by day the windows are dark and the lamps are off', u.night.window === 'ffd27a' && u.night.lamps[0] === 6 && u.night.lamps[1] === 1 && u.day.window === '8a7a5a' && u.day.lamps === 0, JSON.stringify([u.night, u.day]));
+  check('the song follows the dark: the lullaby starts once when night comes (not again every frame), and the village song when day returns', u.night.songs === 'lullaby@3' && u.night.songsOnce === 'lullaby@3' && u.day.songs === 'lullaby@3,village@3', JSON.stringify([u.night.songs, u.night.songsOnce, u.day.songs]));
+  check('at dusk the clan does not all leave at once (each sets off a moment after the others)', u.dusk.started >= 1 && u.dusk.started <= 13, JSON.stringify(u.dusk));
+  check('at night all 14 are round the fire, each in their own seat, sitting a little lower and facing the flames', u.fire.all && u.fire.sitting && u.fire.lowered && u.fire.seatsDiffer && u.fire.facing, JSON.stringify(u.fire));
+  check('in the morning they stand up (one after another), walk back, and are standing at their own spots again', u.dawn.standing && u.home.max <= 1.3 && u.home.standing, JSON.stringify([u.dawn, u.home]));
+
+  // The live village at night.
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'night-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => window.__game.rounds.toVillage());
+  await until(page, () => window.__game.village.active);
+  await page.waitForTimeout(500);
+  const day = await page.evaluate(() => ({ night: window.__game.world.night, song: window.__game.music.song }));
+  await page.screenshot({ path: `${OUT}/night-1-day.png` });
+  await page.evaluate(() => window.__game.village.setClock(0.78));
+  await until(page, () => window.__game.world.night > 0.8);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/night-2-night.png` });
+  const dark = await page.evaluate(() => ({ night: window.__game.world.night, veil: parseFloat(document.getElementById('tint').style.opacity || '0'), song: window.__game.music.song }));
+  check('in the live game the village starts in the morning light and the world goes dark when the clock says night (and the grey veil stays off); the music changes with it', day.night === 0 && dark.night >= 0.84 && dark.veil < 0.02 && day.song === 'village' && dark.song === 'lullaby', JSON.stringify([day, dark]));
+  await page.evaluate(() => { const G = window.__game; G.player.position.set(0, 0, -9.2); });
+  await until(page, () => document.getElementById('power-label').textContent === 'Hero Hall');
+  await page.keyboard.press('Space');
+  await until(page, () => !window.__game.village.active);
+  check('leaving the village for a battle puts the daylight back (the arena is never dark)', (await page.evaluate(() => window.__game.world.night)) === 0);
+}
+
+// ---------- What the clan does by day ----------
+const jobUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createClan } = await import('/src/clan.js');
+  const { JOBS, PARTNERS } = await import('/src/activities.js');
+  const out = { jobs: JOBS.join(), partners: JSON.stringify(PARTNERS) };
+  const tags = document.createElement('div');
+  document.body.appendChild(tags);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 100);
+  camera.position.set(0, 12, 12);
+  camera.lookAt(0, 0, 0);
+  const scene = new THREE.Scene();
+  const clan = createClan({ scene, camera, tags, seed: 7 });
+  clan.show(true);
+  const far = { x: 0, z: -1 };
+  const seen = {};
+  const m = clan.members;
+  const mark = (job, yes) => { if (yes) seen[job] = (seen[job] || 0) + 1; };
+  let sparks = 0, bothDoing = 0, doingMax = 0, doingSum = 0, frames = 0;
+  for (let i = 0; i < 30 * 240; i++) {
+    clan.update(1 / 30, i / 30, far, 0);
+    for (const p of m) {
+      const a = Math.max(Math.abs(p.model.arms[0].rotation.x), Math.abs(p.model.arms[1].rotation.x));
+      if (p.job === 'train') mark('train', p.doing && a > 1.0);
+      if (p.job === 'spar') mark('spar', p.doing && Math.abs(p.model.person.position.z) > 0.2);
+      if (p.job === 'cheer') mark('cheer', p.doing && p.model.arms[0].rotation.x < -2);
+      if (p.job === 'fish') mark('fish', p.doing && p.props.rod.visible);
+      if (p.job === 'cook') mark('cook', p.doing && p.props.spoon.visible);
+      if (p.job === 'chat') mark('chat', p.doing && p.props.talk.visible);
+      if (p.job === 'nap') mark('nap', p.doing && p.model.person.rotation.x < -1.3 && p.props.zzz.visible);
+      if (p.job === 'look') mark('look', p.doing && p.props.scope.visible);
+      if (p.job === 'read') mark('read', p.doing && p.model.head.rotation.x > 0.1);
+      if (p.job === 'showoff') mark('showoff', p.doing && p.aura.group.scale.x > 1.2);
+    }
+    if (m[3].doing && m[4].doing) bothDoing++;
+    const working = m.filter((p) => p.doing).length;
+    doingMax = Math.max(doingMax, working);
+    if (i > 30 * 60) { doingSum += working; frames++; }
+    sparks = Math.max(sparks, group().children.filter((c) => c.visible).length);
+  }
+  function group() { return scene.children[0].children.find((c) => c.type === 'Group' && c.children.length === 36); }
+  out.seen = seen;
+  out.counts = { bothSpar: bothDoing > 30, doingMax, doingAvg: +(doingSum / frames).toFixed(1), sparks };
+  // The night comes: everybody stops, props put away, and nobody is lying down.
+  for (let i = 0; i < 30 * 60; i++) clan.update(1 / 30, 300 + i / 30, far, 0.8);
+  out.night = { doing: m.filter((p) => p.doing).length, props: m.flatMap((p) => ['rod', 'spoon', 'scope', 'zzz', 'talk'].map((k) => p.props[k].visible)).filter(Boolean).length, lying: m.filter((p) => p.model.person.rotation.x !== 0).length, aura: m.every((p) => p.aura.group.scale.x === 1), sitting: m.filter((p) => p.sitting).length };
+  return out;
+};
+
+async function chunk29(browser) {
+  let { page } = await openGame(browser, 'jobs-unit');
+  const u = await page.evaluate(jobUnit);
+  check('every person has a job that fits where they stand: three train at the yard, two spar in the ring and one cheers, two fish at the pond, one cooks, one chats, one naps by the fire, one looks through the telescope, one reads the notice board, one shows off', u.jobs === 'train,train,train,spar,spar,cheer,fish,fish,cook,chat,nap,look,read,showoff' && u.partners === '{"3":4,"4":3}', JSON.stringify([u.jobs, u.partners]));
+  const jobs = ['train', 'spar', 'cheer', 'fish', 'cook', 'chat', 'nap', 'look', 'read', 'showoff'];
+  check('in four minutes of a day every job is really seen: training punches, sparring lunges, cheering arms up, a fishing rod, a stirring spoon, a speech mark, a nap with "Zzz", a telescope, a reader\'s tilted head and a flaring aura', jobs.every((j) => u.seen[j] > 5), JSON.stringify(u.seen));
+  check('the two who spar do it together, sparks fly when people train or spar, and not everybody works at once (they rest in between)', u.counts.bothSpar && u.counts.sparks > 0 && u.counts.doingMax >= 3 && u.counts.doingAvg > 5 && u.counts.doingAvg < 13, JSON.stringify(u.counts));
+  check('when night comes everybody stops: no job, no props, nobody lying down, auras back to normal, and all of them sit round the fire', u.night.doing === 0 && u.night.props === 0 && u.night.lying === 0 && u.night.aura && u.night.sitting === 14, JSON.stringify(u.night));
+
+  // Pictures of the live village by day.
+  CHAPTER_ON = true; SHOW_SQUAD = true;
+  ({ page } = await openGame(browser, 'jobs-live'));
+  CHAPTER_ON = false; SHOW_SQUAD = false;
+  await page.evaluate(() => window.__game.rounds.toVillage());
+  await until(page, () => window.__game.village.active);
+  await page.evaluate(() => { const G = window.__game; G.village.setClock(0.2); G.player.position.set(11.5, 0, -0.5); });
+  await page.waitForTimeout(6000);
+  await page.screenshot({ path: `${OUT}/jobs-1-ring.png` });
+  await page.evaluate(() => { const G = window.__game; G.player.position.set(-11.5, 0, 0.5); });
+  await page.waitForTimeout(5000);
+  await page.screenshot({ path: `${OUT}/jobs-2-yard.png` });
+  await page.evaluate(() => { const G = window.__game; G.player.position.set(-6, 0, 10); });
+  await page.waitForTimeout(5000);
+  await page.screenshot({ path: `${OUT}/jobs-3-pond.png` });
+  check('(pictures taken of the ring, the yard and the pond)', true);
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27, 28: chunk28, 29: chunk29 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }
