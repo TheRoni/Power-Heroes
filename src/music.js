@@ -11,6 +11,7 @@ const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
 // An envelope: rise to "peak", hold until "until", then fade away over "release".
 function envelope(param, t, peak, attack, until, release) {
   const hold = Math.max(until, t + attack + 0.01);
+  param.value = 0.0001;   // silent until its moment (otherwise the very first sample can click)
   param.setValueAtTime(0.0001, t);
   param.linearRampToValueAtTime(peak, t + attack);
   param.setValueAtTime(peak, hold);
@@ -18,7 +19,10 @@ function envelope(param, t, peak, attack, until, release) {
   return hold + release;   // when the sound is over
 }
 
-// A tone through an envelope. Returns the gain node (connect it to where the sound should go).
+// A gain that starts silent (the notes shape it themselves).
+const quiet = (ctx) => { const gain = ctx.createGain(); gain.gain.value = 0.0001; return gain; };
+
+// A tone. Returns the oscillator (connect it to where the sound should go).
 function tone(ctx, type, from, to, t, stop) {
   const osc = ctx.createOscillator();
   osc.type = type;
@@ -52,7 +56,7 @@ const VOICES = {
   flute(ctx, t, n, out, echo) {
     const release = Math.min(0.3, 0.1 + n.secs * 0.15);
     const body = ctx.createGain();
-    const end = envelope(body.gain, t, 0.15 * n.vel, 0.07, t + n.secs, release);
+    const end = envelope(body.gain, t, 0.06 * n.vel, 0.07, t + n.secs, release);
     const depth = ctx.createGain();
     if (n.secs > 0.45) {   // vibrato: a slow wobble in the pitch (in cents) that grows in
       const lfo = ctx.createOscillator();
@@ -76,7 +80,7 @@ const VOICES = {
       osc.stop(end + 0.05);
     }
     const air = hiss(ctx, 'bandpass', Math.min(5000, Math.max(1800, n.hz * 3)), 0.9, t, end + 0.05);
-    const puff = ctx.createGain();
+    const puff = quiet(ctx);
     const steady = 0.008 * n.vel + 0.0002;
     puff.gain.setValueAtTime(0.0001, t);
     puff.gain.linearRampToValueAtTime(0.06 * n.vel, t + 0.015);
@@ -94,10 +98,10 @@ const VOICES = {
 
   // A music box: a bell-like ping that rings out.
   chime(ctx, t, n, out, echo) {
-    const gain = ctx.createGain();
+    const gain = quiet(ctx);
     const length = Math.max(0.9, n.secs * 1.4);
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.linearRampToValueAtTime(0.07 * n.vel, t + 0.003);
+    gain.gain.linearRampToValueAtTime(0.06 * n.vel, t + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
     for (const [ratio, level] of [[1, 1], [2.76, 0.18], [5.4, 0.04]]) {
       const part = ctx.createGain();
@@ -116,7 +120,7 @@ const VOICES = {
   pluck(ctx, t, n, out) {
     const length = Math.max(0.5, n.secs);
     const filter = ctx.createBiquadFilter();
-    const gain = ctx.createGain();
+    const gain = quiet(ctx);
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(3200, t);
     filter.frequency.exponentialRampToValueAtTime(500, t + 0.35);
@@ -134,9 +138,12 @@ const VOICES = {
     const gain = ctx.createGain();
     filter.type = 'lowpass';
     filter.frequency.value = 500;
-    const end = envelope(gain.gain, t, 0.13 * n.vel, 0.015, t + n.secs * 0.9, 0.1);
-    tone(ctx, 'sine', n.hz, n.hz, t, end + 0.05).connect(filter);
-    tone(ctx, 'triangle', n.hz, n.hz, t, end + 0.05).connect(filter);
+    const end = envelope(gain.gain, t, 0.04 * n.vel, 0.015, t + n.secs * 0.9, 0.1);
+    const half = ctx.createGain();   // the sine and the triangle share the volume
+    half.gain.value = 0.5;
+    tone(ctx, 'sine', n.hz, n.hz, t, end + 0.05).connect(half);
+    tone(ctx, 'triangle', n.hz, n.hz, t, end + 0.05).connect(half);
+    half.connect(filter);
     filter.connect(gain);
     gain.connect(out);
   },
@@ -147,7 +154,7 @@ const VOICES = {
     const gain = ctx.createGain();
     filter.type = 'lowpass';
     filter.frequency.value = 800;
-    const end = envelope(gain.gain, t, 0.045 * n.vel, 1, t + n.secs, 1.4);
+    const end = envelope(gain.gain, t, 0.017 * n.vel, 1, t + n.secs, 1.4);
     tone(ctx, 'triangle', n.hz, n.hz, t, end + 0.05).connect(filter);
     tone(ctx, 'triangle', n.hz * 1.005, n.hz * 1.005, t, end + 0.05).connect(filter);
     filter.connect(gain);
@@ -155,9 +162,9 @@ const VOICES = {
   },
 
   kick(ctx, t, n, out) {
-    const gain = ctx.createGain();
+    const gain = quiet(ctx);
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.linearRampToValueAtTime(0.2 * n.vel, t + 0.004);
+    gain.gain.linearRampToValueAtTime(0.14 * n.vel, t + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     const osc = tone(ctx, 'sine', 130, 45, t, t + 0.25);
     osc.connect(gain);
@@ -165,18 +172,18 @@ const VOICES = {
   },
 
   snare(ctx, t, n, out) {
-    const gain = ctx.createGain();
+    const gain = quiet(ctx);
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.linearRampToValueAtTime(0.07 * n.vel, t + 0.003);
+    gain.gain.linearRampToValueAtTime(0.05 * n.vel, t + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
     hiss(ctx, 'bandpass', 1700, 0.8, t, t + 0.13).connect(gain);
     gain.connect(out);
   },
 
   hat(ctx, t, n, out) {
-    const gain = ctx.createGain();
+    const gain = quiet(ctx);
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.linearRampToValueAtTime(0.025 * n.vel, t + 0.002);
+    gain.gain.linearRampToValueAtTime(0.02 * n.vel, t + 0.002);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
     hiss(ctx, 'highpass', 6500, 0.7, t, t + 0.06).connect(gain);
     gain.connect(out);

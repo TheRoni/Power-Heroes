@@ -3,6 +3,7 @@
 // phone and on a computer, and a third item names a "cue": something that happens when the line appears.
 // A step like { wait: 'move', hint } hands the game back to the player until they have done what the lesson asked.
 // { wait: 'arrive' } (no hint) pauses the talk while a character runs in.
+// { music: 'marlo', fade: 2 } changes the song (the names are in music-data.js) and carries straight on.
 // Keep lines short, warm and a bit funny.
 
 export const CHAPTER = { number: 1, name: 'Sunmeadow' };
@@ -18,6 +19,7 @@ export const SPEAKERS = {
 // Scenes: conversations you tap through. The game waits while they play (except during a lesson).
 export const SCENES = {
   prologue: [
+    { music: 'marlo', fade: 2.5 },   // the falling star's song gives way to Marlo's theme
     ['marlo', 'Power 1. ...No. Look at it climb.', 'power-climb'],
     ['sol', '...Where am I?'],
     ['marlo', "Sunmeadow, in the Sky Isles. You fell out of the sky, so I'll call you Sol."],
@@ -53,11 +55,13 @@ export const SCENES = {
     ['ember', 'Fifteen. I trained a whole year for my 120. ...Rematch tomorrow?'],
     ['pip', 'Ember is the brightest young hero on Sunmeadow. Also very easy to annoy.'],
     ['ember', "I'm not annoyed. I'm... competitive."],
+    { music: 'lullaby', fade: 3 },   // the first time we hear the song that runs through the whole game
     ['marlo', 'Everyone here wants more. So did I. So did she.'],
     ['sol', 'Who is she?'],
     ['marlo', '...Another night, Sol. Tidecove is next.'],
   ],
   lose: [
+    { music: 'marlo', fade: 2 },
     ['marlo', 'Up, Sol. Slowly. Heroes fall. Falling is the easy part.'],
     ['pip', 'You were SO close! Probably! Eighty percent close!'],
     ['marlo', 'Again. The island is still waiting.'],

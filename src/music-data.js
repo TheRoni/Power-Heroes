@@ -41,6 +41,11 @@ export function parseNotes(text, { key, mode } = {}) {
 
 const repeat = (text, times) => Array(times).fill(text).join(' | ');
 
+// Lyra's Lullaby, verse one, in scale degrees (3 beats a bar). It rises a sixth and sighs back down, twice, and then
+// ends OPEN, on the fifth: "she used to fall asleep before the second verse". (Verse two, which comes home, is saved
+// for the epilogue.)
+const LULLABY_VERSE_ONE = '5:1 3^:2 | 2^:1 1^:1 7:1 | 6:2 5:1 | 6:3 | 5:1 3^:2 | 4^:1 3^:1 2^:1 | 1^:2 7:1 | 5:3';
+
 // tempo: beats per minute. beats: beats in a bar. bars: bars in the loop. level: how loud the whole song is.
 // Each track plays one voice (see music.js): flute, chime, pluck, bass, pad, kick, snare, hat.
 export const SONGS = {
@@ -68,6 +73,28 @@ export const SONGS = {
       { voice: 'bass', notes: 'G2:1 r:1 D3:1 r:1 | E2:1 r:1 B2:1 r:1 | G2:1 r:1 D3:1 r:1 | G2:1 r:1 D3:1 r:1 | E2:1 r:1 B2:1 r:1 | C3:1 r:1 G3:1 r:1 | D3:1 r:1 A3:1 r:1 | G2:1 r:1 D3:1 r:1' },
       { voice: 'hat', notes: repeat(repeat('r:0.5 x:0.5', 4), 8) },
     ],
+  },
+
+  // Marlo's theme: warm, low and kind. For the lessons and the quiet moments with him. (G major)
+  marlo: {
+    tempo: 72, beats: 4, bars: 8, level: 0.9,
+    tracks: [
+      { voice: 'flute', notes: 'G4:1 D5:2 B4:1 | A4:2 G4:1 E4:1 | G4:1 D5:2 B4:1 | A4:4 | B4:1 C5:1 D5:2 | E5:2 D5:1 B4:1 | A4:2 B4:1 G4:1 | G4:4' },
+      { voice: 'pluck', notes: 'G3:1 D4:1 G4:1 D4:1 | E3:1 B3:1 E4:1 B3:1 | G3:1 D4:1 G4:1 D4:1 | D3:1 A3:1 D4:1 A3:1 | C3:1 G3:1 C4:1 G3:1 | E3:1 B3:1 E4:1 B3:1 | D3:1 A3:1 D4:1 A3:1 | G3:1 D4:1 G4:1 D4:1' },
+      { voice: 'pad', notes: 'G2+D3:4 | E2+B2:4 | G2+D3:4 | D2+A2:4 | C2+G2:4 | E2+B2:4 | D2+A2:4 | G2+D3:4' },
+    ],
+  },
+
+  // Lyra's Lullaby: one gentle solo flute, then four bars of silence to breathe. (D major)
+  lullaby: {
+    tempo: 60, beats: 3, bars: 12, level: 1,
+    tracks: [{ voice: 'flute', key: 'D4', mode: 'major', notes: `${LULLABY_VERSE_ONE} | r:12` }],
+  },
+
+  // The same song in sorrow: the minor, very slow, and it stops in the middle of a phrase. Long silences. (D minor)
+  'lullaby-sorrow': {
+    tempo: 44, beats: 3, bars: 12, level: 0.9,
+    tracks: [{ voice: 'flute', key: 'D4', mode: 'minor', notes: '5:1 3^:2 | 2^:1 1^:1 7:1 | 6:2 5:1 | 6:3 | 5:1 3^:2 | 4^:1 r:2 | r:18' }],
   },
 
   // The fight: quicker, in the minor, with a driving flute riff over soft drums. (D minor)

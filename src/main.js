@@ -12,6 +12,7 @@ import { createStory } from './story.js';
 import { createPrologue } from './prologue.js';
 import { createUI } from './ui.js';
 import { createAudio } from './audio.js';
+import { createMusic } from './music.js';
 
 // Add ?debug (or #debug, which also works in the Claude test link) to the end of the web address to show the frame rate.
 const FLAGS = new URLSearchParams(location.search);
@@ -47,10 +48,7 @@ const soon = [];   // Pip's comments waiting for their moment: { key, left }
 let ending = null;   // 'won' or 'lost' while Marlo walks over, before the closing conversation
 let endWait = 0;
 
-// Pip says something after a short delay (so a wave's comment does not land on top of its banner).
-function saySoon(key, delay) {
-  soon.push({ key, left: delay });
-}
+const saySoon = (key, delay) => soon.push({ key, left: delay });   // Pip says something after a short delay (so a wave's comment does not land on its banner)
 
 function shake(amount) {
   if (!calmMotion) fx.shake = Math.max(fx.shake, amount);
@@ -63,6 +61,7 @@ const world = createWorld();
 const input = createInput(document.getElementById('joystick'), document.getElementById('joystick-knob'));
 const audio = createAudio();   // sound starts at the first tap (the title screen)
 audio.bindButton(document.getElementById('mute'));
+const music = createMusic(audio);   // the flute and the songs (they start when the story begins)
 const ui = createUI({ camera: world.camera, onCast: () => { if (!story.active && !frozen()) powers.castPower(); }, onAgain: restart, audio });
 const player = createHero({
   scene: world.scene,
@@ -111,6 +110,7 @@ const story = createStory({
   onWait: (kind) => (kind === 'arrive' ? emberArrives() : prologue.startLesson(kind)),   // a lesson begins, or Ember runs in
   onCue: (cue) => prologue.cue(cue),
   audio,
+  music,
 });
 const waves = createWaves({
   scene: world.scene,
@@ -120,6 +120,7 @@ const waves = createWaves({
     wave: (number, total) => {
       ui.showBanner(`Wave ${number}`, number === total ? 'Final wave!' : `of ${total}`);
       audio.play('wave');
+      music.play('battle', 1);
       saySoon(`wave${number}`, 1.2);
     },
     spawn: (gloom) => { puff(gloom.position); audio.play('spawn'); },
@@ -128,7 +129,7 @@ const waves = createWaves({
       audio.play('cleared');
       if (number < waves.total) story.say('cleared');
     },
-    end: (kind) => { ending = kind; endWait = 0; audio.play(kind === 'won' ? 'win' : 'lose'); marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
+    end: (kind) => { ending = kind; endWait = 0; audio.play(kind === 'won' ? 'win' : 'lose'); music.play('sunmeadow', 2.5); marlo.walkTo(player.position.x + 2.2, player.position.z - 1.3); },   // Marlo walks over, then a short conversation, then the end screen
   },
 });
 
@@ -174,7 +175,7 @@ function restart() {
 }
 
 // The very first thing the player sees: a star falls, Marlo comes, three short lessons, then the sunrise. The first wave starts after it.
-const prologue = createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, audio, onDone: () => waves.start() });
+const prologue = createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, audio, music, onDone: () => waves.start() });
 prologue.begin();   // the night scene is ready, with Sol off stage
 if (TITLE) ui.showTitle(() => prologue.go());   // the first tap starts the sound and the story
 else prologue.go();
@@ -210,7 +211,7 @@ if (DEBUG) {
   fpsBox = document.createElement('div');
   fpsBox.id = 'fps';
   document.body.appendChild(fpsBox);
-  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio };   // lets the automatic tests look inside the game
+  window.__game = { player, input, world, renderer, gloomlings, ui, powers, waves, fx, story, pip, marlo, prologue, ember, audio, music };   // lets the automatic tests look inside the game
 }
 
 // --- The game loop: runs once for every picture drawn ---

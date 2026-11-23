@@ -20,7 +20,7 @@ const random = (min, max) => min + Math.random() * (max - min);
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 // "world" is { scene, camera, setNight }. "shake(amount)" shakes the screen. onDone() starts the first wave.
-export function createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone, audio = QUIET }) {
+export function createPrologue({ world, player, marlo, powers, story, gloomlings, ui, shake, onDone, audio = QUIET, music = QUIET }) {
   const scene = world.scene;
   const flashBox = document.getElementById('flash');
   const skipButton = document.getElementById('skip');
@@ -157,6 +157,7 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
     if (phase !== 'title') return;
     phase = 'dark';
     clock = 0;
+    music.play('falling-star', 0.5);
     skipButton.hidden = false;
     ui.showBanner(PROLOGUE.name, PROLOGUE.subtitle);
   }
@@ -190,6 +191,7 @@ export function createPrologue({ world, player, marlo, powers, story, gloomlings
     phase = 'dawn';
     clock = 0;
     audio.play('sunrise');
+    music.play('sunmeadow', 2.5);
     skipButton.hidden = true;
     marlo.goHome();
     ui.showBanner(CHAPTER.name, `Chapter ${CHAPTER.number}`);

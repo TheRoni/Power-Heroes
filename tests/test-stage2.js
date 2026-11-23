@@ -492,18 +492,20 @@ const storyUnit = async () => {
   const THREE = await import('/lib/three.module.min.js');
   const { createStory } = await import('/src/story.js');
   const { SCENES, BUBBLES, SPEAKERS } = await import('/src/story-data.js');
+  const { SONGS } = await import('/src/music-data.js');
   const out = {};
   const make = (touch) => {
     const doc = document.implementation.createHTMLDocument('story test');
     doc.body.innerHTML = '<div id="bubble"></div><div id="lesson" hidden></div><div id="dialogue" hidden><div id="dialogue-box"><div id="dialogue-face"></div><div id="dialogue-body"><div id="dialogue-name"></div><p id="dialogue-text"></p></div><div id="dialogue-next"></div></div></div>';
     const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 100);
     camera.position.set(0, 10, 10); camera.lookAt(0, 0, 0); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
-    const log = { started: 0, spoke: 0, done: 0, waits: [], cues: [] };
+    const log = { started: 0, spoke: 0, done: 0, waits: [], cues: [], songs: [] };
     const pip = new THREE.Object3D(); pip.position.set(-3, 0, 0);       // Pip is left of the middle of the picture, Marlo right of it
     const marlo = new THREE.Object3D(); marlo.position.set(3, 0, 0);
     const story = createStory({
       camera, anchors: { pip: { object: pip, lift: 0.7 }, marlo: { object: marlo, lift: 3.4 } }, root: doc, touch,
       onStart: () => { log.started++; }, onSpeak: () => { log.spoke++; }, onWait: (kind) => { log.waits.push(kind); }, onCue: (cue) => { log.cues.push(cue); },
+      music: { play: (name, fade) => { log.songs.push(`${name}@${fade}`); return true; } },
     });
     return { story, log, $: (id) => doc.getElementById(id) };
   };
@@ -514,9 +516,9 @@ const storyUnit = async () => {
 
   {   // the prologue, line by line
     const s = make(false);
-    const first = SCENES.prologue[0];
+    const first = SCENES.prologue.find((step) => Array.isArray(step));   // (a scene may begin with a { music } step)
     s.story.scene('prologue', () => { s.log.done++; });
-    out.opened = { active: s.story.active, shown: !s.$('dialogue').hidden, started: s.log.started, name: s.$('dialogue-name').textContent, cues: s.log.cues.slice(), spoke: s.log.spoke };
+    out.opened = { active: s.story.active, shown: !s.$('dialogue').hidden, started: s.log.started, name: s.$('dialogue-name').textContent, cues: s.log.cues.slice(), spoke: s.log.spoke, songs: s.log.songs.slice() };
     s.story.update(0.1);
     out.typingEarly = letters(s);
     press('Space');
@@ -574,11 +576,11 @@ const storyUnit = async () => {
     const s = make(false);
     s.story.scene('lose'); s.story.update(0.05);
     tap(s);
-    out.tapTooSoon = letters(s) < SCENES.lose[0][1].length && s.$('dialogue-name').textContent === 'Marlo';
+    out.tapTooSoon = letters(s) < SCENES.lose.find((step) => Array.isArray(step))[1].length && s.$('dialogue-name').textContent === 'Marlo';
     s.story.update(0.3);
     const before = letters(s);
     tap(s);
-    out.tapFinishes = letters(s) > before && s.$('dialogue-text').textContent === SCENES.lose[0][1];
+    out.tapFinishes = letters(s) > before && s.$('dialogue-text').textContent === SCENES.lose.find((step) => Array.isArray(step))[1];
   }
   {   // bubbles: Pip's are plain, Marlo's are named, and each floats by its own speaker
     const s = make(false);
@@ -612,6 +614,7 @@ const storyUnit = async () => {
     for (const [id, steps] of Object.entries(SCENES)) {
       steps.forEach((step, i) => {
         if (Array.isArray(step)) { if (!SPEAKERS[step[0]] || !lengthOk(step[1])) problems.push(`${id}#${i}`); }
+        else if (step.music) { if (!SONGS[step.music]) problems.push(`${id}#${i} (no song "${step.music}")`); }
         else if (!['move', 'strike', 'power', 'arrive'].includes(step.wait) || (step.wait !== 'arrive' && !lengthOk(step.hint))) problems.push(`${id}#${i} (lesson)`);
       });
     }
@@ -620,8 +623,9 @@ const storyUnit = async () => {
     }
     out.data = {
       problems,
-      lessons: SCENES.prologue.filter((step) => !Array.isArray(step)).map((step) => step.wait),
+      lessons: SCENES.prologue.filter((step) => !Array.isArray(step) && step.wait).map((step) => step.wait),
       cue: SCENES.prologue.some((step) => Array.isArray(step) && step[2] === 'power-climb'),
+      songs: Object.fromEntries(Object.entries(SCENES).map(([id, steps]) => [id, steps.filter((step) => !Array.isArray(step) && step.music).map((step) => step.music).join()])),
       emberInWin: SCENES.win.some((step) => step[0] === 'ember'),
       arriveBeforeEmber: (() => { const i = SCENES.win.findIndex((step) => !Array.isArray(step) && step.wait === 'arrive'); return i > 0 && SCENES.win[i + 1][0] === 'ember' && SCENES.win.slice(0, i).every((step) => !Array.isArray(step) || step[0] !== 'ember'); })(),
       marloLast: SCENES.win[SCENES.win.length - 1][0],
@@ -657,6 +661,7 @@ async function chunk5(browser) {
   let { page } = await openGame(browser, 'story-unit');
   const u = await page.evaluate(storyUnit);
   check('a conversation opens with the first speaker, the controls are let go and the cue fires', u.opened.active && u.opened.shown && u.opened.started === 1 && u.opened.name === 'Marlo' && u.opened.cues.join() === 'power-climb' && u.opened.spoke === 0, JSON.stringify(u.opened));
+  check('a { music } step changes the song with its own fade and the talk carries straight on', u.opened.songs.join() === 'marlo@2.5', JSON.stringify(u.opened.songs));
   check('the words appear letter by letter', u.typingEarly > 0 && u.typingEarly < 12 && u.typingLater > u.typingEarly, `${u.typingEarly} then ${u.typingLater}`);
   check('a press in the first moment is ignored (tap lock)', u.lockHeld);
   check('the first press finishes the line, the next goes on', u.finished && u.nextLine.name === 'Sol' && u.nextLine.letters === 0, JSON.stringify(u.nextLine));
@@ -673,7 +678,8 @@ async function chunk5(browser) {
   check('Pip speaks only for his own bubbles, and each bubble floats by its speaker', u.anchored.pipX !== null && u.anchored.marloX !== null && u.anchored.pipX < 400 && u.anchored.marloX > 400, JSON.stringify(u.anchored));
   check('a bubble never repeats the line before it', u.repeats === 0, `repeats=${u.repeats}`);
   check('bubbles are refused during a conversation and for unknown names', u.duringScene === false && u.unknown === false);
-  check('every line is well formed and short (100 letters at most)', u.data.problems.length === 0, u.data.problems.join(', '));
+  check('every line is well formed and short (100 letters at most), and every song a scene names exists', u.data.problems.length === 0, u.data.problems.join(', '));
+  check('the scenes pick their songs: Marlo\'s theme for the lessons and when he helps Sol up, the lullaby at "So did she"', u.data.songs.prologue === 'marlo' && u.data.songs.win === 'lullaby' && u.data.songs.lose === 'marlo', JSON.stringify(u.data.songs));
   check('the prologue has the three lessons in order and the Power-climb cue; the win scene has Ember and ends on Marlo', u.data.lessons.join() === 'move,strike,power' && u.data.cue && u.data.emberInWin && u.data.arriveBeforeEmber && u.data.marloLast === 'marlo', JSON.stringify(u.data));
 
   // Live game: the first wave brings a bubble; the win and knocked-out conversations come before the end screens.
@@ -685,7 +691,7 @@ async function chunk5(browser) {
   await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
   await waitForClosing(page);
   const winTalk = await page.evaluate(() => ({ endHidden: document.getElementById('end').hidden, text: document.getElementById('dialogue-name').textContent }));
-  check('after the last wave the story talks first, with no end screen yet', winTalk.endHidden && winTalk.text === SPEAKERS[SCENES.win[0][0]].name, JSON.stringify(winTalk));
+  check('after the last wave the story talks first, with no end screen yet', winTalk.endHidden && winTalk.text === SPEAKERS[SCENES.win.find((step) => Array.isArray(step))[0]].name, JSON.stringify(winTalk));
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${OUT}/story-3-win.png` });
   const winNames = await readOn(page);
@@ -779,7 +785,7 @@ const state = () => {   // a snapshot of the prologue, from inside the page
   const lesson = document.getElementById('lesson');
   const rect = (id) => { const r = document.getElementById(id).getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
   return {
-    phase: G.prologue.phase, kind: G.prologue.lessonKind, active: G.story.active, waiting: G.story.waiting, night: G.world.night,
+    phase: G.prologue.phase, kind: G.prologue.lessonKind, active: G.story.active, waiting: G.story.waiting, night: G.world.night, music: G.music.song,
     name: document.getElementById('dialogue-name').textContent, boxHidden: document.getElementById('dialogue').hidden,
     hint: lesson.textContent, hintShown: !lesson.hidden, ring: G.prologue.ringVisible, crater: G.prologue.craterVisible, star: G.prologue.starVisible,
     gloom: G.gloomlings.length, autoFire: G.powers.autoFire, shots: G.powers.shotCount, ready: G.powers.powerReady, waves: G.waves.state,
@@ -842,12 +848,14 @@ async function chunk8(browser) {
   check('a star falls out of the night sky', true);
   await until(page, () => window.__game.prologue.phase === 'rising');
   await page.screenshot({ path: `${OUT}/prologue-2-landing.png` });
+  check('"The Falling Star" plays while the star falls and lands', (await page.evaluate(() => window.__game.music.song)) === 'falling-star');
   await until(page, () => window.__game.prologue.phase === 'talking');
   const seen = await page.evaluate(() => window.__watch);
   check('the phases come in order: dark, falling, rising, walking, talking', seen.phases.join() === 'dark,falling,rising,walking,talking', seen.phases.join());
   check('the landing makes a white flash and a shake, and leaves a glowing crater', seen.flash > 0.3 && seen.shake > 0.1 && seen.star && seen.crater, JSON.stringify([seen.flash, seen.shake, seen.star, seen.crater]));
   await page.waitForTimeout(1500);
   const talk = await page.evaluate(state);
+  check('Marlo\'s theme took over from "The Falling Star" when he began to speak', talk.music === 'marlo', talk.music);
   check('Marlo has walked over to Sol and starts to speak, with Pip floating by his shoulder', talk.active && talk.name === 'Marlo' && talk.marloGap < 3.2 && talk.pipGap < 3.2 && talk.pipHeight > 3, JSON.stringify([talk.name, talk.marloGap, talk.pipGap, talk.pipHeight]));
   check('Sol is back at full size, standing in the crater', talk.visible && near(talk.scale, 1, 0.001) && talk.crater && talk.night === 1, JSON.stringify([talk.visible, talk.scale, talk.crater]));
   await page.screenshot({ path: `${OUT}/prologue-3-marlo.png` });
@@ -893,6 +901,9 @@ async function chunk8(browser) {
   await page.screenshot({ path: `${OUT}/prologue-6-dawn.png` });
   await until(page, () => window.__game.prologue.phase === 'done');
   const day = await page.evaluate(state);
+  check('the sunrise brings in "Sunmeadow"', dawn.music === 'sunmeadow', dawn.music);
+  await until(page, () => window.__game.music.song === 'battle');
+  check('and the first wave (a moment later) brings in "Battle"', true);
   check('then the first wave begins in full daylight, with the crater gone and the normal hint back', day.night === 0 && ['break', 'spawning'].includes(day.waves) && !day.bodyClass && !day.crater && day.hintDisplay !== 'none', JSON.stringify([day.night, day.waves, day.bodyClass, day.crater]));
   const seen2 = await page.evaluate(() => window.__watch);
   check('Sol\'s Power number climbed above their head while Marlo watched', ['Power 1', 'Power 2', 'Power 4', 'Power 7'].every((t) => seen2.floaters.includes(t)), seen2.floaters.join());
@@ -1198,6 +1209,7 @@ async function chunk9(browser) {
   await until(page, () => !document.getElementById('end').hidden);
   const stay = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, ember: window.__game.ember.state, marloHome: window.__game.marlo.atHome }));
   check('after the talk the "Isle saved!" screen shows, with Ember and Marlo still beside Sol', names.includes('Ember') && stay.title === 'Isle saved!' && stay.ember === 'here' && !stay.marloHome, JSON.stringify([names, stay]));
+  check('Lyra\'s Lullaby came in at Marlo\'s "So did she" and plays on the end screen', (await page.evaluate(() => window.__game.music.song)) === 'lullaby');
   await page.screenshot({ path: `${OUT}/ember-3-end.png` });
   await page.waitForTimeout(900);
   await page.keyboard.press('Space');
@@ -1211,7 +1223,7 @@ async function chunk9(browser) {
   check('when Sol is knocked out Marlo sets off to help, and the conversation waits for him', fallen.state === 'over' && !fallen.active && !fallen.marloHome, JSON.stringify(fallen));
   await until(page, () => window.__game.story.active);
   const help = await page.evaluate(state);
-  check('he arrives, and the knocked-out conversation begins with Marlo', help.name === 'Marlo' && help.marloGap < 3.2, JSON.stringify([help.name, help.marloGap]));
+  check('he arrives, and the knocked-out conversation begins with Marlo, to his theme', help.name === 'Marlo' && help.marloGap < 3.2 && help.music === 'marlo', JSON.stringify([help.name, help.marloGap, help.music]));
   const lostNames = await readOn(page);
   await until(page, () => !document.getElementById('end').hidden);
   const lost = await page.evaluate(() => ({ title: document.getElementById('end-title').textContent, ember: window.__game.ember.state }));
@@ -1404,6 +1416,7 @@ const musicUnit = async () => {
   };
   try { parseNotes('H5:1'); out.badName = false; } catch (error) { out.badName = true; }
   try { parseNotes('D5:0'); out.badLength = false; } catch (error) { out.badLength = true; }
+  out.lullaby = (() => { const flute = (n) => SONGS[n].events.filter((e) => e.voice === 'flute'); const w = flute('lullaby'), s = flute('lullaby-sorrow'); return { warm: w.map((e) => e.notes[0]).join(), warmLast: w[w.length - 1], warmCount: w.length, sad: s.map((e) => e.notes[0]).join(), sadLastBeat: s[s.length - 1].beat, sadSpb: 60 / SONGS['lullaby-sorrow'].tempo, warmSpb: 60 / SONGS.lullaby.tempo }; })();
   out.songs = Object.fromEntries(Object.entries(SONGS).map(([name, s]) => [name, { events: s.events.length, voices: [...new Set(s.events.map((e) => e.voice))].join(), seconds: +(s.length * 60 / s.tempo).toFixed(1), level: s.level, tempo: s.tempo }]));
 
   const render = async (name, seconds, only = null, fromBeat = 0) => {   // plays a song on an offline "recording" context
@@ -1470,11 +1483,65 @@ async function chunk11(browser) {
   check('scale degrees follow the key and the mode (D major: A, high F#, low C#; D minor: B-flat, C, F)', u.parse.major === '0:1:69 1:2:78 3:1:61' && u.parse.minor === '0:1:70 1:1:72 2:1:65', JSON.stringify([u.parse.major, u.parse.minor]));
   check('a bad note name or a zero length is refused', u.badName && u.badLength);
   const songNames = Object.keys(u.songs);
-  check(`the ${songNames.length} songs load, and every track fills its loop exactly`, songNames.join() === 'falling-star,sunmeadow,battle' && songNames.every((n) => u.songs[n].events > 20 && u.songs[n].level <= 1 && u.songs[n].tempo >= 40 && u.songs[n].tempo <= 160), JSON.stringify(u.songs));
-  check('each song uses a flute and other instruments', u.songs['falling-star'].voices === 'flute,chime,pad' || /flute/.test(u.songs['falling-star'].voices), JSON.stringify(Object.fromEntries(songNames.map((n) => [n, u.songs[n].voices]))));
-  check('rendered offline, every song is audible, finite, and well under clipping', songNames.every((n) => u.mix[n].bad === 0 && u.mix[n].peak > 0.03 && u.mix[n].peak < 0.45 && u.mix[n].rms > 0.006 && u.mix[n].rms < 0.1), JSON.stringify(u.mix));
+  check(`the ${songNames.length} songs load, and every track fills its loop exactly`, songNames.join() === 'falling-star,sunmeadow,marlo,lullaby,lullaby-sorrow,battle' && songNames.every((n) => u.songs[n].events >= 10 && u.songs[n].level <= 1 && u.songs[n].tempo >= 40 && u.songs[n].tempo <= 160), JSON.stringify(u.songs));
+  check('each song has a flute (the lullabies are the flute alone) and the others add instruments', songNames.every((n) => /flute/.test(u.songs[n].voices)) && songNames.filter((n) => !/lullaby/.test(n)).every((n) => u.songs[n].voices.split(',').length >= 3) && songNames.filter((n) => /lullaby/.test(n)).every((n) => u.songs[n].voices === 'flute'), JSON.stringify(Object.fromEntries(songNames.map((n) => [n, u.songs[n].voices]))));
+  check('Lyra\'s Lullaby: verse one (A4, high F#5, E5, D5, C#5, B4 ...) ends OPEN on the fifth (A4), then four bars of silence', u.lullaby.warm === '69,78,76,74,73,71,69,71,69,78,79,78,76,74,73,69' && u.lullaby.warmLast.notes[0] === 69 && u.lullaby.warmLast.beat === 21 && u.lullaby.warmLast.beats === 3 && u.songs.lullaby.seconds === 36 * u.lullaby.warmSpb, JSON.stringify(u.lullaby));
+  check('the lullaby in sorrow is the same tune in the minor (F instead of F#, B-flat instead of B), slower, and stops in mid-phrase', u.lullaby.sad === '69,77,76,74,72,70,69,70,69,77,79' && u.lullaby.sadSpb > u.lullaby.warmSpb && u.lullaby.sadLastBeat === 15 && u.songs['lullaby-sorrow'].seconds > 45, JSON.stringify([u.lullaby.sad, u.lullaby.sadLastBeat, u.songs['lullaby-sorrow'].seconds]));
+  check('rendered offline, every song is audible, finite, and well under clipping', songNames.every((n) => u.mix[n].bad === 0 && u.mix[n].peak > 0.03 && u.mix[n].peak < 0.3 && u.mix[n].rms > 0.01 && u.mix[n].rms < 0.06), JSON.stringify(u.mix));
   check('every long flute note is at its written pitch (within 20 cents), and the flute is silent before its first note', songNames.every((n) => u.pitch[n].checked >= 3 && u.pitch[n].worst <= 20 && u.pitch[n].silentBeforeFirst), JSON.stringify(u.pitch));
   check('a song loops: the second lap starts again on the first note', Math.abs(u.loop) <= 20, `off by ${u.loop} cents`);
+
+  // Live game: which song plays follows what happens.
+  SHOW_TITLE = true;
+  ({ page } = await openGame(browser, 'music-live'));
+  SHOW_TITLE = false;
+  const idle = await page.evaluate(() => ({ wanted: window.__game.music.song, playing: window.__game.music.playing }));
+  check('on the title screen no song is chosen yet', idle.wanted === null && idle.playing === null, JSON.stringify(idle));
+  await page.keyboard.press('Space');
+  await until(page, () => window.__game.music.playing === 'falling-star');
+  check('the first tap starts the story and "The Falling Star" (as soon as the sound engine runs)', true);
+  const count = (ms) => page.evaluate(async (wait) => { const ctx = window.__game.audio.context; let n = 0; const make = ctx.createOscillator.bind(ctx); ctx.createOscillator = () => { n++; return make(); }; await new Promise((r) => setTimeout(r, wait)); ctx.createOscillator = make; return n; }, ms);
+  const sounding = await count(2500);
+  check('while a song plays its notes keep being scheduled a little ahead', sounding > 4, `${sounding} instruments made in 2.5 s`);
+  const heard = await page.evaluate(async () => {   // listen to what really leaves the game's volume control while the song plays
+    const A = window.__game.audio;
+    const tap = A.context.createAnalyser();
+    tap.fftSize = 2048;
+    A.master.connect(tap);
+    const data = new Float32Array(2048);
+    let peak = 0, sum = 0, n = 0;
+    for (let i = 0; i < 25; i++) {
+      await new Promise((r) => setTimeout(r, 120));
+      tap.getFloatTimeDomainData(data);
+      for (const v of data) { peak = Math.max(peak, Math.abs(v)); sum += v * v; n++; }
+    }
+    A.master.disconnect(tap);
+    return { peak: +peak.toFixed(3), rms: +Math.sqrt(sum / n).toFixed(4) };
+  });
+  check('the real audio output of the playing game is audible but nowhere near clipping', heard.peak > 0.005 && heard.peak < 0.6 && heard.rms > 0.001, JSON.stringify(heard));
+  await page.keyboard.press('KeyM');
+  await page.waitForTimeout(400);
+  const hushed = await count(2500);
+  check('while muted no new notes are made (it saves the battery)', hushed === 0, `${hushed} instruments`);
+  await page.keyboard.press('KeyM');
+  await page.waitForTimeout(400);
+  const back = await count(2500);
+  check('unmuting picks the music up again', back > 4, `${back} instruments`);
+  await page.evaluate(() => window.__game.prologue.skip());
+  await until(page, () => window.__game.music.song === 'battle');
+  await until(page, () => window.__game.music.playing === 'battle');
+  check('the first wave brings in "Battle" (the old song fades out)', true);
+  await page.evaluate(() => { const G = window.__game; for (let i = 0; i < 30 * 60 && G.waves.state !== 'over'; i++) { G.gloomlings.splice(0).forEach((g) => g.remove()); G.waves.update(1 / 30); } });
+  const won = await page.evaluate(() => window.__game.music.song);
+  check('winning brings back "Sunmeadow"', won === 'sunmeadow', won);
+  await waitForClosing(page);
+  await page.evaluate(() => window.__game.story.skip());
+  await page.waitForTimeout(900);
+  await page.keyboard.press('Space');
+  await until(page, () => window.__game.music.song === 'battle');
+  check('"Play again" brings "Battle" back with the first wave', true);
+  const same = await page.evaluate(() => { const M = window.__game.music; M.play('battle'); return M.song; });
+  check('asking for the song that is already playing changes nothing, and an unknown song is ignored', same === 'battle' && (await page.evaluate(() => { const M = window.__game.music; M.play('no-such-song'); return M.song; })) === 'battle');
 }
 
 (async () => {

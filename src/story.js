@@ -14,8 +14,8 @@ const BLIP_EVERY = 4;       // a little typing sound for every 4th letter
 // "anchors" say where each speaker's bubble floats: { pip: { object, lift }, marlo: { object, lift } }.
 // "root" is the page to draw on (tests pass a spare one). "touch" is true on a phone, so lines can mention the thumb
 // controls. onStart() runs when a conversation begins. onSpeak() when Pip speaks. onWait(kind) when a lesson begins.
-// onCue(name) when a line that names a cue appears. "audio" plays the typing blips.
-export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue, audio = QUIET }) {
+// onCue(name) when a line that names a cue appears. "audio" plays the typing blips; "music" plays the songs a scene names.
+export function createStory({ camera, anchors, root = document, touch, onStart, onSpeak, onWait, onCue, audio = QUIET, music = QUIET }) {
   const byId = (id) => root.getElementById(id);
   const overlay = byId('dialogue');
   const nameBox = byId('dialogue-name');
@@ -69,6 +69,7 @@ export function createStory({ camera, anchors, root = document, touch, onStart, 
   function showStep() {
     const step = lines[index];
     if (Array.isArray(step)) showLine(step);
+    else if (step.music) { music.play(step.music, step.fade || 2); goOn(); }   // { music: 'marlo' } changes the song and carries on
     else startWait(step);
   }
 

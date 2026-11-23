@@ -2,17 +2,18 @@
 
 ## Status
 - Done: game bible (`CLAUDE.md`), story bible (`STORY.md`), this roadmap, and
-  Stages 1 to 4 (movement, the first fight, the story begins, the Newcomer and
-  Marlo). All 200 automatic checks pass on the normal page and on the Claude
-  test link, which was republished at the end of Stage 4.
+  Stages 1 to 5 (movement, the first fight, the story begins, the Newcomer and
+  Marlo, flute music and sound). All 254 automatic checks pass on the normal
+  page and on the Claude test link, which was republished at the end of Stage 5.
 - **Story redirect (director, on Opus):** you are now the **Newcomer**, a Light
   hero who falls from the sky; **Keeper Marlo** is your mentor and teaches the
   game; **Nyx is secretly his lost daughter Lyra**; he dies in Chapter 4; the
   music is **flute**, with sad flute for emotional scenes. Characters chase
   Power as eagerly as the player. Details: `STORY.md`.
-- **Stage 4 is done (built on Sonnet):** you play Sol, Keeper Marlo is in the game,
-  the game opens with the falling star and three lessons, and Ember runs in
-  when you win. **Next: Stage 5, flute music and sound.**
+- **Stage 5 is done (built on Sonnet):** a title screen, 22 sound effects, a Mute
+  button, and flute music: six songs that change with the story and the fight.
+  Nobody has *listened* to it yet (see "Known problems"). **Next: Stage 6, the
+  squad (Ember, Tide and Volt join, swapping, types).**
 
 ## How we work
 - **Opus** plans stages and fixes hard problems. **Sonnet** builds from the
@@ -24,10 +25,10 @@
 - Files stay under about 300 lines. New files are listed in the stage plan.
 
 ## Tests (in `tests/`, not part of the game)
-- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (181
-  checks in 9 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
-  7 Marlo, 8 prologue, 9 Ember and the closing scenes). A full run takes about
-  15 minutes in the test browser.
+- `tests/test-stage1.js` (19 checks: movement) and `tests/test-stage2.js` (235
+  checks in 11 groups: 1 enemies, 2 powers, 3 waves, 4 polish, 5 story, 6 heroes,
+  7 Marlo, 8 prologue, 9 Ember and the closing scenes, 10 sound and the title
+  screen, 11 music). A full run takes about 25 minutes in the test browser.
 - Run from the project folder: `node tests/test-stage2.js <screenshot folder> [groups]`,
   for example `node tests/test-stage2.js /tmp/shots 3 5`. The game must be at
   `/home/user/power-heroes`. Playwright and Chromium come with the container.
@@ -70,10 +71,10 @@
   bubbles, Chapter 1 told around the fight.
 - [x] **Stage 4: The Newcomer and Marlo.** You play Sol; the game opens with a
   falling star and Marlo's three lessons; Ember runs in when you win. (Plan below.)
+- [x] **Stage 5: Flute music and sound.** A title screen, 22 sound effects, a Mute
+  button, and flute music (six songs, including Lyra's Lullaby). (Plan below.)
 
 ### Next
-- [ ] **Stage 5: Flute music and sound.** Lyra's Lullaby and the other cues,
-  sound effects, a Mute button. (Plan below.)
 - [ ] **Stage 6: The squad.** Ember, Tide and Volt join; hero swapping; types
   with "SUPER!" and "weak" pop-ups; the first combo (Shock Chain).
 - [ ] **Stage 7: Power, auras and Rankings.** Power numbers, XP, the power-up
@@ -270,7 +271,7 @@ flute (all made in code, no audio files). Chunks, one per step:
   first-tap rule, Mute and its memory, the hooks, the title screen on a computer and
   a phone.
 
-**Chunk 2: the flute and the first songs.**
+**Chunk 2: the flute and the first songs. DONE.**
 - New `src/music.js` (the flute voice and the song player) and
   `src/music-data.js` (songs written as note lists). The flute: a soft tone with
   a quiet overtone, a puff of breath at the start of each note, a gentle
@@ -279,7 +280,41 @@ flute (all made in code, no audio files). Chunks, one per step:
 - Songs: The Falling Star (title and prologue), Sunmeadow (calm moments), Battle (waves).
 - Tests: songs are rendered offline; the pitches and timing are checked.
 
-**Chunk 3: Marlo's Theme, Lyra's Lullaby, scene music, polish.**
+**Chunk 2 build notes:**
+- New `src/music.js` (the flute and other voices, the song player) and
+  `src/music-data.js` (the songs as note lists: `"D5:2 F#5:1 r:1"`, chords with
+  `+`, drum hits `x`, scale degrees for the lullaby). The loader checks that
+  every track fills its loop exactly.
+- Voices: **flute** (a soft tone with a quiet octave and a hint of the twelfth,
+  a puff of breath at the start, a little scoop up into the note, a vibrato
+  that grows in after a moment, a shared echo), music-box **chime**, **pluck**,
+  **bass**, **pad**, **kick**, **snare**, **hat**.
+- The player schedules 0.8 s ahead, loops, cross-fades between songs, and makes
+  no new notes while Mute is on. `music.play(name, fadeSeconds)`.
+- Songs: The Falling Star (title and the falling star), Sunmeadow (sunrise and
+  after a win), Battle (every wave). The game picks them in `main.js` and `prologue.js`.
+- A bug found by measuring: every envelope began one sample late, which made
+  a tiny click on noise sounds. Every gain now starts silent.
+- Loudness was measured and balanced: each song is about 0.04 RMS (the flute
+  loudest), effects sit on top (the effects bus is 1.5x).
+- Tests: group 11 renders every song offline and checks that each long flute
+  note is at its written pitch (all exactly in tune), that the flute is silent
+  before its first note, that songs loop, the loudness, and the real output of
+  the playing game.
+
+**Chunk 3: Marlo's Theme, Lyra's Lullaby, scene music. DONE.**
+- Songs added: **Marlo's Theme** (warm, low flute, harp-like plucks and a soft
+  pad, for the lessons and when he helps Sol up), **Lyra's Lullaby** (solo flute,
+  D major, in 3; verse one ends OPEN on the fifth, then four bars of silence)
+  and **Lullaby in sorrow** (the same tune in the minor, very slow, stopping in
+  mid-phrase; not used by a scene yet, it waits for Marlo's farewell in Stage 14).
+- Scenes choose their songs in `story-data.js` with `{ music: 'marlo', fade: 2.5 }`
+  steps: the prologue conversation (Marlo's Theme), the win scene (the lullaby
+  comes in at "So did she."), the knocked-out scene (Marlo's Theme).
+- Tests: group 5 and group 11 cover the scene music and the lullaby's shape.
+
+**Not done on purpose:** Nyx's and Bloom's songs (their scenes come in
+Stages 13 and 14), and a title song of its own.
 - Marlo's Theme (lessons), **Lyra's Lullaby** (verse one ends open: "she fell
   asleep before the second verse"; verse two is saved for the epilogue) and the
   Lullaby in sorrow (slow, minor, long silences). Scenes name their music in
@@ -287,6 +322,45 @@ flute (all made in code, no audio files). Chunks, one per step:
 - Full test run on both pages, republish the Claude link, update docs.
 
 Later stages add the other cues from `STORY.md` (Nyx, Bloom) when their scenes exist.
+**New files in Stage 5:** `src/audio.js`, `src/music.js` (both were in the first plan
+of `CLAUDE.md`) and `src/music-data.js` (added to the list).
+
+## Stage 6 plan: the squad, types and the first combo
+**Goal:** before a round you pick 3 heroes; you control one at a time and swap
+at any moment; types make some fights easier ("SUPER!") or harder ("weak");
+and the first combo (Shock Chain) can be found by experimenting. The heroes
+are Sol (Light), Ember (Fire), **Tide** (Water) and **Volt** (Storm).
+This changes how the game plays, so each chunk ends playable and is reported.
+
+**Chunk 1: Tide and Volt, and every hero with its own powers.**
+- Looks in `hero-models.js`: Tide (blue, a wave of hair, a water-drop pendant,
+  droplets that drift up), Volt (yellow, spiky hair, a bolt mark, little
+  sparks). Numbers in `heroes-data.js`.
+- Superpowers: **Big Splash** (a ring wave that pushes Gloomlings away and soaks
+  them) and **Lightning Dash** (zips forward, shocking everything on the path).
+  `superpowers.js` is near the size limit, so the new ones go in a second file.
+- `powers.js` becomes one set of powers per hero (each with its own recharge)
+  that share one pool of sparks.
+
+**Chunk 2: the squad and swapping.**
+- New `src/squad.js`: three heroes, one active. The other two wait on the
+  bench (hidden; their portraits show their health). Swap with keys 1, 2, 3 or by
+  tapping a portrait; a short cooldown stops spamming; a small puff marks the swap.
+  Each hero has their own health; a knocked-out hero sits out; the round is lost
+  when all three are down.
+- A squad screen before the round (pick 3 of 4; Sol is always there).
+- The corner hero name, health bar and power button follow the active hero.
+
+**Chunk 3: types.**
+- New `src/types.js` (the circle Fire > Nature > Storm > Water > Fire, and
+  Light and Shadow against each other): 1.5x and 0.67x damage; a big "SUPER!"
+  pop-up and a small grey "weak". Gloomlings get a type (tinted in the type's
+  colour); the waves mix types so choosing the right hero matters.
+
+**Chunk 4: the first combo, polish, republish.**
+- New `src/combos.js`: **Soaked + lightning = Shock Chain** (Big Splash soaks;
+  a Storm hit on a soaked Gloomling jumps to the wet ones nearby). A name pop-up
+  the first time it is found. Tests, full run on both pages, republish, docs.
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
@@ -295,7 +369,14 @@ Later stages add the other cues from `STORY.md` (Nyx, Bloom) when their scenes e
 - The prologue has a Skip button; the win and knocked-out conversations do not
   (you tap through them). Closing the page mid-prologue replays it next visit
   (saving comes in Stage 7).
-- Open differences from `CLAUDE.md`: no sound yet (Stage 5); Ember only appears
+- **Nobody has listened to the sound yet.** Claude cannot hear: the effects and songs
+  were checked by measuring (every note's pitch, timing, loudness, clicks, clipping),
+  not by ear. The flute is made of plain tones, breath and an echo, so it will sound
+  like a synthetic flute, not a real one. Please say what sounds wrong (too loud,
+  too quiet, too sharp, annoying). The numbers to change are in `src/audio.js`
+  (effects) and `src/music.js` / `src/music-data.js` (music).
+- Sound only starts after the first tap on the title screen (a browser rule).
+- Open differences from `CLAUDE.md`: Ember only appears
   in the win scene (she joins your squad in Stage 6); no types, swapping or
   combos (Stage 6); no Power numbers, auras or Overdrive (Stage 7). The Power
   numbers Marlo and Pip say in the story are only words for now.

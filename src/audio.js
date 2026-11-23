@@ -40,7 +40,7 @@ const SOUNDS = {
 export const SOUND_NAMES = Object.keys(SOUNDS);
 
 const noises = new WeakMap();   // one buffer of hiss per audio context
-function noiseFor(ctx) {
+export function noiseFor(ctx) {
   if (!noises.has(ctx)) {
     const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 2), ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -57,6 +57,7 @@ export function buildSound(ctx, out, name, start = 0, pitch = 1, level = 1) {
   if (!recipe) return 0;
   let end = start;
   const shape = (gain, at, volume, attack, time) => {
+    gain.gain.value = 0.0001;   // silent until its moment (otherwise the very first sample can click)
     gain.gain.setValueAtTime(0.0001, at);
     gain.gain.linearRampToValueAtTime(volume * level, at + attack);
     gain.gain.exponentialRampToValueAtTime(0.0001, at + time);
@@ -124,6 +125,7 @@ export function createAudio() {
     soften.type = 'lowpass';
     soften.frequency.value = 9000;
     sfx = ctx.createGain();
+    sfx.gain.value = 1.5;     // effects sit on top of the music
     music = ctx.createGain();
     music.gain.value = 0.8;
     sfx.connect(master);

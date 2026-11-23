@@ -264,7 +264,8 @@ src/                  the game code, one job per file
   sky.js              the sky: day and night colours, twinkling stars
   prologue.js         the opening: falling star, three lessons, sunrise
   audio.js            synthesized sound effects and the Mute button
-  music.js            the flute and the songs
+  music.js            the flute and the song player
+  music-data.js       the songs, written as note lists
   save.js             saving progress
 ```
 
