@@ -169,4 +169,8 @@ export const BUBBLES = {
   super: ['SUPER! Fire > Nature > Storm > Water > Fire. Swap to the right hero!'],
   swapTip: [{ touch: 'Tap a portrait to swap heroes!', keys: 'Press 1, 2 or 3 (or tap a portrait) to swap heroes!' }],
   combo: ['Wet plus lightning? That is a Shock Chain!'],
+  tip_brute: ['A Brute! Big and slow. It winds up before it swings: step aside, then hit back.'],
+  tip_spitter: ['A Spitter! It hangs back and spits slow goo. Dodge it, then run it down.'],
+  tip_shielder: ['A Shielder! That bubble blocks almost everything. Pop it with the type that beats its colour.'],
+  golden: ['A GOLDEN Gloom! Catch it before it gets away!'],
 };

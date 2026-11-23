@@ -259,7 +259,7 @@ src/                  the game code, one job per file
   power.js            Power, XP, and growth maths
   rankings.js         the Power Rankings: the other heroes of the isle, sorting, "passed" lines
   rounds.js           how a round starts and ends: squad choice, XP, unlocks, saving, trips to the village
-  gloom.js            enemies
+  gloom.js            enemies: the Gloomling and the kinds (Brute, Spitter, Shielder, Golden Gloom)
   waves.js            wave timing and round end
   types.js            type circle and damage rules
   story-data.js       every word of the story (scenes and bubbles)

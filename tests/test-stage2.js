@@ -2977,7 +2977,7 @@ async function chunk21(browser) {
   check('Chapter 1 has five rounds: The Meadow, The Long Grass, The Old Oak, Bramble\'s Shadow and General Bramble (the boss), with more Gloom Power each time', d.count === 5 && d.ROUNDS === 5 && d.names === "The Meadow|The Long Grass|The Old Oak|Bramble's Shadow|General Bramble" && d.powers === '1,1.1,1.2,1.3,1.4' && d.boss === '-,-,-,-,bramble', JSON.stringify(d));
   check('every round has types for each wave, a line that floats by as it starts (not round 1), the words for its end screen, and a closing conversation (rounds 2 to 5); round 1 is the fight the game has always had', d.typesOk && d.introsOk && d.scenesOk && d.wonOk && d.first && d.waves === '3,3,4,4,2', JSON.stringify(d));
   check('rounds get longer: 18, 21, 28 and 36 Gloomlings, and then 18 and the boss', d.totals === '18,21,28,36,18', d.totals);
-  check('a round plays its own waves: The Old Oak has four waves of 4, 6, 8 and 10 in its own mix of types (nature, storm, water, fire), each wave stronger, and then it is won', u.oak.total === 4 && u.oak.sizes.join() === '4,6,8,10' && u.oak.types.join() === 'nnnn,nsnsns,nnwnnwnn,nfsnnfsnnf' && u.oak.powers.join() === '10,11,12,13' && u.oak.state === 'won', JSON.stringify(u.oak));
+  check('a round plays its own waves: The Old Oak has four waves of 4, 6, 8 and 10 in its own mix of types (nature, storm, water, fire), each wave stronger, and then it is won', u.oak.total === 4 && u.oak.sizes.join() === '4,6,8,10' && u.oak.types.join() === 'nnnn,nsnnwn,nfnsnfns,nnsnfnnsnf' && u.oak.powers.join() === '10,11,12,13' && u.oak.state === 'won', JSON.stringify(u.oak));
   check('with no round given the usual three waves come (4, 6 and 8), and the next round after a four-wave one is back to its own', u.usual.total === 3 && u.usual.sizes.join() === '4,6,8' && u.back.total === 3 && u.back.sizes.join() === '5,7,9' && u.back.types.join() === 'nnnnn,nnsnnsn,nfnwnfnwn', JSON.stringify([u.usual, u.back]));
   check('the round you are on starts at 1, goes up by one, stops one past the last round (the chapter is done), and starts again with "Start over"; an old save without it is round 1', u.round.start === 1 && u.round.two === 3 && u.round.capped === 6 && u.round.reset === 1 && u.round.oldSave === 1, JSON.stringify(u.round));
   check('a fourth wave is 1.4 times your Power (the waves before it are 0.8, 1 and 1.2)', u.round.wave4 === 140 && u.round.wave3 === 120 && u.round.wave9 === 140, JSON.stringify(u.round));
@@ -3959,10 +3959,253 @@ async function chunk30(browser) {
   check('with another squad the other hero lives there instead (Ember now, not Volt)', swapped.ember && !swapped.volt, JSON.stringify(swapped));
 }
 
+// ---------- Stage 12: more kinds of Gloom (Brute, Spitter, Shielder, Golden Gloom) ----------
+const enemiesUnit = async () => {
+  const THREE = await import('/lib/three.module.min.js');
+  const { createGloomling } = await import('/src/gloom.js');
+  const { createPowers } = await import('/src/powers.js');
+  const { createWaves } = await import('/src/waves.js');
+  const { ENEMIES } = await import('/src/heroes-data.js');
+  const { CHAPTERS } = await import('/src/chapters.js');
+  const out = {};
+  const scene = new THREE.Scene();
+  const target = (x, z) => { const t = { position: { x, z }, down: false, hits: [], takeHit(amount) { t.hits.push(amount); return true; } }; return t; };
+  const make = (kind, x = 0, z = 0, extra = {}) => createGloomling({ scene, x, z, type: 'nature', kind, power: 10, ...extra });
+  const step = (list, t, frames, from = 0) => { for (let i = 0; i < frames; i++) for (const g of list) g.update(1 / 30, t, (from + i) / 30, list); };
+  const firstHit = (g, t) => { for (let f = 1; f <= 120; f++) { g.update(1 / 30, t, f / 30, [g]); if (t.hits.length) return f / 30; } return -1; };
+
+  out.table = { kinds: Object.keys(ENEMIES).join(), brute: [ENEMIES.brute.scale, ENEMIES.brute.health, ENEMIES.brute.speed, ENEMIES.brute.damage], golden: [ENEMIES.golden.xp, ENEMIES.golden.life, ENEMIES.golden.damage], shield: ENEMIES.shielder.shield.soften };
+
+  {   // the Brute: bigger, tougher, slower, harder-hitting, a longer warning, and not shoved as far
+    const plain = make('gloomling'); const brute = make('brute');
+    out.brute = { radius: brute.radius, plainRadius: plain.radius, health: brute.maxHealth / plain.maxHealth, kind: brute.kind, xp: brute.xp, scale: brute.group.scale.x };
+    const far = target(0, 20);
+    step([plain], far, 30); step([brute], far, 30);
+    out.brute.pace = +(brute.position.z / plain.position.z).toFixed(2);
+    const tp = target(0, 1.0); const tb = target(0, 1.3);
+    const p2 = make('gloomling'); const b2 = make('brute');
+    out.brute.warnPlain = firstHit(p2, tp); out.brute.warnBrute = firstHit(b2, tb);
+    out.brute.damage = +(tb.hits[0] / tp.hits[0]).toFixed(2);
+    const down = target(0, 5); down.down = true;
+    const p3 = make('gloomling'); const b3 = make('brute');
+    p3.hit(1, 0, -3); b3.hit(1, 0, -3);
+    step([p3], down, 30); step([b3], down, 30);
+    out.brute.shove = [+p3.position.z.toFixed(2), +b3.position.z.toFixed(2)];
+    for (const g of [plain, brute, p2, b2, p3, b3]) g.remove();
+  }
+
+  {   // the Spitter: keeps its distance, spits a slow ball of goo that hurts if it lands, and can be dodged
+    const before = scene.children.length;
+    const sp = make('spitter', 0, 0);
+    const t = target(0, 3);
+    let seen = 0; let firstSpit = -1; let closest = 99;
+    for (let f = 0; f < 30 * 8; f++) {
+      sp.update(1 / 30, t, f / 30, [sp]);
+      if (f > 45) closest = Math.min(closest, Math.hypot(t.position.x - sp.position.x, t.position.z - sp.position.z));   // (it starts too close, and backs off first)
+      if (sp.goos > seen && firstSpit < 0) firstSpit = f / 30;
+      seen = sp.goos;
+    }
+    out.spit = { closest: +closest.toFixed(2), firstSpit, hits: t.hits.length, amount: t.hits[0], balls: sp.goos };
+    sp.remove();
+    out.spit.afterRemove = scene.children.length - before;
+    const sp2 = make('spitter', 0, 0); const dodger = target(0, 5);
+    for (let f = 0; f < 30 * 6 && sp2.goos === 0; f++) sp2.update(1 / 30, dodger, f / 30, [sp2]);
+    out.spit.ready = sp2.goos;
+    dodger.position.x = 4;   // (step aside as it flies)
+    for (let f = 0; f < 36; f++) sp2.update(1 / 30, dodger, 10 + f / 30, [sp2]);
+    out.spit.dodged = dodger.hits.length;
+    sp2.remove();
+  }
+
+  {   // the Shielder: a bubble that shelters its friends, popped by the type that beats it, or by many hits
+    const broke = [];
+    const sh = make('shielder', 0, 0, { events: { shieldBreak: (g, right) => broke.push(right) } });
+    const ally = make('gloomling', 2, 0); const outside = make('gloomling', 6, 0);
+    const all = [sh, ally, outside];
+    const t = target(0, 20);
+    step(all, t, 1);
+    out.shield = { up: sh.shieldUp, radius: sh.shieldRadius, ally: ally.shielded, outside: outside.shielded, own: sh.guard('normal'), ownSuper: sh.guard('super'), allySuper: ally.guard('super'), free: outside.guard('normal') };
+    for (let i = 0; i < 7; i++) sh.hit(1, 0, 0, 'normal');
+    out.shield.afterSeven = sh.shieldUp;
+    sh.hit(1, 0, 0, 'normal');
+    out.shield.afterEight = sh.shieldUp; out.shield.broke = broke.join(); out.shield.guardAfter = sh.guard('normal');
+    step(all, t, 1);
+    out.shield.allyAfter = ally.shielded;
+    const sh2 = make('shielder', 0, 0, { events: { shieldBreak: (g, right) => broke.push(right) } });
+    sh2.hit(1, 0, 0, 'super');
+    out.shield.superPops = !sh2.shieldUp; out.shield.broke2 = broke.join();
+    const sh3 = make('shielder', 0, 0); const ally3 = make('gloomling', 1.5, 0);
+    step([sh3, ally3], t, 1); const sheltered = ally3.shielded;
+    sh3.hit(1e6, 0, 0, 'super'); step([sh3, ally3], t, 1);
+    out.shield.deadFree = [sheltered, ally3.shielded];
+    for (const g of [sh, ally, outside, sh2, sh3, ally3]) g.remove();
+  }
+
+  {   // the Golden Gloom: runs away, never bumps, glitters, gets away after 15 seconds
+    const events = { escaped: 0 };
+    const g = make('golden', 0, 0, { type: null, events: { escaped: () => events.escaped++ } });
+    const t = target(3, 0);
+    out.golden = { extra: g.extra, xp: g.xp, kind: g.kind };
+    step([g], t, 30);
+    out.golden.fled = +Math.hypot(g.position.x - 3, g.position.z).toFixed(1);
+    step([g], t, 400, 30);
+    out.golden.stillHere = [g.alive, g.escaped, events.escaped];
+    step([g], t, 60, 430);
+    out.golden.gone = [g.alive, g.escaped, events.escaped, t.hits.length];
+    const rim = make('golden', 10, 0, { type: null }); const chaser = target(5, 0);
+    step([rim], chaser, 60);
+    out.golden.rim = { along: +Math.abs(rim.position.z).toFixed(1), from: +Math.hypot(rim.position.x, rim.position.z).toFixed(2) };
+    const calm = make('golden', 0, 0, { type: null }); const faraway = target(12, 0);
+    step([calm], faraway, 30);
+    out.golden.calm = +Math.hypot(calm.position.x, calm.position.z).toFixed(2);
+    g.remove(); rim.remove(); calm.remove();
+  }
+
+  {   // the pop-up labels and the damage through the real powers: SUPER pops a Shielder at once, the rest is blocked
+    const ember = { kind: 'ember', position: new THREE.Vector3(0, 0, 0), yaw: 0, down: false, face(a) { this.yaw = a; } };
+    const setup = (kind, type, extra = []) => {
+      const log = { labels: [], amounts: [], broke: [] };
+      const shielder = createGloomling({ scene, x: 0, z: 4, type, kind, power: 10, events: { shieldBreak: (g, right) => log.broke.push(right) } });
+      const list = [shielder, ...extra.map(([x, z]) => createGloomling({ scene, x, z, type, power: 10 }))];
+      const powers = createPowers({ scene, hero: ember, gloomlings: list, events: { hit: (g, a, k, l) => { log.labels.push(l); log.amounts.push(a); } } });
+      return { log, list, shielder, powers };
+    };
+    {   // fire against a Nature Shielder: the first dart is SUPER and pops it
+      const s = setup('shielder', 'nature');
+      for (let i = 0; i < 90 && s.log.labels.length < 2; i++) s.powers.update(1 / 30, i / 30);
+      out.popped = { labels: s.log.labels.slice(0, 2).join(), first: s.log.amounts[0], up: s.shielder.shieldUp, broke: s.log.broke.join() };
+    }
+    {   // fire against a Water Shielder: weak, and blocked, until the bubble cracks after eight hits
+      const s = setup('shielder', 'water');
+      for (let i = 0; i < 30 * 30 && s.log.labels.length < 10; i++) s.powers.update(1 / 30, i / 30);
+      out.cracked = { labels: s.log.labels.join(), amounts: s.log.amounts.slice(0, 3).join(), broke: s.log.broke.join(), up: s.shielder.shieldUp };
+    }
+    {   // a friend standing in the bubble is blocked even against a SUPER type
+      const s = setup('shielder', 'nature', []);
+      const friend = createGloomling({ scene, x: 0, z: 2.5, type: 'nature', power: 10 });
+      s.list.push(friend);
+      friend.update(1 / 30, target(0, 20), 0, s.list);
+      const sheltered = friend.shielded;
+      const log = { labels: [], amounts: [] };
+      const powers = createPowers({ scene, hero: ember, gloomlings: s.list, events: { hit: (g, a, k, l) => { log.labels.push(g === friend ? l : '-'); log.amounts.push(g === friend ? a : 0); } } });
+      for (let i = 0; i < 90 && !log.labels.includes('blocked'); i++) powers.update(1 / 30, i / 30);
+      out.friend = { sheltered, labels: log.labels.filter((l) => l !== '-').slice(0, 2).join(), amount: log.amounts.find((a) => a > 0) };
+    }
+  }
+
+  {   // the chapter's rounds bring them in (round 3: Brutes, round 4: Spitters and a Shielder, round 5: all of them)
+    const rounds = CHAPTERS[1].rounds;
+    const letter = { gloomling: 'g', brute: 'b', spitter: 'p', shielder: 'h', golden: 'o' };
+    const run = (round) => {
+      const gl = [];
+      const waves = createWaves({ scene: new THREE.Scene(), hero: { position: { x: 0, z: 0 }, down: false }, gloomlings: gl, events: {}, enemyPower: () => 10 });
+      waves.start(round);
+      const kinds = [];
+      for (let w = 0; w < round.sizes.length; w++) {
+        for (let guard = 0; waves.state !== 'fighting' && guard < 3000; guard++) waves.update(0.1);
+        kinds.push(gl.map((g) => letter[g.kind]).join(''));
+        gl.splice(0).forEach((g) => g.remove());
+        waves.update(0.1);
+      }
+      return kinds;
+    };
+    out.chapter = rounds.map((r) => run(r).map((k) => `${(k.match(/b/g) || []).length}${(k.match(/p/g) || []).length}${(k.match(/h/g) || []).length}`).join('-'));
+    out.valid = rounds.every((r) => r.types.every((list) => list.every((entry) => { const [type, kind] = entry.split(':'); return ['fire', 'water', 'storm', 'nature'].includes(type) && (!kind || (ENEMIES[kind] && kind !== 'golden')); })));
+    out.sizes = run(rounds[2]).map((k) => k.length).join();
+  }
+
+  {   // a rare Golden Gloom (only when surprises are on): once, after the first wave, never holding a wave up, gone when the round is won
+    const real = Math.random;
+    const list = (surprises) => {
+      const gl = []; const seen = { golden: 0, escaped: 0 };
+      Math.random = () => 0;
+      const waves = createWaves({ scene: new THREE.Scene(), hero: { position: { x: 0, z: 0 }, down: false }, gloomlings: gl, surprises, events: { spawn: (g) => { if (g.kind === 'golden') seen.golden++; }, escaped: () => seen.escaped++ }, enemyPower: () => 10 });
+      waves.start(CHAPTERS[1].rounds[0]);
+      Math.random = real;
+      return { gl, seen, waves };
+    };
+    const on = list(true);
+    let first = 0;
+    for (let i = 0; i < 6000 && on.seen.golden === 0; i++) { on.waves.update(0.1); if (on.waves.state === 'fighting' && on.waves.wave === 1) on.gl.splice(0).forEach((g) => g.remove()); first = on.waves.wave; }
+    const goldens = () => on.gl.filter((g) => g.extra).length;
+    out.surprise = { came: on.seen.golden, wave: first, goldens: goldens(), remaining: on.waves.remaining, progressOk: on.waves.progress <= 1 };
+    const regular = () => on.gl.filter((g) => !g.extra);
+    let waveBefore = on.waves.wave;
+    for (let i = 0; i < 3000 && on.waves.wave === waveBefore; i++) { on.waves.update(0.1); if (on.waves.state === 'fighting') regular().forEach((g) => { g.remove(); on.gl.splice(on.gl.indexOf(g), 1); }); }
+    out.surprise.moved = on.waves.wave > waveBefore;
+    out.surprise.stillThere = goldens();
+    for (let i = 0; i < 6000 && on.waves.state !== 'over'; i++) { on.waves.update(0.1); if (on.waves.state === 'fighting') regular().forEach((g) => { g.remove(); on.gl.splice(on.gl.indexOf(g), 1); }); }
+    out.surprise.end = [on.waves.state, goldens(), on.seen.golden, on.seen.escaped];
+    const off = list(false);
+    for (let i = 0; i < 3000 && off.waves.state !== 'over'; i++) { off.waves.update(0.1); if (off.waves.state === 'fighting') off.gl.splice(0).forEach((g) => g.remove()); }
+    out.surprise.off = [off.waves.state, off.seen.golden];
+  }
+  return out;
+};
+
+async function chunk31(browser) {
+  let { page } = await openGame(browser, 'enemies-unit');
+  const u = await page.evaluate(enemiesUnit);
+  const t = u.table;
+  check('the kinds of Gloom are in one table: the Brute is 1.9 times the size with 4 times the health, 0.55 of the speed and 2.2 times the bump; the Golden Gloom is worth 15 Gloomlings, lasts 15 seconds and never bumps; the bubble lets 10% through', t.kinds === 'gloomling,brute,spitter,shielder,golden' && t.brute.join() === '1.9,4,0.55,2.2' && t.golden.join() === '15,15,0' && t.shield === 0.1, JSON.stringify(t));
+  const b = u.brute;
+  check('a Brute is big (radius 0.95), has 4 times the health, walks at about half the pace, warns for twice as long before it swings, hits about 2.2 times as hard, and is shoved only about half as far', b.radius === 0.95 && b.plainRadius === 0.5 && b.scale === 1.9 && b.health === 4 && b.kind === 'brute' && b.xp === 3 && near(b.pace, 0.55, 0.06) && b.warnPlain > 0 && b.warnPlain < 0.5 && b.warnBrute > 0.6 && near(b.damage, 2.2, 0.2) && b.shove[0] < -2.5 && b.shove[1] > b.shove[0] * 0.7 && b.shove[1] < -1.2, JSON.stringify(b));
+  const sp = u.spit;
+  check('a Spitter keeps its distance (never closer than 3.6), spits within a few seconds, its goo hurts when it lands (about 0.8 of a Gloomling\'s bump), the ball can be dodged by stepping aside, and it is cleaned up when the Spitter goes', sp.closest >= 3.6 && sp.firstSpit > 0.8 && sp.firstSpit < 3.6 && sp.hits >= 1 && sp.amount >= 5 && sp.amount <= 7 && sp.afterRemove === 0 && sp.ready >= 1 && sp.dodged === 0, JSON.stringify(sp));
+  const sh = u.shield;
+  check('a Shielder has its bubble up (3.4 units wide): it and its friends inside take only 10% of any hit (even a SUPER one for the friends), and anybody outside takes it all; a SUPER hit on the Shielder pops it', sh.up && sh.radius === 3.4 && sh.ally && !sh.outside && sh.own === 0.1 && sh.ownSuper === 1 && sh.allySuper === 0.1 && sh.free === 1 && sh.superPops, JSON.stringify(sh));
+  check('without the right type the bubble still cracks after eight hits (not before), and then the friends are no longer sheltered; a Shielder that is beaten shelters nobody', sh.afterSeven === true && sh.afterEight === false && sh.broke === 'false' && sh.guardAfter === 1 && sh.allyAfter === false && sh.broke2 === 'false,true' && sh.deadFree.join() === 'true,false', JSON.stringify(sh));
+  const g = u.golden;
+  check('a Golden Gloom (worth 15, not part of any wave) bolts from the hero (5 units in a second), never bumps, gets away after 15 seconds (and says so once), runs round the rim instead of getting stuck on it, and stays calm when the hero is far', g.extra && g.xp === 15 && g.kind === 'golden' && g.fled > 7.5 && g.stillHere.join() === 'true,false,0' && g.gone.join() === 'false,true,1,0' && g.rim.along > 5 && g.rim.from <= 11.21 && g.calm < 0.05, JSON.stringify(g));
+  check('SUPER pops a Nature Shielder with the very first dart (full damage, the bubble breaks "by type")', u.popped.labels === 'super,super' && u.popped.up === false && u.popped.broke === 'true' && u.popped.first >= 5, JSON.stringify(u.popped));
+  check('a Water Shielder against Ember: eight hits are "blocked" (about 1 damage each) and the bubble cracks on the eighth, the next is "weak"', u.cracked.labels === 'blocked,blocked,blocked,blocked,blocked,blocked,blocked,blocked,weak,weak' && u.cracked.broke === 'false' && u.cracked.up === false && u.cracked.amounts.split(',').every((a) => +a <= 2), JSON.stringify(u.cracked));
+  check('a friend in the bubble is "blocked" even against a SUPER type, for about 1 damage', u.friend.sheltered && u.friend.labels.startsWith('blocked') && u.friend.amount >= 1 && u.friend.amount <= 2, JSON.stringify(u.friend));
+  check('rounds 1 and 2 have only plain Gloomlings, round 3 adds Brutes (0, 1, 2, 2 a wave), round 4 Spitters, a Brute and a Shielder, round 5 all of them; every type and kind in the lists is a real one', u.chapter.join('|') === '000-000-000|000-000-000|000-100-200-200|020-020-101-121|111-121' && u.valid && u.sizes === '4,6,8,10', JSON.stringify([u.chapter, u.valid, u.sizes]));
+  const su = u.surprise;
+  check('with surprises on, one Golden Gloom comes after the first wave, is not counted as a Gloom to beat, does not hold the wave up, and slips away when the round is won; with them off, none come', su.came === 1 && su.wave >= 2 && su.goldens === 1 && su.remaining >= 0 && su.progressOk && su.moved && su.stillThere === 1 && su.end.join() === 'over,0,1,1' && su.off.join() === 'over,0', JSON.stringify(su));
+
+  // The live game: Pip's words the first time, the banner, the pay, and a picture of them all.
+  ({ page } = await openGame(browser, 'enemies-live'));
+  await page.evaluate(async () => {
+    const G = window.__game;
+    const { createGloomling } = await import('/src/gloom.js');
+    G.waves.reset();
+    window.__kinds = {};
+    for (const [kind, x, z] of [['brute', 4, 1], ['spitter', -4.5, 2.5], ['shielder', 3.5, -4], ['gloomling', -3, -3]]) {
+      const g = createGloomling({ scene: G.world.scene, x, z, type: 'nature', kind, power: 10 });
+      G.gloomlings.push(g);
+      window.__kinds[kind] = g;
+    }
+    G.waves.spawnGolden();
+    G.rounds.sighted(window.__kinds.brute);
+  });
+  await until(page, () => document.getElementById('bubble').textContent.includes('A Brute!'));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/enemies-1-lineup.png` });
+  const live = await page.evaluate(() => {
+    const G = window.__game;
+    const golden = G.gloomlings.find((g) => g.kind === 'golden');
+    const before = G.progress.has('tip_brute');
+    G.rounds.sighted(window.__kinds.spitter); G.rounds.sighted(window.__kinds.shielder); G.rounds.sighted(golden);
+    return { before, tips: ['tip_brute', 'tip_spitter', 'tip_shielder', 'golden'].map((k) => G.progress.has(k)).join(), banner: document.getElementById('banner-title').textContent, golden: Boolean(golden) };
+  });
+  check('a new kind of Gloom gets one word from Pip the first time it is seen (Brute, Spitter, Shielder, Golden Gloom), remembered, and a Golden Gloom brings a banner every time', live.before && live.tips === 'true,true,true,true' && live.banner === 'Golden Gloom!' && live.golden, JSON.stringify(live));
+  const pay = await page.evaluate(() => {
+    const G = window.__game;
+    G.waves.reset();
+    G.rounds.defeat({ power: 10 });
+    G.rounds.defeat({ power: 10, xp: 3, kind: 'brute' });
+    G.rounds.defeat({ power: 10, xp: 15, kind: 'golden', position: { x: 0, y: 0, z: 0 } });
+    G.rounds.end('lost');
+    return { xp: G.rounds.gains[0].xp, pops: document.querySelectorAll('.floater.big').length };
+  });
+  check('bigger Gloomlings pay more: a plain one 3 XP, a Brute 9, a Golden Gloom 45 (57 together), and the Golden Gloom shows "+45 XP"', pay.xp === 57 && pay.pops >= 1, JSON.stringify(pay));
+}
+
 (async () => {
   const wanted = process.argv.slice(3);
   const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
-  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27, 28: chunk28, 29: chunk29, 30: chunk30 };
+  const chunks = { 1: chunk1, 2: chunk2, 3: chunk3, 4: chunk4, 5: chunk5, 6: chunk6, 7: chunk7, 8: chunk8, 9: chunk9, 10: chunk10, 11: chunk11, 12: chunk12, 13: chunk13, 14: chunk14, 15: chunk15, 16: chunk16, 17: chunk17, 18: chunk18, 19: chunk19, 20: chunk20, 21: chunk21, 22: chunk22, 23: chunk23, 24: chunk24, 25: chunk25, 26: chunk26, 27: chunk27, 28: chunk28, 29: chunk29, 30: chunk30, 31: chunk31 };
   for (const [number, run] of Object.entries(chunks)) {
     if (wanted.length === 0 || wanted.includes(number)) await run(browser);
   }

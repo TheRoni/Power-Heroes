@@ -51,8 +51,26 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
     ui.setHeroPower(progress.powerOf(player.kind));
   }
 
-  // A Gloomling was beaten: its XP waits until the round is over.
-  const defeat = (gloom) => { roundXp += xpForKill(gloom.power) * (gloom.boss ? BOSS_XP : 1); };
+  // A Gloomling was beaten: its XP waits until the round is over. Bigger Gloomlings are worth more, and a Golden Gloom a fortune.
+  function defeat(gloom) {
+    const xp = Math.round(xpForKill(gloom.power) * (gloom.boss ? BOSS_XP : gloom.xp || 1));
+    roundXp += xp;
+    if (gloom.kind === 'golden') { powers.sparks.confetti(45); audio.play('cleared'); ui.popNumber(gloom.position, `+${xp} XP`, 'big', 2.8); }
+  }
+
+  // A Gloom of a new kind shows up: Pip says what to do about it (once, ever). A Golden Gloom gets a banner each time.
+  const TIPS = { brute: 'tip_brute', spitter: 'tip_spitter', shielder: 'tip_shielder', golden: 'golden' };
+  function sighted(gloom) {
+    const tip = TIPS[gloom.kind];
+    if (gloom.kind === 'golden') { ui.showBanner('Golden Gloom!', 'Catch it!'); audio.play('chime'); }
+    if (tip && !progress.has(tip)) { progress.mark(tip); story.say(tip); }
+  }
+
+  // What the Gloomlings themselves do: a bubble pops (a bright sound, a shake), a Spitter spits (a small splat).
+  function enemyNews(news, gloom, right) {
+    if (news === 'shield') audio.play(right ? 'super' : 'weak');
+    else if (news === 'spit') audio.play('spawn');
+  }
 
   // The prologue: Sol's Power climbs. 'skip' gives whatever the lessons would have (so skipping them is no loss).
   function reward(kind) {
@@ -203,7 +221,7 @@ export function createRounds({ progress, squad, waves, ui, story, marlo, ember, 
   const vars = () => { const power = progress.powerOf('sol'); return { power, next: power + 1, name: progress.name }; };
 
   return {
-    update, defeat, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label, note, toVillage, fromVillage, press,
+    update, defeat, sighted, enemyNews, end, restart, chooseSquad, reward, afterPrologue, arrive, enemyPower, refresh, vars, rows, showRankings, label, note, toVillage, fromVillage, press,
     get round() { return current(); },   // the round of the chapter being played: { name, sizes, types, power, intro, won }, or null
     get ending() { return ending; },
     get gains() { return gains; },

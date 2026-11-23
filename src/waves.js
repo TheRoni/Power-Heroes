@@ -15,7 +15,9 @@ const BOSS_SHARE = 6;        // for the colour coming back, the boss counts as t
 // A round with a "boss" ends with one more wave: the boss alone (boss.js). wave(number, total, { boss }) tells when he comes.
 // "emit" makes sparks; bossEvents (all optional) are boss.js's own: shake, taunt, sound, down(boss), fallen(boss), gone(boss).
 // enemyPower(waveIndex) says how strong that wave's Gloomlings are (their Power); it defaults to 10.
-export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower = () => 10, emit = () => {}, bossEvents = {} }) {
+// A wave's list holds types ("nature") or a type and a kind ("nature:brute", see ENEMIES in heroes-data.js). More events:
+// shield(gloom, right) when a Shielder's bubble pops, spit(gloom), escaped(gloom). "surprises" lets a rare Golden Gloom run through a round.
+export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower = () => 10, emit = () => {}, bossEvents = {}, surprises = false }) {
   const wavesOf = (round) => round.sizes.length + (round.boss ? 1 : 0);
   const countOf = (round) => round.sizes.reduce((sum, size) => sum + size, 0) + (round.boss ? BOSS_SHARE : 0);
   let plan = WAVES;     // the waves of this round: how many Gloomlings in each, and their types
@@ -29,9 +31,10 @@ export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower =
   let spawnTimer = 0;
   let spawned = 0;      // Gloomlings that have appeared since the start
   let ending = '';      // 'won' or 'lost', announced when the pause is over
+  let goldenAt = Infinity;   // seconds of fighting until this round's Golden Gloom comes (never, in most rounds)
 
-  // Puts one Gloomling on the rim, away from the hero so it never appears on top of them.
-  function spawnOne() {
+  // A place on the rim, away from the hero so nothing appears on top of them.
+  function rimSpot() {
     let best = null;
     for (let tries = 0; tries < 6; tries++) {
       const angle = Math.random() * Math.PI * 2;
@@ -41,10 +44,35 @@ export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower =
       if (!best || away > best.away) best = { x, z, away };
       if (away > 7) break;
     }
-    const kinds = plan.types[wave];   // this wave's types, taken in turn
-    const gloom = createGloomling({ scene, x: best.x, z: best.z, type: kinds[(plan.sizes[wave] - toSpawn) % kinds.length], power: enemyPower(wave) });
+    return best;
+  }
+
+  const take = (gloom) => { const i = gloomlings.indexOf(gloom); if (i >= 0) gloomlings.splice(i, 1); gloom.remove(); };
+  const burst = (gloom, color, count) => { for (let i = 0; i < count; i++) emit(gloom.position.x, 0.8, gloom.position.z, (Math.random() - 0.5) * 6, 1.5 + Math.random() * 3, (Math.random() - 0.5) * 6, 0.7, 0.14, color, -6); };
+
+  // The news from the Gloomlings themselves: a Golden Gloom got away, a Shielder's bubble popped, a Spitter spat.
+  const enemyEvents = {
+    escaped: (gloom) => { take(gloom); burst(gloom, 0xffd24a, 10); if (events.escaped) events.escaped(gloom); },
+    shieldBreak: (gloom, right) => { burst(gloom, 0x9fd8ff, right ? 16 : 8); if (events.shield) events.shield(gloom, right); },
+    spit: (gloom) => { if (events.spit) events.spit(gloom); },
+  };
+
+  // Puts one Gloomling on the rim. An entry of the wave's list ("nature", or "nature:brute") says its type and its kind.
+  function spawnOne() {
+    const spot = rimSpot();
+    const list = plan.types[wave];   // this wave's list, taken in turn
+    const [type, kind] = list[(plan.sizes[wave] - toSpawn) % list.length].split(':');
+    const gloom = createGloomling({ scene, x: spot.x, z: spot.z, type: type || null, kind: kind || 'gloomling', power: enemyPower(wave), events: enemyEvents });
     gloomlings.push(gloom);
     spawned++;
+    if (events.spawn) events.spawn(gloom);
+  }
+
+  // A rare surprise: a Golden Gloom slips in, runs from the hero, and is worth a fortune. It is not part of any wave.
+  function spawnGolden() {
+    const spot = rimSpot();
+    const gloom = createGloomling({ scene, x: spot.x, z: spot.z, kind: 'golden', power: enemyPower(wave), events: enemyEvents });
+    gloomlings.push(gloom);
     if (events.spawn) events.spawn(gloom);
   }
 
@@ -106,6 +134,7 @@ export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower =
   function finishWave() {
     if (events.cleared) events.cleared(wave + 1);
     if (wave + 1 >= total) {
+      for (const gloom of gloomlings.filter((g) => g.extra)) enemyEvents.escaped(gloom);   // (a Golden Gloom still about slips away)
       state = 'won';
       ending = 'won';
       timer = WIN_DELAY;
@@ -145,7 +174,12 @@ export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower =
         if (toSpawn === 0) state = 'fighting';
       }
     }
-    if (state === 'fighting' && gloomlings.length === 0) finishWave();
+    if ((state === 'spawning' || state === 'fighting') && !boss && wave >= 1) {   // a rare Golden Gloom, once in a while
+      goldenAt -= dt;
+      if (goldenAt <= 0) { goldenAt = Infinity; spawnGolden(); }
+    }
+    for (const g of gloomlings) if (g.extra && g.alive && Math.random() < dt * 10) emit(g.position.x + (Math.random() - 0.5) * 0.7, 0.4 + Math.random() * 0.8, g.position.z + (Math.random() - 0.5) * 0.7, 0, 0.8, 0, 0.6, 0.1, 0xffe27a, -1);   // a Golden Gloom glitters
+    if (state === 'fighting' && gloomlings.every((g) => g.extra)) finishWave();   // (a Golden Gloom does not hold a wave up)
   }
 
   // Removes every Gloomling and goes back to the beginning (but does not start).
@@ -165,22 +199,23 @@ export function createWaves({ scene, hero, gloomlings, events = {}, enemyPower =
     total = wavesOf(plan);
     everyone = countOf(plan);
     reset();
+    goldenAt = surprises && Math.random() < 0.4 ? 15 + Math.random() * 60 : Infinity;
     if (atBoss && plan.boss) wave = plan.sizes.length;
     state = 'break';
     timer = START_DELAY;
   }
 
   return {
-    start, reset, update,
+    start, reset, update, spawnGolden,   // (spawnGolden: the automatic tests bring one on demand)
     get state() { return state; },
     get wave() { return wave + 1; },                           // the current wave, counting from 1 (the coming one during a break)
     get total() { return total; },
     get enemyPower() { return enemyPower(wave); },   // the Gloomling Power of the wave now (or about to) be fought
-    get remaining() { return toSpawn + gloomlings.length; },   // Gloomlings still to beat in this wave
+    get remaining() { return toSpawn + gloomlings.filter((g) => !g.extra).length; },   // Gloomlings still to beat in this wave
     get atBoss() { return Boolean(plan.boss) && wave === plan.sizes.length && state !== 'idle'; },   // the boss wave is on (or was when the round was lost)
     get boss() { return boss && !boss.gone ? boss : null; },   // the boss, while he is on the island
     get progress() {   // 0 to 1: how much of the whole round is beaten (the boss counts for his health taken)
-      const left = gloomlings.filter((g) => !g.boss).length;
+      const left = gloomlings.filter((g) => !g.boss && !g.extra).length;
       return Math.min(1, Math.max(0, (spawned - left + (boss ? (1 - boss.health / boss.maxHealth) * BOSS_SHARE : 0)) / everyone));
     },
   };

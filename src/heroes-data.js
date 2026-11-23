@@ -61,6 +61,17 @@ export const BOSSES = {
   },
 };
 
+// The other kinds of Glooms: each number multiplies the Gloomling's (health, speed, damage), at the same Power. "xp" is how much more a
+// kill is worth. A Brute is big, slow and tough; a Spitter keeps away and spits goo; a Shielder's bubble protects the Glooms near it until
+// it is hit by the type that beats its own; a Golden Gloom runs away (it escapes after "life" seconds) and is worth a lot.
+export const ENEMIES = {
+  gloomling: { scale: 1, health: 1, speed: 1, damage: 1, windup: GLOOMLING.windup, pause: GLOOMLING.pause, reach: GLOOMLING.reach, xp: 1 },
+  brute: { scale: 1.9, health: 4, speed: 0.55, damage: 2.2, windup: 0.65, pause: 1.4, reach: 1.5, xp: 3 },
+  spitter: { scale: 0.85, health: 0.6, speed: 0.9, damage: 0.8, windup: 0.3, pause: 1, reach: 1.1, xp: 1.5, shot: { range: 7.5, keep: [3.8, 5.8], every: 2.8, windup: 0.5, speed: 5.5, life: 2.4, size: 0.38 } },
+  shielder: { scale: 1.15, health: 1.5, speed: 0.75, damage: 1, windup: 0.4, pause: 1.1, reach: 1.2, xp: 2, shield: { radius: 3.4, soften: 0.1, cracks: 8 } },
+  golden: { scale: 0.9, health: 1.5, speed: 1.9, damage: 0, windup: 0.3, pause: 1, reach: 1, xp: 15, flees: true, life: 15 },
+};
+
 export const WAVES = {
   sizes: [4, 6, 8],   // how many Gloomlings in each wave
   types: [['nature', 'fire'], ['fire', 'storm', 'nature'], ['fire', 'water', 'storm', 'nature']],   // the types they come in (each wave cycles through its list)

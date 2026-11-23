@@ -53,9 +53,7 @@ const progress = createProgress((kind) => HEROES[kind].startPower, PERSIST ? sav
 HEROES.sol.name = progress.name;   // what the player called the hero (Sol, unless they changed it on the title screen)
 const said = { first: false, hurt: false, low: false, super: progress.has('super'), swap: progress.has('swap'), combo: progress.has('combo') };   // Pip's one-time comments, so they are not repeated every round
 const soon = [];   // Pip's comments waiting for their moment: { key, left }
-
 const saySoon = (key, delay) => soon.push({ key, left: delay });   // Pip says something after a short delay (so a wave's comment does not land on its banner)
-
 const showHero = (kind) => ui.setHero({ name: HEROES[kind].name, type: HEROES[kind].type, power: progress.powerOf(kind), powerName: HEROES[kind].power.name, powerId: HEROES[kind].power.id });   // the corner box and the power button
 
 function shake(amount) {
@@ -97,7 +95,7 @@ const squad = createSquad({
     hit: (gloom, amount, kind, label) => {
       overdrive.hit(kind);
       ui.popNumber(gloom.position, amount, kind, 1.6);
-      if (label !== 'normal') ui.popNumber(gloom.position, label === 'super' ? 'SUPER!' : 'weak', label, 2.5);   // the type pop-ups
+      if (label !== 'normal') ui.popNumber(gloom.position, label === 'super' ? 'SUPER!' : label, label, 2.5);   // the type pop-ups (SUPER!, weak, blocked)
       if (label === 'super' && !said.super) { said.super = true; progress.mark('super'); saySoon('super', 0.8); }
       if (kind !== 'big') return;
       prologue.noteHit(kind);
@@ -138,6 +136,7 @@ const waves = createWaves({
   gloomlings,
   enemyPower: (wave) => rounds.enemyPower(wave),
   emit: (...spark) => powers.sparks.emit(...spark),
+  surprises: !DEBUG || flag('surprise'),   // (a rare Golden Gloom: not in the automatic tests unless they ask)
   bossEvents: {   // General Bramble's own news: his shake, his words and his sounds
     shake: (amount) => shake(amount),
     taunt: (key) => story.say(`bramble_${key}`),
@@ -154,7 +153,9 @@ const waves = createWaves({
       music.play('battle', 1);
       saySoon(round && round.intro ? round.intro : `wave${number}`, 1.2);
     },
-    spawn: (gloom) => { powers.sparks.puff(gloom.position); audio.play('spawn'); },
+    spawn: (gloom) => { powers.sparks.puff(gloom.position); audio.play('spawn'); rounds.sighted(gloom); },   // (Pip says what a new kind of Gloom is)
+    shield: (gloom, right) => { rounds.enemyNews('shield', gloom, right); shake(right ? 0.12 : 0.05); },   // a Shielder's bubble pops
+    spit: (gloom) => rounds.enemyNews('spit', gloom),
     cleared: (number) => {
       powers.sparks.confetti(number === waves.total ? 110 : 25);
       audio.play('cleared');

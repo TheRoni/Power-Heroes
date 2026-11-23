@@ -115,12 +115,14 @@ export function createPowers({ scene, hero, gloomlings, events = {}, audio = QUI
   // Hurts a Gloomling: pop-up number, sparks, and if it falls, a burst of colour. Returns true if it was defeated.
   function damage(gloom, base, pushX, pushZ, kind) {
     const { multiplier, label } = effectiveness(data.type, gloom.type);   // SUPER! against a type you beat, weak against one that beats you
-    const amount = Math.max(1, Math.round(base * multiplier * strength((hero.power || 10) * (hero.boost || 1))));   // types, then Power (and Overdrive)
-    const defeated = gloom.hit(amount, pushX, pushZ);
+    const guard = gloom.guard ? gloom.guard(label) : 1;   // a Shielder's bubble lets only a little through (gloom.js)
+    const amount = Math.max(1, Math.round(base * multiplier * guard * strength((hero.power || 10) * (hero.boost || 1))));   // types, then Power (and Overdrive)
+    const defeated = gloom.hit(amount, pushX, pushZ, label);
     const p = gloom.position;
-    if (events.hit) events.hit(gloom, amount, kind, label);
-    audio.play(label === 'weak' ? 'weak' : kind === 'big' ? 'bell' : 'tick', { pitch: random(0.92, 1.08) });
-    if (label === 'super') audio.play('super');
+    const shown = guard < 1 ? 'blocked' : label;   // what the pop-up says: SUPER!, weak, blocked or nothing
+    if (events.hit) events.hit(gloom, amount, kind, shown);
+    audio.play(shown === 'weak' || shown === 'blocked' ? 'weak' : kind === 'big' ? 'bell' : 'tick', { pitch: random(0.92, 1.08) });
+    if (shown === 'super') audio.play('super');
     combos.onHit(data.type, gloom, base, kind);   // Storm on a soaked Gloomling: Shock Chain
     if (defeated) audio.play('pop', { pitch: random(0.9, 1.1) });
     for (let i = 0; i < 5; i++) sparks.emit(p.x, 0.8, p.z, random(-3, 3), random(1, 4), random(-3, 3), 0.3, 0.12, 0xffe9a0, -9);

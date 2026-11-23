@@ -121,16 +121,18 @@
 - [x] **Stage 11: Village life (chunks 1 to 3).** Day and night, what the clan does by day, your own heroes
   live there. (The friendly spar and guest teammates are still to do: see the plan below.)
 
-### Next
-- [ ] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder,
-  Golden Gloom, mystery visitor, more combos. (Plan below.)
+- [x] **Stage 12: More enemies and surprises.** Brute, Spitter, Shielder and a rare Golden Gloom, used in
+  Chapter 1's rounds 3 to 5 with Pip's first-sight tips. (The mystery visitor and the new combos wait for new
+  heroes: see the plan below.)
 
 ### The adventure
-- [ ] **Stage 13: Chapters 2 and 3.** Tidecove (Tide, Rook) and Stormspire
-  (Volt, saving Rook), two Generals, two shards.
-- [ ] **Stage 14: Chapters 4 and 5.** Cinderpeak (Nyx appears, Marlo's death,
+- [ ] **Stage 13: Chapter 2, Tidecove.** A second chapter with its own look, Tide joining, Rook the rival,
+  General Undertow and the second memory shard. (Plan below.)
+- [ ] **Stage 14: Chapter 3, Stormspire.** Volt joins, Rook is saved and joins (a playable hero with Copycat),
+  General Static, the third shard.
+- [ ] **Stage 15: Chapters 4 and 5.** Cinderpeak (Nyx appears, Marlo's death,
   the first Awakening), the Heartlight finale, the epilogue.
-- [ ] **Stage 15: The Rift and secrets.** Endless mode, hidden aura forms.
+- [ ] **Stage 16: The Rift and secrets.** Endless mode, hidden aura forms.
 
 ## Stage 4 plan: the Newcomer and Marlo
 **Goal:** you play **Sol**, the Newcomer. The game opens with the falling star
@@ -788,7 +790,60 @@ one at a time in Chapter 1's rounds with a tip from Pip. (Plan written on Sonnet
   those heroes too.
 - **Chunks:** 1 the framework and the Brute; 2 the Spitter; 3 the Shielder; 4 the Golden Gloom; 5 using them in
   the rounds, Pip's tips, tests on both pages, republish.
-- **New file:** `src/enemies.js` (the new kinds). `heroes-data.js` gets the numbers (`ENEMIES`).
+- **No new game file** (the plan said `src/enemies.js`): the kinds are one `kind` option of `createGloomling` in
+  `gloom.js`, with their numbers in `ENEMIES` (`heroes-data.js`). Only a picture script was added: `tests/look-enemies.js`.
+
+**Built (all five chunks).**
+- `gloom.js`: `createGloomling({ ..., kind, events })`. The Brute is 1.9x the size with dark horns, 4x the health,
+  0.55x the speed, 2.2x the bump with a longer warning (0.65 s), and is shoved about half as far. The Spitter (pink,
+  small, an open mouth that swells) keeps 3.8 to 5.8 units away and spits a slow goo ball every 2.8 s at where you
+  stood: it flies 5.5 units a second, so stepping aside works; the goo goes when its Spitter does. The Shielder
+  (pale, with a low blue dome and a bright rim on the ground, 3.4 units wide) and everyone inside the dome take 10%
+  of any hit ("blocked" pop-up), except a SUPER hit on the Shielder itself, which pops the dome at full damage.
+  Without the right type the dome still cracks after 8 hits, so nobody is ever stuck. The Golden Gloom (gold,
+  glittering) runs from you at 1.9x the pace (sliding round the rim instead of sticking to it), never bumps, and
+  gets away after 15 s; it pays 15 Gloomlings' XP with a shower of gold and a "+45 XP" pop-up.
+- `powers.js`: asks the Gloom how much of a hit gets through (`gloom.guard(label)`), shows "blocked", passes the
+  label on. `waves.js`: a wave's list can say `"nature:brute"`; a Golden Gloom is an extra (it is not counted as a
+  Gloom left to beat, never holds a wave up, and slips away when the round is won); about 4 rounds in 10 have
+  one, after the first wave (only in real play: the automatic tests ask for it with `?debug&surprise`).
+  `rounds.js`: XP per kind, and `sighted()`: Pip says what a new kind is, once, ever (saved), and a Golden Gloom
+  gets a banner every time. `chapters.js`: round 3 has 0, 1, 2 and 2 Brutes a wave; round 4 has Spitters, then a
+  Brute and a Shielder; round 5 has one or two of everything before General Bramble. The Shielders are Nature, so
+  Ember's fire pops them (SUPER).
+- Tests: group 31 (13 checks: every number above, the dome, the cracks, the Golden Gloom's run, the waves'
+  lists, the surprise rule, Pip's words and the pay) and group 21's Old Oak expectation. A line-up picture of all
+  five kinds: `node tests/look-enemies.js <folder>`.
+- **Not tested:** how hard rounds 3 to 5 now feel on a phone (the numbers, in `ENEMIES`, are guesses: the Brute's
+  4x health and 2.2x bump, the Spitter's 2.8 s, the dome's 10%); nobody has heard the new sounds (they reuse the
+  old ones); the Golden Gloom's chase on a small screen.
+
+## Stage 13 plan: Chapter 2, Tidecove
+**Goal:** after the campfire of Chapter 1 the story goes on: the isle of Tidecove is tilting into the sea. Five more
+rounds with their own look and words, Tide joins you, Rook turns up and races you, the boss is General Undertow, and the
+night ends with the second memory shard (Lyra's first aura). Chapter 3 (Stormspire) is Stage 14.
+(Plan written on Sonnet from `STORY.md` and `CLAUDE.md`.)
+- **Chunk 1, chapters as a list.** One round number runs through the whole story (Chapter 1 is 1 to 5, Chapter 2 is 6 to
+  10), so a save that finished Chapter 1 simply carries on in Chapter 2. `chapters.js` gets `CHAPTERS[2]` and `roundInfo(n)`
+  (which chapter, which round of it, is it the last); "Round 2/5" counts inside the chapter; a new chapter opens with a
+  banner and a short scene on the new isle; each chapter has its own memory shard.
+- **Chunk 2, a look for each isle.** `world.setTheme('sunmeadow' | 'tidecove')` recolours the island (sand and teal
+  instead of grass and green), adds a ring of sea with waves, and changes the sky and the light. The same island shape,
+  so nothing else has to change.
+- **Chunk 3, Tide joins (the heroes are gated by the story).** Today everybody joins after the first win. Now: Ember
+  after round 1, Tide in Chapter 2's opening scene (she runs in like Ember did), Volt in Chapter 3, Rook at the end of it.
+  Saves that already have more heroes keep them. Tidecove's Gloomlings are Fire and Nature mixed with Water, so Tide's
+  water and Ember's fire both get their SUPER moments.
+- **Chunk 4, Rook the rival.** In Chapter 2's rounds Rook stands at the edge of the arena and races you: a small
+  "Rook 7 / You 9" count, banter bubbles, and a closing line that depends on who was ahead. He gets his model now (he
+  becomes playable in Stage 14).
+- **Chunk 5, General Undertow.** New boss in the same shape as Bramble: a fan of water bolts, a tidal slam, and a new
+  move, the surge (a band across the island is marked blue, then a wave sweeps through: step out of it). Under half
+  health he whirls and calls Gloomlings. Beaten, he is the tired young sailor he was, says his last words, and fades.
+  The crest (a crescent round a star) is on his armour: Marlo goes quiet.
+- **Chunk 6, the night, the shard, the tests.** Campfire scene 2 (Marlo, the crest, Lyra's first aura as the shard),
+  the end-of-chapter words, tests for all of it on both pages, a republish.
+- **Not in this stage:** Volt, Rook as a playable hero, General Static (Stage 14).
 
 ## Known problems and untested things
 - **Not tested on a real phone:** touch feel, real frame rate, pinch-zoom on
@@ -805,8 +860,8 @@ one at a time in Chapter 1's rounds with a tip from Pip. (Plan written on Sonnet
   (effects) and `src/music.js` / `src/music-data.js` (music).
 - Sound only starts after the first tap on the title screen (a browser rule).
 - Open differences from `CLAUDE.md`: no Awakenings or secret aura forms yet
-  (Stages 14 and 15); only Gloomlings so far (no Brutes, Spitters, Shielders or the
-  Golden Gloom: Stage 12); Rook is only a name on the Rankings board and the other
+  (Stages 14 and 15); the enemies so far are Gloomlings, Brutes, Spitters, Shielders and the Golden
+  Gloom (the Generals and Nyx come with their chapters); Rook is only a name on the Rankings board and the other
   11 heroes are not made yet; Ember, Tide and Volt all join after the first win (the
   story gates them in Stages 9 and 13); the other combos (Wildfire, Vortex Blast,
   Shatter) need heroes that come later; the squad screen asks "pick 3 of 4". The
